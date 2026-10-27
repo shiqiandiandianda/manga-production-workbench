@@ -21,26 +21,26 @@ import {validateProject} from '../lib/store.mjs';
 const {createCanvas}=createRequire(import.meta.url)(process.env.COMIC_TEST_CANVAS_MODULE),ctx=createCanvas(1000,1000).getContext('2d');
 const first=()=>({id:id('bubble'),type:'speech',visible:true,x:80,y:60,w:350,h:160,fontSize:36,text:'在下青城派掌门余沧海，阁下又是何人？',productionTextId:'E011-T001',productionSegment:'E011-S001',productionGridId:'E011-001',speaker:'余沧海',parentPanelId:'parent'});
 const second=()=>({...first(),id:id('bubble'),text:'刚才可是你杀了我门下弟子？',productionTextId:'E011-T004',y:230});
-test('合并保留两句原文及来源，一个外框和两套 SVG/Canvas 排字',()=>{
+test('合并保留两句原文及来源，固定字号并在溢出时提示',()=>{
  const a=first(),b=second(),snapshot=structuredClone([a,b]),merged=mergeDialogueBubbles(a,b),layout=bubbleLayout(ctx,merged);
- assert.equal(validDialogueSegments(merged),true);assert.deepEqual([a,b],snapshot);assert.deepEqual(bubbleSourceTextIds(merged),['E011-T001','E011-T004']);assert.equal(layout.dialogueLayouts.length,2);assert.equal(layout.overflow,false);
+ assert.equal(validDialogueSegments(merged),true);assert.deepEqual([a,b],snapshot);assert.deepEqual(bubbleSourceTextIds(merged),['E011-T001','E011-T004']);assert.equal(layout.dialogueLayouts.length,2);assert.equal(layout.overflow,true);assert.ok(layout.dialogueLayouts.every(part=>part.fontSize===merged.fontSize&&!part.autoFitted));
  assert.equal(layout.lines.map(l=>l.text).join(''),a.text+b.text);
- for(const part of layout.dialogueLayouts)for(const line of part.lines){assert.equal(line.overflow,false);assert.ok(line.width<=line.availableWidth+.01);}
+ for(const part of layout.dialogueLayouts)for(const line of part.lines)if(!line.overflow)assert.ok(line.width<=line.availableWidth+.01);
  assert.deepEqual(paintBubble(ctx,merged).dialogueLayouts,layout.dialogueLayouts);
- const svg=svgBubbleMarkup(ctx,merged);assert.equal((svg.match(/data-dialogue-segment=/g)||[]).length,2);assert.match(svg,/data-overflow="false"/);
+ const svg=svgBubbleMarkup(ctx,merged);assert.equal((svg.match(/data-dialogue-segment=/g)||[]).length,2);assert.match(svg,/data-overflow="true"/);
  const controls=svgBubbleSelectionMarkup(ctx,merged);assert.equal((controls.match(/<rect data-bubble-handle="segment-move"/g)||[]).length,2);assert.match(controls,/data-bubble-handle="segment-resize" data-bubble-point="1"/);
 });
 test('双圆新增第二段、独立改字/拖动/换行，另一段和气泡不动',()=>{
  const one=applyBubbleMaterial(first(),'builtin-double'),b=addDialogueSegment(one,'第二段'),before=structuredClone(b);
  const moved=applyBubbleEdit(b,{type:'segment-move',index:0,dx:10,dy:5});assert.ok(moved.dialogueSegments[0].independentBox.x>b.dialogueSegments[0].textBox.x*b.w);assert.deepEqual(moved.dialogueSegments[1],b.dialogueSegments[1]);assert.deepEqual([moved.x,moved.y,moved.w,moved.h],[b.x,b.y,b.w,b.h]);
  const resized=applyBubbleEdit(moved,{type:'segment-resize',index:1,dx:-25,dy:10});assert.deepEqual(resized.dialogueSegments[0],moved.dialogueSegments[0]);assert.ok(resized.dialogueSegments[1].independentBox.w<moved.dialogueSegments[1].textBox.w*b.w);
- const edited=bubbleFieldChange(resized,'bubble-segment-1','text','单独编辑第二段\n保留回车');assert.equal(edited.dialogueSegments[0].text,b.text.split('\n\n')[0]);assert.match(edited.text,/单独编辑第二段/);assert.equal(validDialogueSegments(edited),true);assert.deepEqual(b,before);assert.equal(bubbleLayout(ctx,edited).overflow,false);
+ const edited=bubbleFieldChange(resized,'bubble-segment-1','text','单独编辑第二段\n保留回车');assert.equal(edited.dialogueSegments[0].text,b.text.split('\n\n')[0]);assert.match(edited.text,/单独编辑第二段/);assert.equal(validDialogueSegments(edited),true);assert.deepEqual(b,before);const layout=bubbleLayout(ctx,edited);assert.equal(layout.overflow,true);assert.ok(layout.dialogueLayouts.every(part=>part.fontSize===edited.fontSize&&!part.autoFitted));assert.equal(layout.lines.map(line=>line.text).join(''),edited.text.replaceAll('\n',''));
  assert.throws(()=>addDialogueSegment(edited),/已有两段/);assert.throws(()=>mergeDialogueBubbles({...first(),locked:true},second()),/解锁/);assert.throws(()=>mergeDialogueBubbles(first(),{...second(),parentPanelId:'other'}),/同一格/);
 });
-test('长文、手动换行、竖排和外框缩放均保留两段且自动适配',()=>{
+test('长文、手动换行、竖排和外框缩放均保留两段和用户字号',()=>{
  for(const mode of ['horizontal','vertical'])for(const size of [160,350,800]){
   const b=mergeDialogueBubbles(first(),second(),{x:20,y:20,w:size,h:size*.9});b.fontSize=72;b.writingMode=mode;b.dialogueSegments[1].text='这是很长的第二段台词，必须完整放在气泡里面。'.repeat(8);b.text=b.dialogueSegments.map(s=>s.text).join('\n\n');
-  const l=bubbleLayout(ctx,b);assert.equal(l.overflow,false);assert.equal(l.lines.map(l=>l.text).join(''),b.text.replaceAll('\n',''));assert.equal(validDialogueSegments(b),true);
+  const l=bubbleLayout(ctx,b);assert.equal(l.lines.map(l=>l.text).join(''),b.text.replaceAll('\n',''));assert.equal(validDialogueSegments(b),true);assert.equal(l.overflow,l.dialogueLayouts.some(part=>part.overflow));assert.ok(l.dialogueLayouts.every(part=>part.fontSize===72&&!part.autoFitted));
  }
 });
 test('上圆移动不改变文字框；保存校验拒绝坏数据',()=>{

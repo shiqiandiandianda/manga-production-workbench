@@ -19,6 +19,8 @@
     "comic/tests/panel-references.test.mjs",
     "comic/tests/asset-bindings.test.mjs",
     "comic/tests/bubble-editor.test.mjs",
+    "comic/tests/double-dialogue.test.mjs",
+    "comic/tests/lettering.test.mjs",
     "comic/tests/project-management.test.mjs",
     "comic/tests/project-sync.test.mjs",
     "comic/tests/formal-version-security.test.mjs",

@@ -57,7 +57,7 @@ const features = [
   feature('画布与画格','自动裁格、手工修正与裁格来源','裁格排字','comic/lib/panel-slices-api.mjs,comic/public/panel-slices-lettering-ui.js','panel-slices,production-lettering-edit,production-package',true,'合成浏览器验证空泡人工定位；真实成图的视觉效果仍须用户核对'),
   feature('画布与画格','按已有成图裁格并重排，结果接回来源工程','整话自动排版','comic/lib/reflow-preparation.mjs,comic/lib/auto-layout-api.mjs','',true,'本次仅登记入口和来源保护逻辑；新版本真实页面及接回闭环未独立验收'),
   feature('画布与画格','自动排版预览、调整构图与人工修正','自动排版','comic/public/auto-layout-ui.js,comic/public/artwork-framing.mjs,comic/public/production-episode-layout.js','storyboard-layout-batch,comic/quality/cases/episode-layout-modes.test.mjs',true,'合成资料验证屏段模式、整话坐标与图片身份；真实工作台接口验证冲突和保存重开，外部排版服务与页面视觉质量未逐项验收'),
-  feature('文字和气泡','手工对白、旁白、说话人与文字内容','文字工具','comic/public/bubble-editor.js','lettering,bubble-editor',true),
+  feature('文字和气泡','手工对白、旁白、说话人与文字内容','文字工具','comic/public/bubble-editor.js','lettering,bubble-editor,double-dialogue',true,'合成测试验证完整对白、固定字号、溢出提示及人工适配；真实素材视觉效果未验收'),
   feature('文字和气泡','移动文字框、气泡框、尾巴及节点','文字属性','comic/public/bubble-editor.js','bubble-editor,browser-bubble-text-frame',true),
   feature('文字和气泡','字体、字号、间距、颜色与排版','文字属性','comic/public/bubble-text-flow.js','unified-typography,browser-bubble-text-frame'),
   feature('文字和气泡','气泡素材、样式与墨库固定版本','气泡选择','comic/public/bubble-material.js','bubble-material,bubble-recovery,browser-bubble-material',true,'浏览器验证内置样式及合成纹理的切换、撤销与保存；墨库样式页面联动仍需验收'),

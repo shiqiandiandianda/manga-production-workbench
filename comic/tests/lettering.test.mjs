@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProject} from '../public/model.js';
 import {validateProject,uid} from '../lib/store.mjs';
-import {BUBBLE_TYPES,BUBBLE_SHAPES,bubbleLayout,thoughtOutlinePoints,paintBubble,svgBubbleMarkup} from '../public/lettering.js';
+import {BUBBLE_TYPES,BUBBLE_SHAPES,bubbleLayout,fitDialogueBubble,thoughtOutlinePoints,paintBubble,svgBubbleMarkup} from '../public/lettering.js';
 import {paintPage,wrapText} from '../public/render.js';
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -192,14 +192,14 @@ test('椭圆内逐行安全宽度随纵向收窄，换行后文字不贴边也�
   }
 });
 
-test('自动适配保留全部原文，自动扩泡按设置扩大且不改写工程',()=>{
+test('固定字号保留全部原文并提示溢出，明确适配气泡时才改变尺寸',()=>{
   const value=bubble('speech',{shape:'oval',w:60,h:30,text:'所有问号都应完整显示？！'}),snapshot=structuredClone(value),context=contextSpy();
-  const visible=bubbleLayout(context,value);assert.equal(visible.overflow,false);assert.equal(visible.autoFitted,true);assert.equal(visible.expanded,false);
+  const visible=bubbleLayout(context,value);assert.equal(visible.overflow,true);assert.equal(visible.autoFitted,false);assert.equal(visible.expanded,false);assert.equal(visible.fontSize,value.fontSize);
   paintBubble(context,value);assert.equal(calls(context,'clip').length,0);assert.equal(calls(context,'fillText').map(call=>call.args[0]).join(''),value.text);
-  assert.match(svgBubbleMarkup(contextSpy(),value,{selected:true}),/data-overflow="false"/);assert.match(svgBubbleMarkup(contextSpy(),value),/overflow="visible"/);
-  const expanded=bubbleLayout(contextSpy(),{...value,overflow:'expand'});
-  assert.equal(expanded.expanded,true);assert.equal(expanded.overflow,false);assert.ok(expanded.w>value.w&&expanded.h>value.h);
-  assert.deepEqual(value,snapshot);assert.ok(visible.fontSize<value.fontSize);
+  assert.match(svgBubbleMarkup(contextSpy(),value,{selected:true}),/data-overflow="true"/);assert.match(svgBubbleMarkup(contextSpy(),value),/overflow="visible"/);
+  const fitted=fitDialogueBubble(contextSpy(),value),expanded=bubbleLayout(contextSpy(),fitted);
+  assert.equal(expanded.overflow,false);assert.ok(fitted.w>value.w&&fitted.h>value.h);assert.equal(fitted.fontSize,value.fontSize);
+  assert.deepEqual(value,snapshot);
 });
 
 test('所有形状的颜色、描边与字体配置在SVG和Canvas中一致',()=>{

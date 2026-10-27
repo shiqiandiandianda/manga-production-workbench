@@ -5,6 +5,12 @@ import path from 'node:path';
 import http from 'node:http';
 import {spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
+import {privilegedFixtureReason} from '../privileged-fixtures.mjs';
+
+test('旧测试中会创建或读取管理员令牌的夹具必须在启动前阻断',()=>{
+ for(const file of ['center/tests/http.test.mjs','comic/tests/asset-center.integration.test.mjs','comic/tests/asset-generator.integration.test.mjs'])assert.match(privilegedFixtureReason(file),/管理员令牌/);
+ assert.equal(privilegedFixtureReason('comic/tests/model.test.mjs'),'');
+});
 
 test('测试隔离：仅已登记的本机服务可访问，浏览器不能直连其他本机或外部地址',{timeout:30000},async t=>{
   const ports=process.env.QUALITY_PORTS_FILE;

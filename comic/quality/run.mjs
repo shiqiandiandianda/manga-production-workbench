@@ -7,6 +7,7 @@ import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import catalog from './catalog.mjs';
 import {classifyOutcome} from './outcomes.mjs';
+import {privilegedFixtureReason} from './privileged-fixtures.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
@@ -145,6 +146,12 @@ function proxyFor(portFile) {
 const timeout = Math.max(1, Number(get('timeout','150'))) * 1000;
 async function run(file,index,stage) {
   const name = String(index+1).padStart(3,'0') + '-' + path.basename(file);
+  const blockedReason=privilegedFixtureReason(file);
+  if(blockedReason){
+    const log='logs/'+name+'.log';fs.writeFileSync(path.join(output,log),blockedReason+'\n');
+    results.push({file,status:'blocked',kind:'privileged_fixture',exitCode:null,seconds:0,pass:0,fail:0,skip:0,log});
+    report();console.log(`[${results.length}/${selected.length}] blocked ${file} (privileged fixture)`);return;
+  }
   const runDir = path.join(output,'d',String(index+1)), home = path.join(runDir,'h'), portFile = path.join(runDir,'ports.txt');
   fs.mkdirSync(path.join(home,'.codex'),{recursive:true});
   fs.mkdirSync(path.join(home,'.cache/codex-runtimes/codex-primary-runtime'),{recursive:true});

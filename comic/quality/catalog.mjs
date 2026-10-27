@@ -14,7 +14,7 @@ const features = [
   feature('项目和话','保存到指定 JSON 文件、重新写回及外部修改冲突','工程文件保存','comic/public/project-file-save.js,comic/public/project-file-handles.js','comic/quality/cases/upstream-workflows.test.mjs',true,'合成文件句柄验证写入、取消、切换与外部修改冲突；浏览器权限恢复未逐项验收'),
   feature('项目和话','每话工程版本烙印与多版本合并','本话版本','comic/lib/formal-engineering-versions.mjs,comic/public/formal-engineering-versions.js','comic/quality/cases/moku-real-contract.test.mjs,comic/quality/cases/formal-version-ui.test.mjs,comic/quality/cases/toolbar-layout.test.mjs',true,'隔离墨库合成数据验证明确基准、固定引用、冲突、合并与回执恢复；多话未识别的额外字段会阻止提交，生产未验收'),
   feature('制作资料','分镜表和 XLSX 导入','制作资料导入','comic/lib/storyboard-import.mjs','storyboard-direct,browser-xlsx-import',true),
-  feature('制作资料','整套制作资料预览、校验和导入','制作资料面板','comic/lib/production-package.mjs','production-package,import-file-roles',true),
+  feature('制作资料','整套制作资料预览、校验和导入','制作资料面板','comic/lib/production-package.mjs','production-package,import-file-roles,comic/quality/cases/moku-real-contract.test.mjs',true,'本地合成资料及隔离墨库 2.0.1 验证固定版本读取、摘要及扫描时会话切换；生产数据未验收'),
   feature('制作资料','屏段、源格、原文、提示词与附图关联','制作资料与画格','comic/public/production-package-model.js','production-storyboard,production-package',true),
   feature('制作资料','制作资料增量更新保留人工编辑','制作资料更新','comic/lib/production-package.mjs','production-package'),
   feature('制作资料','缺失参考检查与人工确认','制作资料预检','comic/public/production-reference-audit.js','production-reference-autofill,production-package',true),
@@ -90,7 +90,7 @@ const features = [
 const flow = (name,steps,tests,core=false,boundary='本机合成数据') => ({name,steps,tests:t(...tests.split(',').filter(Boolean)),core,boundary});
 const flows = [
   flow('打开项目并切换话','启动 → 打开工程 → 选择话 → 查看本话画布和资产 → 切换后核对范围','browser-project-switch,episode-assets-navigation',true),
-  flow('导入制作资料','选择分镜和资料 → 预览校验 → 确认导入 → 核对屏段、原文及参考 → 保存','production-package,production-workflow-api,import-file-roles',true),
+  flow('导入制作资料','选择分镜和资料 → 预览校验 → 确认导入 → 核对屏段、原文及参考 → 保存','production-package,production-workflow-api,import-file-roles,comic/quality/cases/moku-real-contract.test.mjs',true,'本地合成资料和隔离墨库；墨库读取期间切换账号会中止扫描'),
   flow('墨库登录和恢复','合成账号登录 → 会话失效 → 退出或重新连接 → 切换账号 → 阻止旧请求回填','asset-moku-session,moku-only-adapter,comic/quality/cases/moku-login-ui.test.mjs,comic/quality/cases/moku-http-flow.test.mjs',true,'模拟及隔离墨库会话'),
   flow('查找并引用墨库素材','选项目／话 → 查询分类 → 搜索角色或场景 → 选择版本 → 固定引用','moku-classified-reader,moku-reference-flow',true,'模拟墨库分类接口'),
   flow('补建与选用素材','检查缺图 → 创建生成任务 → 查看候选 → 人工选用 → 绑定到画格','asset-generator.integration,reference-generation-results'),

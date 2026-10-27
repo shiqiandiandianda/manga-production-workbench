@@ -78,7 +78,7 @@ test('资产绑定需求等辅助JSON含屏段数组时仍只作为来源保留'
 test('真正的文字层缺少版本时指出文件和未声明状态',async()=>{
  const files=sourceFiles(),text=JSON.parse(files[1].bytes);delete text['版本'];
  await assert.rejects(inspectProductionPackage([files[0],sourceFile(files[1].relativePath,text)]),error=>{
-  assert.match(error.message,/版本：未声明/);assert.ok(error.message.includes(files[1].relativePath));return true;
+  assert.match(error.message,/版本缺失|版本：未声明/);assert.ok(error.message.includes(files[1].relativePath));return true;
  });
 });
 

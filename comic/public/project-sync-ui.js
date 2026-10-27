@@ -31,7 +31,7 @@ export function mountProjectSyncUI({getProject,getJobs=()=>null,api,toast,openLi
     if(connected===false){set({kind:'off',text:'墨库未登录',title:'点击直接输入墨库账号和密码'});return;}
     if(!project){set({kind:'idle',text:'墨库',title:'打开工程后，保存会自动上传工程快照'});return;}
     if(busy){set({kind:'busy',text:'上传中…',title:'正在把当前工程快照上传到墨库'});return;}
-    if(state.setupRequired){set({kind:'pending',text:'选择墨库归属',title:'本机已保存；点击选择项目、角色或场景并首次共享工程'});return;}
+    if(state.setupRequired){set({kind:'pending',text:'选择墨库归属',title:'本机已保存；点击选择项目和话，角色或场景可选'});return;}
     if(state.error){set({kind:'error',text:'墨库同步失败',title:summary(state.error)+'（点击重试）'});return;}
     if(state.pending){set({kind:'pending',text:'墨库待上传',title:'本次保存的快照等待上传；点击立即上传'});return;}
     if(state.syncedAt){
@@ -73,7 +73,7 @@ export function mountProjectSyncUI({getProject,getJobs=()=>null,api,toast,openLi
     try{
       const result=await api('/api/project-sync/push','POST',{projectId:project.id});
       state=result.state||state;
-      toast?.(result.status==='generating'?'生成中，已暂停上传；生成结束后继续同步':result.status==='unchanged'?'墨库已有最新工程快照':`已上传工程快照到墨库${result.target?.name?' · '+result.target.name:''}`);
+      toast?.(result.status==='formal-only'?'本机已保存；请在“本话版本”提交正式版本':result.status==='generating'?'生成中，已暂停上传；生成结束后继续同步':result.status==='unchanged'?'墨库已有最新工程快照':`已上传工程快照到墨库${result.target?.name?' · '+result.target.name:''}`);
     }catch(error){try{const latest=await api('/api/project-sync/status?projectId='+encodeURIComponent(project.id));state=latest;if(latest.setupRequired&&openSetup)await openSetup();else toast?.('上传墨库失败：'+(latest.error||error.message),true);}catch{toast?.('上传墨库失败：'+error.message,true);}}
     finally{busy=false;await refresh({force:true});}
   });

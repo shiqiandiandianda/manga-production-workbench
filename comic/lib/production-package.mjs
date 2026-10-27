@@ -69,7 +69,16 @@ export async function inspectProductionPackage(files){
   }
  }
  // Only official storyboard files participate in episode matching; other JSON originals remain in the manifest.
- for(const [episode,sources]of boardSources){const priority=Math.max(...sources.map(source=>source.priority)),selected=sources.filter(source=>source.priority===priority);if(selected.length>1)fail('同一话有多个分镜JSON版本：第'+episode+'话（'+selected.map(source=>source.file).join('、')+'）');const {data,file}=selected[0];boards.set(episode,{data,file});}
+ for(const [episode,sources]of boardSources){
+  // An explicit formal declaration is authoritative even in a directory
+  // named 底稿. Do not silently discard a second declared formal source just
+  // because another path has a higher folder priority.
+  const declared=sources.filter(source=>/^分镜\s*JSON(?:\s|\d|$)/i.test(String(source.data['格式']||'')));
+  const priority=Math.max(...sources.map(source=>source.priority));
+  const selected=declared.length?declared:sources.filter(source=>source.priority===priority);
+  if(selected.length>1)fail('同一话有多个分镜JSON版本：第'+episode+'话（'+selected.map(source=>source.file).join('、')+'）');
+  const {data,file}=selected[0];boards.set(episode,{data,file});
+ }
  if(!screens.size)fail('资料包缺少“屏段文字层.json”；请选包含屏段提示词目录的完整资料夹');if(screens.size>100)fail('一次最多导入100话');
  const boardTitles=new Set([...boards.values()].map(v=>String(v.data['作品']||'').trim())),titles=[...screens.values()].map(v=>String(v.data['作品']||'').trim());if(boardTitles.size>1)fail('逐格分镜的正式作品名称不一致');const title=[...boardTitles][0]||[...titles].sort((a,b)=>b.length-a.length)[0];if(!title)fail('资料包缺少作品名');for(const t of titles){if(t===title)continue;if(t&&[t+'，',t+',',t+' '].some(prefix=>title.startsWith(prefix)))issue('warning','屏段采用作品简称“'+t+'”，正式名称取逐格分镜“'+title+'”');else fail('资料包作品名称不一致');}
  for(const [ep,{data,file}] of [...screens].sort(([a],[b])=>a-b)){

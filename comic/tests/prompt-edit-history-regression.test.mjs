@@ -49,3 +49,13 @@ test('backend validates edited prompt keys, type and length while retaining lega
  for(const value of [[],{wrong:'x'},{imported:3},{imported:'a'.repeat(20001)}]){f.generation.promptOverrides=value;assert.throws(()=>validateProject(p),/修改提示词/);}
  f.generation.promptOverrides={imported:'有效本格修改',direct:'', 'post-lettering':'无泡'};assert.doesNotThrow(()=>validateProject(p));
 });
+
+test('旧工程本格手改相对来源快照迁移为独立修改，恢复原文后不会复活',()=>{
+ const {p,f,s}=fixture();f.generation.prompt='旧工作台手改的本格';ensureProjectPanelGeneration(p);
+ assert.equal(generationPromptSelection(f,p).text,'旧工作台手改的本格');assert.equal(s.productionPrompt,'导入原文：甲站在院内。');
+ assert.equal(restorePanelPromptText(f),true);ensureProjectPanelGeneration(p);assert.equal(generationPromptSelection(f,p).text,s.productionPrompt);
+});
+test('来源更新而本格未手改，不将旧来源误判为本格修改',()=>{
+ const {p,f,s}=fixture();s.productionPrompt='新的分镜原文';s.sourceFields['生图提示词']=s.productionPrompt;ensureProjectPanelGeneration(p);
+ assert.equal(generationPromptSelection(f,p).text,'新的分镜原文');assert.equal(f.generation.promptOverrides,undefined);
+});

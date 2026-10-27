@@ -34,8 +34,8 @@ test('未确认生图、过期生图和正式工作流自有角色卡不会当�
  const p=project();p.productionAssets=[identity('C001','陈墨')];const assets=[image('陈墨.png',{productionStatus:'candidate'}),image('陈墨.png',{productionStatus:'stale'}),image('陈墨.png',{productionStatus:'confirmed',productionAssetId:'C001',productionStageId:'role-card',libraryRole:'character',libraryName:'陈墨'})],plan=inspectProductionAssetReferences(p,assets);assert.equal(plan.matched,0);assert.equal(plan.actions.length,0);assert.equal(plan.missing,1);
 });
 
-test('现有本话需求的一键匹配补唯一名称项，尊重人工选择和跳过，不盲选多状态',()=>{
- const p=project();p.shots[0].participants='陈墨、宋茜、老王';const actor=image('CHAR_001_陈墨_官服.png'),a=image('CHAR_002_宋茜_红衣.png'),b=image('CHAR_003_宋茜_白衣.png'),old=image('CHAR_004_老王_设定.png');const assets=[actor,a,b,old],base=inspectAssetBindings(p,assets),skipped=base.needs.find(n=>n.name==='老王').id,choice=automaticAssetBindingChoices(p,assets,{choices:{[skipped]:null}});assert.equal(choice.preview.needs.find(n=>n.name==='陈墨').assetId,actor.id);assert.equal(choice.preview.needs.find(n=>n.name==='宋茜').assetId,null);assert.equal(choice.choices[skipped],null);assert.equal(choice.preview.needs.find(n=>n.name==='老王').status,'skipped');
+test('一键匹配只采用服装明确且唯一的角色，尊重跳过并保留多状态待核对',()=>{
+ const p=project();p.shots[0].participants='陈墨、宋茜、老王';const actor=image('CHAR_001_陈墨_官服.png'),a=image('CHAR_002_宋茜_红衣.png'),b=image('CHAR_003_宋茜_白衣.png'),old=image('CHAR_004_老王_设定.png');const assets=[actor,a,b,old];assert.equal(automaticAssetBindingChoices(p,assets).preview.needs.find(n=>n.name==='陈墨').assetId,null,'没有明确服装时不能自动选图');p.shots[0].characterStates='陈墨:官服';const base=inspectAssetBindings(p,assets),skipped=base.needs.find(n=>n.name==='老王').id,choice=automaticAssetBindingChoices(p,assets,{choices:{[skipped]:null}});assert.equal(choice.preview.needs.find(n=>n.name==='陈墨').assetId,actor.id);assert.equal(choice.preview.needs.find(n=>n.name==='宋茜').assetId,null);assert.equal(choice.choices[skipped],null);assert.equal(choice.preview.needs.find(n=>n.name==='老王').status,'skipped');
 });
 
 test('本话自动应用保持手动参考与锁定画格、对白、提示词和轮廓',()=>{

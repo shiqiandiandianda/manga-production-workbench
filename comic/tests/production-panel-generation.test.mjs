@@ -78,7 +78,11 @@ test('已选人物图且原服装为空：页面可重做、单格与整屏逐�
  const context=await browser.newContext({viewport:{width:1864,height:949}});await context.addInitScript(()=>localStorage.setItem('comic-generation-provider','codex'));
  await context.route('**/api/library/**',route=>route.fulfill({json:{connected:false,items:[]}}));const view=await context.newPage(),errors=[];view.on('pageerror',error=>errors.push(error.message));
  await view.goto(f.origin+'/?project='+f.project.id);await view.waitForSelector('#canvas-tool-dock');if(!await view.locator('[data-production-unit]').isVisible())await view.locator('[data-rail-tab=production]').click();await view.locator('[data-production-unit]').selectOption('panel');
- await view.locator('[data-production-generate-one]').waitFor();assert.equal(await view.locator('[data-production-generate-one]').isEnabled(),true);assert.doesNotMatch(await view.locator('#production-tab').innerText(),/人物服装未对应/);
+ await view.locator('[data-production-generate-one]').waitFor();
+ // Switching generation units is asynchronous and deliberately disables the
+ // controls until the save and selection finish. Wait for the actual result.
+ await view.waitForFunction(()=>{const button=document.querySelector('[data-production-generate-one]');return button&&!button.disabled;},null,{timeout:15000});
+ assert.doesNotMatch(await view.locator('#production-tab').innerText(),/人物服装未对应/);
  await view.screenshot({path:path.join(evidence,'selected-reference-empty-source-costume.png')});
  await view.locator('[data-production-generate-one]').click();await until(()=>f.studio.store.db.jobs.at(-1)?.status==='done');assert.equal(f.calls.length,1);assert.ok(f.calls[0].referenceRoles.some(r=>r.assetId===f.assets[0].id));assert.equal(f.calls[0].shot.productionPrompt,clean);
  await f.action('panels',{mode:'clean'});await f.api('/api/jobs',{projectId:f.project.id,panelIds:prepared.panelIds,provider:'codex',expectedRevision:f.project.revision});await until(()=>f.studio.store.db.jobs.length===3&&f.studio.store.db.jobs.every(j=>j.status==='done'));assert.equal(f.calls.length,3);

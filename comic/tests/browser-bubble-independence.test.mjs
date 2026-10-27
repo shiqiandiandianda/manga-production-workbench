@@ -1,5 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import {createRequire} from 'node:module';import {createStudio} from '../server.mjs';import {createProject} from '../public/model.js';import {migrateLayerDocument,normalizeLayerOrder} from '../public/layers.js';import {addDialogueSegment} from '../public/bubble-dialogue-segments.js';import {applyBubbleMaterial} from '../public/bubble-material.js';
 const require=createRequire(import.meta.url),{chromium}=require('playwright'),evidence=path.resolve('../verification/bubble-text-independence-20261027');
+fs.mkdirSync(evidence,{recursive:true});
 test('浏览器拖动普通及双圆气泡，保持文字排版并保存重开',{timeout:80000},async t=>{
  const dir=fs.mkdtempSync(path.join(evidence,'fixture-')),studio=createStudio({dataDir:dir,seedReference:false,bridge:{status:async()=>({connected:false}),close(){}},jimengBridge:{close(){}}}),p=migrateLayerDocument(createProject('文字框独立验收')).project;p.pages=p.pages.slice(0,1);const pg=p.pages[0];pg.panels=pg.panels.slice(0,1);pg.height=1400;
  const one={id:'bubble_00000000-0000-4000-8000-000000000001',type:'speech',text:'小矮子，你是打不过本女侠，准备找家长告状？',x:100,y:150,w:360,h:190,fontSize:36,fontFamily:'source-han-sans',fontWeight:600,lineHeight:1.33,shape:'oval',visible:true,productionTextId:'E031-T001'};

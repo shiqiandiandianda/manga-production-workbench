@@ -13,6 +13,8 @@ runtime-data/
 **/verification/
 **/cache/
 **/logs/
+/quality-runs/
+/.quality-deps/
 *.log
 *.local.json
 .env

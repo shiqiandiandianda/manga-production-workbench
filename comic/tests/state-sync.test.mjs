@@ -6,14 +6,14 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createStudio} from '../server.mjs';
 import {createStateSync} from '../public/state-sync.js';
+import {listenForFetch} from './helpers/listen-for-fetch.mjs';
 
 async function fixture(t){
  const temporaryRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../.test-temp');fs.mkdirSync(temporaryRoot,{recursive:true});
  const dir=fs.mkdtempSync(path.join(temporaryRoot,'state-sync-'));
  const studio=createStudio({dataDir:dir,seedReference:false,bridge:{status:async()=>({connected:true,imageFeature:true}),generate:async()=>new Promise(()=>{})}});
- await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));
+ const url=await listenForFetch(studio.server);
  t.after(async()=>{studio.close();await new Promise(r=>studio.server.close(r));fs.rmSync(dir,{recursive:true,force:true});});
- const url=`http://127.0.0.1:${studio.server.address().port}`;
  const raw=async(route,method='GET',value)=>{const r=await fetch(url+route,{method,headers:value?{'Content-Type':'application/json'}:undefined,body:value?JSON.stringify(value):undefined});const text=await r.text();return {status:r.status,data:JSON.parse(text),bytes:Buffer.byteLength(text)};};
  const api=async(route,method,value)=>{const r=await raw(route,method,value);if(r.status>=400)throw new Error(r.data.error);return r.data;};
  return {studio,raw,api};

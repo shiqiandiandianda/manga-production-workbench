@@ -20,6 +20,11 @@ const CONTENT_VERSION=1;
 const LOCAL_ONLY_FIELDS=['layoutHistory','layoutImports','designHistory','storyboardWorkflow','novelProductionWorkflow','productionAssets'];
 const ASSET_ID=/^asset_[0-9a-f-]{36}$/i;
 const MAX_REFERENCES=2000;
+function boundedReferences(values){
+  const references=[...new Set(values.filter(Boolean))];
+  if(references.length>MAX_REFERENCES)throw Object.assign(new Error('工程包含 '+references.length+' 个固定版本引用，超过单次支持的 '+MAX_REFERENCES+' 个；请先处理后重试，未截断引用'),{status:413,code:'project_snapshot_too_many_refs'});
+  return references;
+}
 const RETRY_DELAYS=[30*1000,2*60*1000,5*60*1000];
 const sha256=text=>createHash('sha256').update(text).digest('hex');
 const text=value=>String(value??'').trim();
@@ -35,6 +40,9 @@ function collectAssetIds(value,into=new Set(),depth=0){
 
 function friendly(error){
   const status=Number(error?.status)||0;
+  if(error?.code==='FORMAL_COMMIT_REQUIRED')return '墨库已登记正式工程；本机工程已保留，请打开“本话版本”选择正式基准后提交';
+  if(error?.code==='project_snapshot_rejected')return '墨库拒绝了带固定版本引用的工程快照；本机工程已保留，未移除引用。请核对素材版本和归属后手动重试：'+text(error.message);
+  if(error?.code==='project_snapshot_too_many_refs')return text(error.message)+'；本机工程已保留';
   if(status===401||status===403)return '墨库会话已失效，请在“参考图 · 墨库素材”里重新登录';
   if(status===404)return '墨库接口或文档不存在（'+text(error.message)+'）';
   if(status===409)return '墨库文档版本冲突，稍后自动重试';
@@ -45,7 +53,7 @@ function friendly(error){
 }
 
 export function createProjectSync({
-  dataDir,store,library,projectView,json,body,
+  dataDir,store,library,projectView,json,body,isFormallyManaged=()=>false,
   enabled=process.env.COMIC_PROJECT_SYNC!=='0',
   debounceMs=Math.max(1000,Number(process.env.COMIC_PROJECT_SYNC_DELAY)||8000),
 }={}){
@@ -79,7 +87,7 @@ export function createProjectSync({
     const view=projectView(project);
     for(const key of LOCAL_ONLY_FIELDS)delete view[key];
     const assets=manifest(view);
-    const references=[...new Set(assets.map(asset=>asset.library?.revisionId).filter(Boolean))].slice(0,MAX_REFERENCES);
+    const references=boundedReferences(assets.map(asset=>asset.library?.revisionId));
     return {view,assets,references};
   }
 
@@ -130,11 +138,8 @@ export function createProjectSync({
     const input={...payload.input};
     try{return await run(input);}
     catch(error){
-      if([400,422].includes(Number(error?.status))&&input.references?.length){
-        item.warning='墨库未接受固定版本引用，本次快照按无引用保存';
-        delete item.idempotency;delete item.idempotencyDigest;
-        return await run({...input,references:[]});
-      }
+      if([400,422].includes(Number(error?.status))&&input.references?.length)
+        throw Object.assign(new Error(error.message),{status:error.status,code:'project_snapshot_rejected',cause:error});
       throw error;
     }
   }
@@ -147,7 +152,7 @@ export function createProjectSync({
     const attempt=()=>sendWrite(item,digest,'/api/documents/'+encodeURIComponent(item.documentId),{method:'PUT',input:{...input,objectVersion:item.objectVersion??null}});
     try{return await attempt();}
     catch(error){
-      if(Number(error?.status)!==409)throw error;
+      if(Number(error?.status)!==409||error?.code==='FORMAL_COMMIT_REQUIRED')throw error;
       const current=await library.read('/api/documents/'+encodeURIComponent(item.documentId));
       check(Number.isInteger(current?.objectVersion),'墨库文档缺少版本号，无法覆盖');
       const remoteContent=current.content??current.revision?.content;
@@ -164,8 +169,11 @@ export function createProjectSync({
     check(!project.deletedAt,'工程已删除，停止上传快照');
     if(!enabled)throw Object.assign(new Error('工程快照同步已停用'),{status:503});
     const item=state.projects[projectId]||(state.projects[projectId]={});
+    if(isFormallyManaged(projectId)||Object.keys(project.formalVersionBindings||{}).length){item.pending=false;delete item.error;delete item.blockedReason;persist();return {status:'formal-only',projectId,message:'本机自动保存不会发布正式版本，请使用本话版本提交'};}
     if(generation(projectId).active){item.pending=true;item.nextAttemptAt=Date.now()+2000;persist();scheduleWake();return {status:'generating',state:status(projectId)};}
-    if(!item.documentId&&!item.classification&&await library.supportsClassified?.())throw Object.assign(new Error('请先设置工程的墨库项目、角色或场景；本机工程已保存'),{status:409,code:'project_classification_required'});
+    const classified=await library.supportsClassified?.();
+    if(!item.documentId&&!item.classification&&classified)throw Object.assign(new Error('请先选择墨库项目和话；角色或场景可选，本机工程已保存'),{status:409,code:'project_classification_required'});
+    if(classified){const me=await library.read('/api/auth/me'),accountId=me.user?.id||me.id;if(!/^[a-f0-9-]{36}$/i.test(accountId||''))throw Object.assign(Error('请先登录墨库并重新确认同步归属'),{status:401});if(item.ownerAccountId!==accountId)throw Object.assign(Error('墨库账号已变化或原同步账号未知；请重新确认项目和话，本机工程已保留'),{status:409,code:'project_account_confirmation_required'});}
     const {view,assets,references}=snapshot(project);
     // revision/updated 每次保存都会刷新（即使内容完全相同）；只用正文摘要判断是否真的变了。
     const digest=sha256(JSON.stringify({project:{...view,revision:null,updated:null},assets}));
@@ -183,7 +191,7 @@ export function createProjectSync({
     item.pending=true;persist();
     const pack=async forceAsset=>{const result=await encodeProjectSnapshot(content,library,{projectId:target.projectId,forceAsset,uploadedAsset:item.pendingUpload,inlineOnly:await library.supportsClassified?.()});if(result.uploadedAsset){item.pendingUpload=result.uploadedAsset;persist();}return result;};
     let packed=await pack(false);
-    let input={...(item.classification?{classification:item.classification}:{}),name:name.slice(0,180),schemaVersion:packed.schemaVersion,content:packed.content,references:[...new Set([...packed.references,...references])].slice(0,MAX_REFERENCES)};
+    let input={...(item.classification?{classification:item.classification}:{}),name:name.slice(0,180),schemaVersion:packed.schemaVersion,content:packed.content,references:boundedReferences([...packed.references,...references])};
     let document;
     const write=async()=>{
     if(item.documentId){
@@ -198,7 +206,7 @@ export function createProjectSync({
     try{await write();}catch(error){
       if(Number(error?.status)!==413)throw error;
       packed=await pack(true);
-      input={...input,schemaVersion:packed.schemaVersion,content:packed.content,references:[...new Set([...packed.references,...references])].slice(0,MAX_REFERENCES)};
+      input={...input,schemaVersion:packed.schemaVersion,content:packed.content,references:boundedReferences([...packed.references,...references])};
       await write();
     }
     item.documentId=text(document?.id||document?.documentId)||item.documentId;
@@ -208,7 +216,7 @@ export function createProjectSync({
     item.remoteProjectName=target.name||item.remoteProjectName||'';
     item.hash=digest;item.revision=view.revision;item.syncedAt=new Date().toISOString();
     item.transport=packed.content.payload?.storage||'json';item.requestBytes=Buffer.byteLength(JSON.stringify(input));
-    delete item.setupRequired;delete item.error;delete item.nextAttemptAt;delete item.suspended;item.attempts=0;item.pending=false;
+    delete item.setupRequired;delete item.error;delete item.warning;delete item.nextAttemptAt;delete item.suspended;delete item.blockedReason;item.attempts=0;item.pending=false;
     delete item.idempotency;delete item.idempotencyDigest;
     delete item.pendingHash;delete item.pendingExportedAt;delete item.pendingUpload;delete item.pendingKeys;
     persist();
@@ -216,12 +224,13 @@ export function createProjectSync({
   }
 
   function recordFailure(item,error){
-    item.setupRequired=error?.code==='project_classification_required';
+    item.setupRequired=['project_classification_required','project_account_confirmation_required','SESSION_ACCOUNT_CHANGED'].includes(error?.code);
     if(item.setupRequired){item.error=error.message;item.pending=false;item.suspended=true;delete item.nextAttemptAt;persist();return;}
     item.error=friendly(error);item.attempts=(item.attempts||0)+1;item.lastAttemptAt=new Date().toISOString();
     const auth=Number(error?.status)===401||Number(error?.status)===403;
+    const needsAttention=['FORMAL_COMMIT_REQUIRED','project_snapshot_rejected','project_snapshot_too_many_refs'].includes(error?.code);
     // 会话失效时不再自动重试：等待用户重新登录，下一次保存或手动上传会重新排队。
-    if(auth){item.pending=false;item.suspended=true;delete item.nextAttemptAt;}
+    if(auth||needsAttention){item.pending=false;item.suspended=true;if(needsAttention)item.blockedReason=error.code;delete item.nextAttemptAt;}
     else{item.pending=true;item.suspended=false;item.nextAttemptAt=Date.now()+RETRY_DELAYS[Math.min(item.attempts-1,RETRY_DELAYS.length-1)];}
     lastError=item.error;persist();
   }
@@ -259,7 +268,7 @@ export function createProjectSync({
   }
 
   async function attempt(projectId,{force=false}={}){
-    try{return await serialize(()=>pushProject(projectId,{force}));}
+    try{return await serialize(()=>library.withSession?library.withSession(()=>pushProject(projectId,{force})):pushProject(projectId,{force}));}
     catch(error){recordFailure(state.projects[projectId]||(state.projects[projectId]={}),error);throw error;}
   }
 
@@ -268,6 +277,9 @@ export function createProjectSync({
     const id=typeof project==='string'?project:project?.id;
     if(typeof id!=='string'||!id)return;
     const item=state.projects[id]||(state.projects[id]={});
+    if(isFormallyManaged(id)){item.pending=false;persist();return;}
+    // 明确需要人工处理的拒绝不能因后续本机自动保存再次进入写入队列。
+    if(item.blockedReason){item.pending=false;persist();return;}
     item.pending=true;delete item.nextAttemptAt;delete item.suspended;
     clearTimeout(timer);timer=setTimeout(()=>{timer=null;void drain();},debounceMs);timer.unref?.();
   }
@@ -284,7 +296,7 @@ export function createProjectSync({
       const values=Object.values(state.projects);
       return {ok:true,auto:state.auto,enabled,baseUrl:library.baseUrl,defaultProjectId:library.defaultProjectId||'',projects:values.length,synced:values.filter(value=>value.syncedAt).length,failed:values.filter(value=>value.error).length,pending:values.filter(value=>value.pending).length,lastError,debounceMs};
     }
-    return {ok:true,auto:state.auto,enabled,baseUrl:library.baseUrl,defaultProjectId:library.defaultProjectId||'',projectId,status:phase,setupRequired:!!item.setupRequired,generation:generation(projectId),revision:item.revision??null,syncedAt:item.syncedAt||null,error:item.error||'',warning:item.warning||'',pending:!!item.pending,attempts:item.attempts||0,documentId:item.documentId||'',objectVersion:item.objectVersion??null,target:{projectId:item.remoteProjectId||'',name:item.remoteProjectName||''}};
+    return {ok:true,auto:state.auto,enabled,baseUrl:library.baseUrl,defaultProjectId:library.defaultProjectId||'',projectId,status:phase,setupRequired:!!item.setupRequired,blockedReason:item.blockedReason||'',generation:generation(projectId),revision:item.revision??null,syncedAt:item.syncedAt||null,error:item.error||'',warning:item.warning||'',pending:!!item.pending,attempts:item.attempts||0,documentId:item.documentId||'',objectVersion:item.objectVersion??null,target:{projectId:item.remoteProjectId||'',name:item.remoteProjectName||''}};
   }
 
   async function handle(request,response,{pathname,method,url}){
@@ -320,7 +332,6 @@ export function createProjectSync({
       if(input.classification){
         classification=input.classification;
         check(remoteProjectId&&['characterIds','sceneIds'].every(k=>Array.isArray(classification[k])&&classification[k].every(id=>/^[a-f0-9-]{36}$/i.test(id))),'角色或场景选择无效');
-        check(classification.characterIds.length+classification.sceneIds.length>0,'请至少选择一个角色或场景');
         const subjects=(await library.read('/api/project-library/'+remoteProjectId+'/subjects')).items||[];
         for(const [key,kind]of [['characterIds','character'],['sceneIds','scene']])check(classification[key].every(id=>subjects.some(s=>s.id===id&&s.kind===kind)),'所选角色或场景不属于该墨库项目');
       }
@@ -328,9 +339,10 @@ export function createProjectSync({
       if(remoteProjectId){
         const projects=await listRemoteProjects(),found=projects.find(candidate=>candidate.id===remoteProjectId);
         check(found,'墨库项目不存在或无权访问');
+        if(await library.supportsClassified?.()){const me=await library.read('/api/auth/me'),accountId=me.user?.id||me.id;check(/^[a-f0-9-]{36}$/i.test(accountId||''),'请先登录墨库账号',401);item.ownerAccountId=accountId;}
         item.remoteProjectId=remoteProjectId;item.remoteProjectName=found.name;delete item.documentId;delete item.objectVersion;
-      }else{delete item.remoteProjectId;delete item.remoteProjectName;delete item.documentId;delete item.objectVersion;}
-      if(classification)item.classification=classification;else delete item.classification;delete item.setupRequired;delete item.suspended;delete item.error;delete item.nextAttemptAt;
+      }else{delete item.remoteProjectId;delete item.remoteProjectName;delete item.documentId;delete item.objectVersion;delete item.ownerAccountId;}
+      if(classification)item.classification=classification;else delete item.classification;for(const key of ['pendingHash','pendingExportedAt','pendingUpload','pendingKeys','idempotency','idempotencyDigest'])delete item[key];delete item.setupRequired;delete item.suspended;delete item.blockedReason;delete item.error;delete item.nextAttemptAt;
       item.pending=true;persist();json(response,200,status(projectId));return true;
     }
     json(response,404,{error:'同步接口不存在'});return true;

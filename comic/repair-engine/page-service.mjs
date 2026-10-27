@@ -59,7 +59,8 @@ export async function removeJobDir(root,dir){const jobs=path.resolve(root,'jobs'
 export async function fileHash(file){const hash=createHash('sha256');for await(const data of createReadStream(file))hash.update(data);return hash.digest('hex');}
 async function jsonFile(file,value){const temp=file+'.'+randomUUID()+'.tmp';await writeFile(temp,JSON.stringify(value,null,2),'utf8');await replaceFile(temp,file);}
 export function sourceFile(root,meta,revision=meta.revision){
-  if(!Number.isInteger(revision)||revision<0||revision>meta.lastRevision)throw new Error('漫画版本不存在');
+  if(!Number.isInteger(revision)||revision<0)throw Object.assign(new Error('漫画版本无效'),{statusCode:400});
+  if(revision>meta.lastRevision)throw Object.assign(new Error('漫画版本不存在'),{statusCode:404});
   return path.join(root,'sources',meta.id,revision===0?'original.png':`revision-${revision}.png`);
 }
 export async function sourceMetadata(root,id){if(!validSource(id))throw new Error('漫画不存在');return JSON.parse(await readFile(path.join(root,'sources',id,'metadata.json'),'utf8'));}

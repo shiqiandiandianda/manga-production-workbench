@@ -30,7 +30,11 @@ export function createComicEffectRouting(panels=[]){
   const original=sourceWord(layer);
   if(original){
    const approved=route.approved.get(original);if(!approved)return null;
-   if(text!==original&&!approved.parts?.includes(text))return null;
+   // Old projects can retain split text layers after the original effect
+   // library is unavailable. Recognize an exact repeated unit without
+   // swallowing unrelated hand-edited words or substring matches.
+   const repeatedUnit=text&&original.length>text.length&&original.split(text).join('')==='';
+   if(text!==original&&!approved.parts?.includes(text)&&!repeatedUnit)return null;
    return {reason:'image-word',panelId:layer.parentPanelId,word:original};
   }
   return route.approved.has(text)?{reason:'image-word',panelId:layer.parentPanelId,word:text}:null;

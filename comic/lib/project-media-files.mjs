@@ -18,8 +18,12 @@ const metadata=['libraryRole','libraryName','libraryState','libraryAliases','lib
 function strings(value,set=new Set(),depth=0){if(depth>60)return set;if(typeof value==='string')set.add(value);else if(Array.isArray(value))for(const v of value)strings(v,set,depth+1);else if(value&&typeof value==='object')for(const v of Object.values(value))strings(v,set,depth+1);return set;}
 export function createProjectMediaFiles({store,library,dataDir,receipts,persist}){
  async function upload(bytes,name,projectId,key,mime='application/octet-stream',category='reference',folder,context={}){
-  const sha256=hashBytes(bytes),receiptKey=projectId+':'+key+':'+sha256,cached=receipts[receiptKey];if(cached){if(typeof library.organizeCollaborationAsset==='function'&&cached.storageLayoutVersion!==1){const updated=await library.organizeCollaborationAsset(cached,folder);const organized={...updated,storageLayoutVersion:1};receipts[receiptKey]=organized;persist();return organized;}return cached;}
-  const sent=await library.uploadAsset({projectId,name,bytes,mime,category,folder,...context});check(uuid(sent.assetId)&&uuid(sent.revisionId),'墨库没有返回固定版本');
+  const sha256=hashBytes(bytes),receiptKey='v2:'+hashValue([projectId,key,sha256,context]),legacy=receipts[projectId+':'+key+':'+sha256],fields=['scopeId','episodeId','assetKind','assetType','engineeringId','panelId'];
+  // Keep an old receipt only when its recorded classification still matches.
+  const expected={...context,episodeId:context.episodeId??(uuid(context.scopeId)?context.scopeId:null)};
+  const legacyMatches=legacy&&legacy.projectId===(context.projectId===null?null:projectId)&&fields.every(k=>(legacy[k]??null)===(expected[k]??null));
+  const cached=receipts[receiptKey]||(legacyMatches?legacy:null);if(cached){if(typeof library.organizeCollaborationAsset==='function'&&cached.storageLayoutVersion!==1){const updated=await library.organizeCollaborationAsset(cached,folder);const organized={...updated,storageLayoutVersion:1};receipts[receiptKey]=organized;persist();return organized;}return cached;}
+  const sent=await library.uploadAsset({projectId,name,bytes,mime,category,folder,...context,operationId:'project-media:'+hashValue([projectId,key,sha256,context])});check(uuid(sent.assetId)&&uuid(sent.revisionId),'墨库没有返回固定版本');
   const receipt={assetId:sent.assetId,revisionId:sent.revisionId,projectId:sent.projectId===null?null:projectId,sha256,size:bytes.length,folder:sent.folder||folder,storageLayoutVersion:1,...Object.fromEntries(['scopeId','episodeId','assetKind','assetType','engineeringId','panelId'].filter(k=>sent[k]!==undefined).map(k=>[k,sent[k]]))};receipts[receiptKey]=receipt;persist();return receipt;
  }
  async function pack(project,projectId){

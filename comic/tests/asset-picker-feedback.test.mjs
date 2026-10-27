@@ -19,6 +19,7 @@ test('an unbound-library placeholder is not a clothing requirement',()=>{
 test('scene-only search results explain why no character candidates are shown',()=>{
  const cloud=randomUUID(),items=Array.from({length:11},(_,i)=>({id:randomUUID(),name:'林家场景'+i+'.png',category:'scene',projectId:cloud,recommendedRevisionId:randomUUID()})),row={name:'林家仆人',role:'character',state:pending,key:'row',assetIds:[],uses:[],sources:[]},project={id:'project',references:[],pages:[],assetLibrary:{assetIds:[]}},markup=quickCharacterMarkup({project,row,variants:[row],assets:[],settings:{},items,query:'林家'});
  assert.match(markup,/11 张场景图/);assert.match(markup,/没有.*林家仆人.*人物图/);assert.doesNotMatch(markup,/data-asset-use-moku/);
+ const expanded=quickCharacterMarkup({project,row,variants:[row],assets:[],settings:{},items,query:'林家',includeOtherTypes:true});assert.match(expanded,/显示其他分类/);assert.match(expanded,/data-asset-use-moku/);
 });
 
 test('manual character selection with unspecified clothing stays ready without inventing a costume confirmation',async()=>{

@@ -109,7 +109,10 @@ export function mountProductionWorkspace({api,getProject,getSelected,getAssets=(
   for(const b of root.querySelectorAll('[data-review-issue]'))b.onclick=safe(()=>{const n=Number(b.dataset.reviewIssue),reviewed=new Set(pkg.reviewedIssues||[]);reviewed.has(n)?reviewed.delete(n):reviewed.add(n);return change('issues',{reviewed:[...reviewed]});});
   root.querySelector('[data-source-incoming]')?.addEventListener('click',safe(()=>change('resolve',{segmentId:s.id,useIncoming:true})));root.querySelector('[data-source-local]')?.addEventListener('click',safe(()=>change('resolve',{segmentId:s.id,useIncoming:false})));
   if(root.querySelector('[data-copy-production-prompt]'))root.querySelector('[data-copy-production-prompt]').onclick=safe(()=>navigator.clipboard.writeText(choice.text));if(root.querySelector('[data-export-production-plan]'))root.querySelector('[data-export-production-plan]').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({projectId:project.id,title:project.title,productionPackage:pkg},null,2)],{type:'application/json'}));a.download=project.title+'_制作来源记录.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};
-  if(navigating)for(const node of root.querySelectorAll('[data-production-episode-layout],[data-production-unit],[data-production-grid],[data-production-mode],[data-production-generate],[data-production-generate-one],[data-production-segment]'))node.disabled=true;
+  if(navigating){
+   for(const node of root.querySelectorAll('[data-production-episode-layout],[data-production-unit],[data-production-grid],[data-production-mode],[data-production-generate],[data-production-generate-one],[data-production-segment]'))node.disabled=true;
+   root.querySelector('.production-primary-actions')?.insertAdjacentHTML('afterend','<p class="sub-note" role="status">正在处理当前操作，请稍候。</p>');
+  }
  }
  function confirmOperation(title,text,action,key){const projectId=getProject().id;modal(title,'<p>'+esc(text)+'</p>',[{label:'取消',run:closeModal},{label:'确认生成副本',primary:true,run:async()=>{await change(action,{projectId,segmentId:key,confirmed:true});closeModal();}}]);}
  async function openBinding(key,slot){

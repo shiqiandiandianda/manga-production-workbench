@@ -9,6 +9,15 @@
   "scripts": {
     "start": "node ../start-comic-local.mjs",
     "test": "node tools/run-tests.mjs",
-    "check": "node tools/check-source.mjs"
+    "check": "node tools/check-source.mjs",
+    "quality:core-functions": "node quality/run.mjs --suite core-functions",
+    "quality:all-functions": "node quality/run.mjs --suite all-functions",
+    "quality:core-flows": "node quality/run.mjs --suite core-flows",
+    "quality:all-flows": "node quality/run.mjs --suite all-flows",
+    "quality:small": "node quality/run.mjs --suite small",
+    "quality:large": "node quality/run.mjs --suite large",
+    "quality:catalog": "node quality/catalog-report.mjs",
+    "test:small": "node quality/run.mjs --suite small",
+    "test:large": "node quality/run.mjs --suite large"
   }
 }

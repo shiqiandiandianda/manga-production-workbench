@@ -70,14 +70,17 @@ for(const production of [true,false])test(`本话资产总览选图后返回并�
  await page.goto(origin+'/?project='+project.id+'&page='+project.pages[0].id);await page.waitForSelector('#canvas-tool-dock');
  await page.locator('[data-rail-tab=references]').click();await page.locator('#asset-gallery-workspace').waitFor({state:'visible'});assert.equal(await page.locator('#asset-detail-panel').isVisible(),false);
  const card=name=>page.locator('.asset-gallery-card').filter({has:page.locator('.asset-gallery-caption>strong',{hasText:name})});
- await card(names[0]).locator('[data-gallery-settings]').click();assert.equal(await page.locator('#asset-detail-panel [role=tab]').count(),6);
- await page.locator('[data-asset-view=generate]').click();assert.equal(await page.locator('[data-asset-view=generate]').getAttribute('aria-selected'),'true');
+ await card(names[0]).locator('[data-gallery-settings]').click();
+ // Current character details combine search and generation in one view.
+ assert.equal(await page.locator('#asset-detail-panel [data-asset-view]').count(),2);
+ assert.equal(await page.locator('[data-asset-view=current]').getAttribute('aria-selected'),'true');
+ assert.equal(await page.locator('.asset-quick-generate').isVisible(),true);
  await page.locator('[data-asset-close]').click();await page.locator('[data-asset-category=character]').click();
  assert.equal(await page.locator('.asset-gallery-card').count(),16);assert.equal(await page.locator('[data-asset-list-next]').count(),0);
  const list=page.locator('[data-asset-list]');assert.ok(await list.evaluate(el=>{const boxes=[...el.children].map(n=>n.getBoundingClientRect());return boxes.every((a,i)=>a.height>200&&boxes.every((b,j)=>i===j||a.right<=b.left||b.right<=a.left||a.bottom<=b.top||b.bottom<=a.top));}));
  for(const index of [8,9]){
   const item=card(names[index]);await item.scrollIntoViewIfNeeded();const position=await list.evaluate(n=>n.scrollTop);await item.locator('.asset-list-item').click();
-  assert.equal(await page.locator('[data-asset-view=moku]').getAttribute('aria-selected'),'true');const choice=page.locator('[data-asset-moku-use="'+cloud[index].id+'"]').first();await choice.waitFor();
+  assert.equal(await page.locator('[data-asset-view=current]').getAttribute('aria-selected'),'true');const choice=page.locator('[data-asset-use-moku="'+cloud[index].id+'"]').first();await choice.waitFor();
   if(index===8){failImport=true;await choice.click();await page.waitForFunction(()=>document.querySelector('[data-asset-status]')?.textContent.includes('合成取图失败'));assert.equal(await page.locator('#asset-detail-panel').isVisible(),true);failImport=false;}
   await choice.click();await item.locator('.asset-state.ready').waitFor();assert.equal(await page.locator('#asset-detail-panel').isVisible(),false);assert.ok(Math.abs(await list.evaluate(n=>n.scrollTop)-position)<3);assert.equal(await page.locator('dialog[open]').count(),0);
  }

@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 const uuid=value=>typeof value==='string'&&/^[a-f0-9-]{36}$/i.test(value);
 const projectTypes=new Set(['storyboard','production_table','novel','comic_project','character','scene','prop','pet','comic_panel','episode_strip','header','footer']);
 const globalTypes=[['image','bubble'],['image','nameplate'],['image','sfx_text'],['file','font']];
@@ -7,7 +8,7 @@ const response=value=>new Response(JSON.stringify(value),{headers:{'Content-Type
 /** Keep local asset URLs stable while using Moku 0.7 classified routes upstream. */
 export function createMokuClassifiedReader({request,getAssets=()=>[]}){
  let capability,accountEpoch=0;
- const unchanged=ticket=>{if(ticket!==accountEpoch)throw failure('墨库账号已切换，请重新查询素材',409);};
+ const unchanged=ticket=>{if(ticket!==accountEpoch)throw Object.assign(failure('墨库账号已切换，请重新查询素材',409),{code:'SESSION_ACCOUNT_CHANGED'});};
  const assets=new Map(),revisions=new Map(),pending=new Map();
  async function cached(route){
   const now=Date.now(),hit=pending.get(route);if(hit&&hit.until>now)return hit.value;
@@ -92,7 +93,23 @@ export function createMokuClassifiedReader({request,getAssets=()=>[]}){
   if(value.id!==item.id)throw failure('墨库返回的资产身份不一致',502);
   return (await normalize([{...item,...value}]))[0];
  }
- return {supported,remember,clear(){accountEpoch++;capability=null;assets.clear();revisions.clear();pending.clear();},async handle(route,options={}){
+ async function appendTags(assetId,labels){
+  if(!uuid(assetId)||!Array.isArray(labels)||!labels.length||labels.length>50||labels.some(t=>typeof t!=='string'||/[\x00-\x1f\x7f]/.test(t)||!t.normalize('NFKC').trim()||t.normalize('NFKC').trim().length>100))throw failure('标签须为1至50项，每项1至100个字符且不能含控制字符',400);
+  const ticket=accountEpoch,wanted=labels.map(t=>t.normalize('NFKC').trim());
+  const taxonomy=await supported();unchanged(ticket);if(!taxonomy)throw failure('当前墨库不支持分类标签修改，请升级墨库',409);
+  for(let attempt=0;attempt<3;attempt++){
+   const item=await detail(await locate(assetId));unchanged(ticket);
+   const tags=[...(item.tags||[])],keys=new Set(tags.map(t=>t.normalize('NFKC').trim().toLowerCase()));
+   for(const label of wanted){const key=label.toLowerCase();if(!keys.has(key)){keys.add(key);tags.push(label);}}
+   if(tags.length===(item.tags||[]).length)return item;
+   if(tags.length>50)throw failure('追加后超过墨库每个文件50个标签的上限',400);
+   try{
+    const value=await request(context(item)+'/assets/'+assetId,{method:'PATCH',body:JSON.stringify({objectVersion:item.objectVersion,tags,tagDecision:'provided'}),headers:{'Idempotency-Key':randomUUID()}}).then(r=>r.json());
+    unchanged(ticket);if(value.id!==assetId)throw failure('标签更新返回了其他资产',502);pending.clear();return remember({...item,...value});
+   }catch(error){unchanged(ticket);if(error.status!==409||error.code&&error.code!=='VERSION_CONFLICT'||attempt===2)throw error;}
+  }
+ }
+ return {supported,remember,appendTags,invalidate(){assets.clear();revisions.clear();pending.clear();},clear(){accountEpoch++;capability=null;assets.clear();revisions.clear();pending.clear();},async handle(route,options={}){
   const ticket=accountEpoch;
   if((options.method||'GET')!=='GET')return null;
   const url=new URL(route,'http://local'),history=url.pathname.match(/^\/api\/assets\/([a-f0-9-]{36})\/revisions(?:\/([a-f0-9-]{36}))?$/i),match=url.pathname.match(/^\/api\/(assets\/([a-f0-9-]{36})|revisions\/([a-f0-9-]{36})\/(download|references|preview\/[a-zA-Z0-9_.-]+))$/i);

@@ -66,3 +66,31 @@ test('account switching rejects a late catalogue response instead of caching the
  const pending=reader.handle('/api/assets?projectId='+p);await reached;reader.clear();release();await assert.rejects(pending,/账号已切换/);
  await assert.rejects(reader.handle('/api/assets/'+old.id),e=>e.status===404);
 });
+
+function tagFixture(projectId=randomUUID()){
+ const item=card(projectId,{assetType:projectId===null?'bubble':'prop',tags:['原有标签'],objectVersion:1}),calls=[];let row={...item},conflict=false,release,started;
+ const reader=createMokuClassifiedReader({request:async(route,options={})=>{
+  calls.push({route,options});if(route==='/api/project-library/taxonomy')return json({routeVersion:1});
+  if(route.endsWith('/assets/'+item.id)){
+   if(options.method==='PATCH'){
+    if(started){started();await new Promise(r=>release=r);}
+    if(conflict){conflict=false;row={...row,tags:[...row.tags,'并发标签'],objectVersion:row.objectVersion+1};throw Object.assign(Error('版本冲突'),{status:409,code:'VERSION_CONFLICT'});}
+    const input=JSON.parse(options.body);assert.equal(input.objectVersion,row.objectVersion);assert.equal(input.tagDecision,'provided');assert.ok(options.headers['Idempotency-Key']);row={...row,tags:input.tags,objectVersion:row.objectVersion+1};
+   }
+   return json(row);
+  }throw Error('unexpected '+route);
+ }});reader.remember(item);return {reader,item,calls,row:()=>row,conflict:()=>conflict=true,hold:()=>new Promise(resolve=>started=resolve),release:()=>release()};
+}
+test('人工名称追加到项目和全局资产，重复提交不变更身份或固定版本',async()=>{
+ for(const projectId of [randomUUID(),null]){const f=tagFixture(projectId),first=await f.reader.appendTags(f.item.id,['工作台别名','工作台别名']);assert.deepEqual(first.tags,['原有标签','工作台别名']);assert.equal(first.recommendedRevisionId,f.item.recommendedRevisionId);assert.equal(first.id,f.item.id);
+  await f.reader.appendTags(f.item.id,['工作台别名']);assert.equal(f.calls.filter(c=>c.options.method==='PATCH').length,1);
+  assert.ok(f.calls.some(c=>c.route.startsWith(projectId?'/api/project-library/'+projectId+'/project/image/prop/':'/api/global-library/image/bubble/')));
+ }
+});
+test('标签并发冲突读取新版本后合并，并拒绝无效输入与超上限',async()=>{
+ const f=tagFixture();f.conflict();const result=await f.reader.appendTags(f.item.id,['新别名']);assert.deepEqual(result.tags,['原有标签','并发标签','新别名']);
+ await assert.rejects(f.reader.appendTags(f.item.id,['\n']),/标签/);await assert.rejects(f.reader.appendTags(f.item.id,Array.from({length:51},(_,i)=>'标签'+i)),/标签/);
+});
+test('标签更新等待时切换账号，不把迟到响应作为当前账号结果',async()=>{
+ const f=tagFixture(),reached=f.hold(),writing=f.reader.appendTags(f.item.id,['别名']);await reached;f.reader.clear();f.release();await assert.rejects(writing,/账号已切换/);
+});

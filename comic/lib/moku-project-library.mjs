@@ -4,6 +4,7 @@ import {decodeProjectSnapshot,encodeProjectSnapshot,SNAPSHOT_REQUEST_BUDGET} fro
 import {explicitPageEpisode} from '../public/project-episode-classification.js';
 import {episodeNumber} from '../public/episode-boards.js';
 const uuid=v=>typeof v==='string'&&/^[a-f0-9-]{36}$/i.test(v),hash=v=>createHash('sha256').update(v).digest('hex');
+const canonical=value=>JSON.stringify(value,(_key,item)=>item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))):item);
 const json=v=>new Response(JSON.stringify(v),{headers:{'Content-Type':'application/json'}});
 const assetIds=(value,into=new Set(),depth=0)=>{if(depth>40)return into;if(typeof value==='string'&&/^asset_[a-f0-9-]{36}$/i.test(value))into.add(value);else if(Array.isArray(value))for(const v of value)assetIds(v,into,depth+1);else if(value&&typeof value==='object')for(const v of Object.values(value))assetIds(v,into,depth+1);return into;};
 const episodeOf=explicitPageEpisode;
@@ -21,7 +22,7 @@ export function createMokuProjectLibrary({dataDir,request,reader,getProject=()=>
   for(const page of project.pages||[]){let n=episodeOf(project,page);if(!n&&declared.length===1)n=declared[0];if(!n&&page.designEpisodeRole)continue;check(n,'工程缺少明确的话号，请先补全画板所属话');if(!result.has(n))result.set(n,[]);for(const panel of page.panels||[])result.get(n).push({page,panel});}
   check(result.size,'工程没有带明确话号的画板');return [...result].sort((a,b)=>a[0]-b[0]);
  }
- const preparations=new Map();
+ const preparations=new Map(),uploadFlights=new Map();
  async function prepare(project,projectId){const identity=projectId+':'+project.id+':'+hash(JSON.stringify([(project.pages||[]).map(p=>[p.id,episodeOf(project,p),p.panels?.map(f=>f.id)]),project.episodeBoards])),cached=preparations.get(identity);if(cached&&cached.until>Date.now())return cached.promise;const promise=prepareFresh(project,projectId);preparations.set(identity,{until:Date.now()+30000,promise});if(preparations.size>8)preparations.delete(preparations.keys().next().value);try{return await promise;}catch(error){preparations.delete(identity);throw error;}}
  async function prepareFresh(project,projectId){
   check(uuid(projectId)&&project?.id,'墨库项目或本机工程身份无效');const grouped=groups(project),slotKey=projectId+':'+project.id;
@@ -44,6 +45,16 @@ export function createMokuProjectLibrary({dataDir,request,reader,getProject=()=>
  const rootRoute=(projectId,scopeId,kind,type)=>projectId===null?'/api/global-library/'+kind+'/'+type:'/api/project-library/'+projectId+'/'+scopeId+'/'+kind+'/'+type;
  async function upload(input){
   if(!await reader.supported())return null;
+  check(Buffer.isBuffer(input?.bytes)&&input.bytes.length,'上传内容为空');
+  const operationId=input.operationId??randomUUID();check(typeof operationId==='string'&&operationId.length>0&&operationId.length<=200&&!/[\x00-\x1f]/.test(operationId),'上传操作编号无效');
+  const owner=await accountKey(),receiptKey=hash(JSON.stringify([owner,operationId])),{bytes:ignoredBytes,operationId:ignoredOperation,...intent}=input,intentFingerprint=hash(canonical([intent,hash(input.bytes)]));
+  const prior=state.uploads[receiptKey],active=uploadFlights.get(receiptKey);
+  if(prior)check(prior.intentFingerprint===intentFingerprint,'上传操作编号对应的分类或内容已变化，请新建操作',409);
+  if(active){check(active.intentFingerprint===intentFingerprint,'上传操作编号对应的分类或内容已变化，请新建操作',409);return active.promise;}
+  const promise=uploadFresh(input,{receiptKey,intentFingerprint});uploadFlights.set(receiptKey,{intentFingerprint,promise});
+  try{return await promise;}finally{if(uploadFlights.get(receiptKey)?.promise===promise)uploadFlights.delete(receiptKey);}
+ }
+ async function uploadFresh(input,{receiptKey,intentFingerprint}){
   let {projectId,bytes,name,mime='application/octet-stream',assetKind,assetType,scopeId,episodeId,objectId,objectName,variantName,variantKind,engineeringId,panelId,tags=[],characterIds=[],sceneIds=[]}=input;
   assetType||=['character','scene','prop','pet','font','bubble','nameplate','sfx_text'].includes(input.category)?input.category:undefined;assetKind||=assetType==='font'?'file':undefined;
   check(assetType&&assetKind,'上传缺少明确分类，请提供文件或图片类型，未使用旧上传接口');if(['font','bubble','nameplate','sfx_text'].includes(assetType))projectId=null;
@@ -56,16 +67,28 @@ export function createMokuProjectLibrary({dataDir,request,reader,getProject=()=>
   if(assetKind==='image'&&assetType==='scene'&&!sceneIds.length)sceneIds=[objectId];
   if(assetKind==='image'&&assetType==='character'&&!characterIds.length)characterIds=[objectId];
   if(input.assetId)check(uuid(input.assetId)&&Number.isInteger(input.objectVersion)&&input.objectVersion>0,'追加版本必须指定资产ID及当前对象版本');
-  const inputBody={name:String(name).slice(0,255),size:bytes.length,mime,tagDecision:tags.length?'provided':'none',tags,expectedSha256:sha256,...(input.assetId?{assetId:input.assetId,objectVersion:input.objectVersion}:{}),...(objectId?{objectId}:{}),...(characterIds.length?{characterIds}:{}),...(sceneIds.length?{sceneIds}:{}),...(variantName?{variantName:String(variantName).slice(0,100),variantKind:variantKind||(assetType==='character'?'outfit':'state')}:{}),...(engineeringId?{engineeringId}:{}),...(panelId?{panelId}:{})};
-  const owner=await accountKey(),legacyKey=hash(JSON.stringify([route,inputBody])),receiptKey=owner?hash(JSON.stringify([owner,route,inputBody])):legacyKey;let receipt=state.uploads[receiptKey];
-  if(!receipt&&owner&&state.uploads[legacyKey]){const old=state.uploads[legacyKey];try{await read(route+'/uploads/'+old.id);receipt=state.uploads[receiptKey]=old;persist();}catch(error){if(error.status!==403&&error.status!==404)throw error;}}
-  if(!receipt){const created=await post(route+'/uploads',inputBody,['upload',receiptKey]);check(uuid(created.id)&&Number(created.chunkSize)>0,'墨库未返回上传会话');receipt={id:created.id,chunkSize:Number(created.chunkSize)};state.uploads[receiptKey]=receipt;persist();}
-  const uploadRoute=route+'/uploads/'+receipt.id;let status=await read(uploadRoute);
-  if(status.state==='uploading'){const existing=new Map((status.chunks||[]).map(c=>[c.index,c]));for(let offset=0,index=0;offset<bytes.length;offset+=receipt.chunkSize,index++){const chunk=bytes.subarray(offset,Math.min(bytes.length,offset+receipt.chunkSize)),sha=hash(chunk);if(existing.get(index)?.sha256===sha&&Number(existing.get(index).size)===chunk.length)continue;await request(uploadRoute+'/chunks/'+index,{method:'PUT',body:chunk,headers:{'Content-Type':'application/octet-stream','X-Chunk-SHA256':sha}});}await post(uploadRoute+'/complete',{},['complete',receipt.id]);}
-  for(let attempt=0;attempt<180;attempt++){status=await read(uploadRoute);if(status.state==='completed')break;check(!['failed','cancelled'].includes(status.state),status.error||'墨库上传失败');await new Promise(r=>setTimeout(r,1000));}
-  check(status.state==='completed','墨库上传尚未完成，请保留原会话后重试');const assetId=status.assetId||status.asset?.id,revisionId=status.revisionId||status.asset?.recommendedRevisionId;check(uuid(assetId)&&uuid(revisionId),'上传完成但未返回固定版本');
-  const detail=await read(route+'/assets/'+assetId),revision=detail.revisions?.find(r=>r.id===revisionId)||await read(route+'/assets/'+assetId+'/revisions/'+revisionId);check(revision&&revision.sha256===sha256&&Number(revision.size)===bytes.length,'墨库入库原件摘要或长度不符',502);reader.remember({...detail,scopeId});
-  return {assetId,revisionId,name:detail.name,detail,projectId,episodeId:projectId===null?null:scopeId==='project'?null:scopeId,scopeId,assetKind,assetType,engineeringId,panelId,sha256,folder:detail.folder||''};
+  // Content and names verify a request; neither identifies a separate upload.
+  const inputBody={name:String(name).slice(0,255),size:bytes.length,mime,tagDecision:tags.length?'provided':'none',tags,expectedSha256:sha256,sourceSystem:'comic-workbench-upload',sourceTaskId:receiptKey,sourceKind:'upload',...(input.assetId?{assetId:input.assetId,objectVersion:input.objectVersion}:{}),...(objectId?{objectId}:{}),...(characterIds.length?{characterIds}:{}),...(sceneIds.length?{sceneIds}:{}),...(variantName?{variantName:String(variantName).slice(0,100),variantKind:variantKind||(assetType==='character'?'outfit':'state')}:{}),...(engineeringId?{engineeringId}:{}),...(panelId?{panelId}:{})};
+  const fingerprint=hash(JSON.stringify([route,inputBody]));
+  const perform=async()=>{
+   let receipt=state.uploads[receiptKey];if(receipt)check(receipt.fingerprint===fingerprint,'上传操作编号对应的分类或内容已变化，请新建操作',409);
+   if(!receipt){const created=await post(route+'/uploads',inputBody,['upload',receiptKey]);check(uuid(created.id)&&Number(created.chunkSize)>0,'墨库未返回上传会话');receipt={id:created.id,chunkSize:Number(created.chunkSize),fingerprint,intentFingerprint};state.uploads[receiptKey]=receipt;persist();}
+   const uploadRoute=route+'/uploads/'+receipt.id;let status=await read(uploadRoute);
+   if(status.state==='uploading'){
+    const existing=new Map((status.chunks||[]).map(c=>[c.index,c]));let advanced=false;
+    for(let offset=0,index=0;offset<bytes.length;offset+=receipt.chunkSize,index++){
+     const chunk=bytes.subarray(offset,Math.min(bytes.length,offset+receipt.chunkSize)),sha=hash(chunk);if(existing.get(index)?.sha256===sha&&Number(existing.get(index).size)===chunk.length)continue;
+     try{await request(uploadRoute+'/chunks/'+index,{method:'PUT',body:chunk,headers:{'Content-Type':'application/octet-stream','X-Chunk-SHA256':sha}});}
+     catch(error){if(error.code!=='UPLOAD_STATE')throw error;status=await read(uploadRoute);if(!['finalizing','completed'].includes(status.state))throw error;advanced=true;break;}
+    }
+    if(!advanced)await post(uploadRoute+'/complete',{},['complete',receipt.id]);
+   }
+   for(let attempt=0;attempt<180;attempt++){status=await read(uploadRoute);if(status.state==='completed')break;check(!['failed','cancelled'].includes(status.state),status.error||'墨库上传失败');await new Promise(r=>setTimeout(r,1000));}
+   check(status.state==='completed','墨库上传尚未完成，请保留原会话后重试');const assetId=status.assetId||status.asset?.id,revisionId=status.revisionId||status.asset?.recommendedRevisionId;check(uuid(assetId)&&uuid(revisionId),'上传完成但未返回固定版本');
+   const detail=await read(route+'/assets/'+assetId),revision=detail.revisions?.find(r=>r.id===revisionId)||await read(route+'/assets/'+assetId+'/revisions/'+revisionId);check(revision&&revision.sha256===sha256&&Number(revision.size)===bytes.length,'墨库入库原件摘要或长度不符',502);reader.remember({...detail,scopeId});
+   return {assetId,revisionId,name:detail.name,detail,projectId,episodeId:projectId===null?null:scopeId==='project'?null:scopeId,scopeId,assetKind,assetType,engineeringId,panelId,sha256,folder:detail.folder||''};
+  };
+  return perform();
  }
  async function uploadContext(project,projectId,{assetId,role,episode}={}){
   if(!await reader.supported())return {};if(role==='font')return {projectId:null,assetKind:'file',assetType:'font'};
@@ -109,7 +132,7 @@ export function createMokuProjectLibrary({dataDir,request,reader,getProject=()=>
    else for(const ref of refs.values()){const response=await reader.handle('/api/assets/'+ref.assetId),detail=response&&await response.json();if(detail?.projectId!==projectId)continue;for(const kind of ['characterIds','sceneIds'])subjectIds[kind].push(...detail[kind]||[]);}
    for(const kind of ['characterIds','sceneIds'])subjectIds[kind]=[...new Set(subjectIds[kind])];
    const needsFile=Buffer.byteLength(JSON.stringify(baseContent))>SNAPSHOT_REQUEST_BUDGET||!engineer.assetId&&input.classification;
-   let wire=baseContent,engineeringRevisionId;if(needsFile){check(subjectIds.characterIds.length||subjectIds.sceneIds.length,'首次共享工程请选择至少一个角色或场景；无需先生成图片');const bytes=Buffer.from(JSON.stringify(wire)),sent=await upload({projectId,scopeId:entry.episodeId,assetKind:'file',assetType:'comic_project',engineeringId:entry.engineeringId,...subjectIds,...(engineeringAsset?{assetId:engineeringAsset.id,objectVersion:engineeringAsset.objectVersion}:{}),name:'工程快照_'+content.stableHash.slice(0,12)+'.json',mime:'application/json',bytes});engineeringRevisionId=sent.revisionId;wire={format:content.format,version:3,projectId:content.projectId,title:content.title,stableHash:content.stableHash,mokuDocumentType:baseContent.mokuDocumentType,payload:{encoding:'json',storage:'asset',assetId:sent.assetId,revisionId:sent.revisionId,sha256:hash(bytes),size:bytes.length,projectId,scopeId:entry.episodeId,episodeId:entry.episodeId,assetKind:'file',assetType:'comic_project'}};}
+   let wire=baseContent,engineeringRevisionId;if(needsFile){const bytes=Buffer.from(JSON.stringify(wire)),sent=await upload({projectId,scopeId:entry.episodeId,assetKind:'file',assetType:'comic_project',engineeringId:entry.engineeringId,operationId:'snapshot:'+hash(JSON.stringify([projectId,entry.engineeringId,content.stableHash,engineer.objectVersion])),...subjectIds,...(engineeringAsset?{assetId:engineeringAsset.id,objectVersion:engineeringAsset.objectVersion}:{}),name:'工程快照_'+content.stableHash.slice(0,12)+'.json',mime:'application/json',bytes});engineeringRevisionId=sent.revisionId;wire={format:content.format,version:3,projectId:content.projectId,title:content.title,stableHash:content.stableHash,mokuDocumentType:baseContent.mokuDocumentType,payload:{encoding:'json',storage:'asset',assetId:sent.assetId,revisionId:sent.revisionId,sha256:hash(bytes),size:bytes.length,projectId,scopeId:entry.episodeId,episodeId:entry.episodeId,assetKind:'file',assetType:'comic_project'}};}
    const result=await post(route+'/snapshots',{objectVersion:engineer.objectVersion,content:wire,references:[...refs.values()],tagDecision:'none',...(engineeringRevisionId?{engineeringRevisionId}:{})},['snapshot',entry.engineeringId,content.stableHash,engineer.objectVersion]);check(uuid(result.snapshotId)&&Number.isInteger(result.objectVersion),'墨库未返回保存回执');entry.stableHash=content.stableHash;entry.snapshotId=result.snapshotId;entry.objectVersion=result.objectVersion;persist();receipts.push({number,engineeringId:entry.engineeringId,snapshotId:result.snapshotId,objectVersion:result.objectVersion});
   }
   const root=receipts[0],id=alias||root.engineeringId,record={projectId,engineeringId:root.engineeringId,localId:content.projectId,objectVersion:root.objectVersion,type:baseContent.mokuDocumentType,receipts};state.aliases[id]=record;state.aliases[root.engineeringId]=record;persist();registerReferences(content);return {id,projectId,name:input.name,type:record.type,objectVersion:root.objectVersion,content:baseContent,engineeringId:root.engineeringId,snapshots:receipts};

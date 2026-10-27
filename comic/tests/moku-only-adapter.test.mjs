@@ -52,6 +52,22 @@ test('切换墨库账号后丢弃迟到响应，旧会话链不能继续发起�
  assert.equal(JSON.parse(fs.readFileSync(path.join(dir,'library-session.local.json'))).cookie,'library_session=new');
 });
 
+test('离线退出持久清空本机会话并拒绝迟到响应，明确告知服务器未确认注销',async t=>{
+ const dir=temp(t),config=path.join(dir,'session.json');fs.writeFileSync(config,JSON.stringify({base:'http://moku.invalid',cookie:'library_session=old'}));
+ const originalFetch=globalThis.fetch;let arrived,release;const started=new Promise(r=>arrived=r),gate=new Promise(r=>release=r);let output;
+ globalThis.fetch=async(url,options={})=>{
+  const p=new URL(url).pathname;
+  if(p==='/api/auth/me'){arrived();await gate;return Response.json({user:{id:randomUUID()}});}
+  if(p==='/api/auth/logout'){assert.equal(options.headers.Cookie,'library_session=old');return Response.json({error:'offline'},{status:503});}
+  throw Error('Unexpected request '+p);
+ };t.after(()=>{release();globalThis.fetch=originalFetch;});
+ const library=createRemoteLibrary({dataDir:dir,configPath:config,store:{db:{assets:[],projects:[]},save(){}},json(_res,_status,value){output=value;},body:async req=>req.payload});
+ const pending=library.withSession(async()=>{await library.read('/api/auth/me');assert.fail('Logged out operation must stop');}),rejected=assert.rejects(pending,/账号已切换/);await started;
+ await library.handle({payload:{}},{},{pathname:'/api/library/logout',method:'POST',url:new URL('http://moku.invalid/api/library/logout')});
+ release();await rejected;assert.equal(output.ok,true);assert.equal(output.remoteRevoked,false);assert.match(output.warning,/本机已退出/);
+ assert.equal(JSON.parse(fs.readFileSync(path.join(dir,'library-session.local.json'))).cookie,'');
+});
+
 test('气泡铭牌登记回执丢失后重试同一版本，修改定义才追加固定版本',async t=>{
  const dir=temp(t),file=path.join(dir,'bubble.png');fs.writeFileSync(file,'synthetic original');
  const definitions=[{id:'test-speech',label:'对白',contour:[{x:0,y:0}],insets:{left:.1}},{id:'ref23-person-test',label:'铭牌',contour:[{x:0,y:0}],insets:{left:.2}}];

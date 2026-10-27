@@ -3,6 +3,7 @@ import {isCollaborationFile} from '../public/collaboration-files.js';
 import {expandMokuAssets,mokuCharacterMetadata} from '../public/moku-character-groups.js';
 import {createMokuClassifiedReader} from './moku-classified-reader.mjs';
 import {createMokuProjectLibrary} from './moku-project-library.mjs';
+import {createMokuRecycle} from './moku-recycle.mjs';
 import {createProjectMediaFiles} from './project-media-files.mjs';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import fs from 'node:fs';import path from 'node:path';import {createHash,randomUUID} from 'node:crypto';
@@ -16,7 +17,8 @@ export function createRemoteLibrary({dataDir,configPath,baseUrl='http://127.0.0.
  let session={};for(const file of [configPath,local])try{Object.assign(session,JSON.parse(fs.readFileSync(file)));}catch{}
  let sessionEpoch=0;const operation=new AsyncLocalStorage();
  const pin=fn=>operation.getStore()!==undefined?fn():operation.run(sessionEpoch,fn);
- const checkSession=()=>check(operation.getStore()===undefined||operation.getStore()===sessionEpoch,'墨库账号已切换，原操作已暂停，请确认账号后重试',409);
+ const accountChanged=()=>Object.assign(Error('墨库账号已切换，原操作已暂停，请确认账号后重试'),{status:409,code:'SESSION_ACCOUNT_CHANGED'});
+ const checkSession=()=>{if(operation.getStore()!==undefined&&operation.getStore()!==sessionEpoch)throw accountChanged();};
  const folderRequests=new Map();
  const defaults={projectId:typeof session.projectId==='string'?session.projectId:'',projectName:typeof session.projectName==='string'?session.projectName:''};
  const base=(session.base||session.baseUrl||baseUrl).replace(/\/$/,'');
@@ -26,16 +28,25 @@ export function createRemoteLibrary({dataDir,configPath,baseUrl='http://127.0.0.
  async function rawRemote(route,options={}){
   checkSession();const ticket=sessionEpoch;
   check(route.startsWith('/api/'),'素材库接口无效');const response=await fetch(base+route,{...options,redirect:'error',headers:{Cookie:session.cookie||'',Origin:base,Referer:base+'/',...(options.body?{'Content-Type':'application/json'}:{}),...options.headers},signal:options.signal||AbortSignal.timeout(60000)});
-  check(ticket===sessionEpoch,'墨库账号已切换，原操作已暂停，请重新查询',409);
+  if(ticket!==sessionEpoch)throw accountChanged();
   if(!response.ok){let error;try{error=await response.json();}catch{}throw Object.assign(Error(error?.error?.message||error?.error||'素材库请求失败（'+response.status+'）'),{status:response.status,code:error?.error?.code});}return response;
  }
  const classified=createMokuClassifiedReader({request:rawRemote,getAssets:()=>store.db.assets});
  const projectLibrary=createMokuProjectLibrary({dataDir,request:rawRemote,reader:classified,accountKey:async()=>{const me=await rawRemote('/api/auth/me').then(r=>r.json());return base+':'+(me.user?.id||me.id);},getProject:id=>store.db.projects?.find(p=>p.id===id),getAssets:()=>store.db.assets});
  async function remote(route,options={}){return pin(async()=>await projectLibrary.handle(route,options)||await classified.handle(route,options)||rawRemote(route,options));}
- const read=async route=>(await remote(route)).json();
+ const read=route=>pin(async()=>{const value=await(await remote(route)).json();checkSession();return value;});
+ const recycle=createMokuRecycle({dataDir,baseUrl:base,request:rawRemote,read,assertSession:checkSession,invalidate:classified.invalidate});
  function registerFont(font){FONT_FAMILIES[font.key]='"'+font.family+'", sans-serif';try{compatibleCanvas(createRequire(import.meta.url)(process.env.COMIC_CANVAS_MODULE||process.env.COMIC_TEST_CANVAS_MODULE||'@napi-rs/canvas')).GlobalFonts.registerFromPath(font.filePath,font.family);}catch{}}
  for(const font of store.db.libraryFonts||[])registerFont(font);
  function fonts(){return (store.db.libraryFonts||[]).map(({filePath,...font})=>font);}
+ async function registerSnapshotFont(file,resource){
+  check(uuid(resource?.assetId)&&uuid(resource?.revisionId)&&/^[a-f0-9]{64}$/.test(resource?.sha256||''),'固定字体身份无效');
+  const hash=createHash('sha256');for await(const chunk of fs.createReadStream(file))hash.update(chunk);check(hash.digest('hex')===resource.sha256,'字体原件完整性校验失败',422);
+  const key='moku_'+resource.revisionId.replaceAll('-',''),family='Moku_'+resource.revisionId.replaceAll('-','');store.db.libraryFonts||=[];
+  let font=store.db.libraryFonts.find(f=>f.key===key);if(font)check(font.provenance?.assetId===resource.assetId&&font.provenance?.sha256===resource.sha256,'字体版本身份冲突',409);
+  else{font={key,name:resource.originalName||'墨库固定字体',family,revisionId:resource.revisionId,url:'/api/library/fonts/'+resource.revisionId,provenance:{baseUrl:base,projectId:null,scopeId:'global',assetKind:'file',assetType:'font',assetId:resource.assetId,revisionId:resource.revisionId,sha256:resource.sha256}};store.db.libraryFonts.push(font);}
+  font.filePath=file;registerFont(font);store.save();return font;
+ }
  async function ensureCollaborationFolder(projectId,folder){
   if(await classified.supported())return;
   if(!isCollaborationFile({folder})||!folder.startsWith('协作工程/'))return;
@@ -94,8 +105,25 @@ export function createRemoteLibrary({dataDir,configPath,baseUrl='http://127.0.0.
  async function handle(req,res,{pathname,method,url}){
   if(!pathname.startsWith('/api/library'))return false;
   if(method==='GET'&&pathname==='/api/library/open'){res.writeHead(302,{Location:base+'/','Cache-Control':'no-store'});res.end();return true;}
-  if(method==='GET'&&pathname==='/api/library/status'){try{const me=await read('/api/auth/me');rememberAccount(me.user||me);json(res,200,{connected:true,baseUrl:base,user:me.user||me,fonts:fonts()});}catch(e){json(res,200,{connected:false,baseUrl:base,error:e.message,fonts:fonts()});}return true;}
+  if(method==='GET'&&pathname==='/api/library/status'){try{const me=await read('/api/auth/me');rememberAccount(me.user||me);json(res,200,{connected:true,hasSession:!!session.cookie,baseUrl:base,user:me.user||me,fonts:fonts()});}catch(e){json(res,200,{connected:false,hasSession:!!session.cookie,baseUrl:base,error:e.message,fonts:fonts()});}return true;}
   if(method==='POST'&&pathname==='/api/library/login'){const input=await body(req);const r=await remote('/api/auth/login',{method:'POST',body:JSON.stringify({username:input.username,password:input.password}),headers:{'Idempotency-Key':randomUUID()}});const cookies=r.headers.getSetCookie();const cookie=cookies.map(c=>c.split(';')[0]).find(c=>c.startsWith('library_session='));check(cookie,'素材库没有返回有效会话');session={base,cookie};sessionEpoch++;classified.clear();projectLibrary.clear();account={};accountAt=0;writeFileAtomicSync(local,JSON.stringify(session));json(res,200,{ok:true});return true;}
+  if(method==='POST'&&pathname==='/api/library/logout'){
+   const cookie=session.cookie||'',cleared={base,cookie:''};
+   // Persist first: an offline logout must not restore the old account on restart.
+   writeFileAtomicSync(local,JSON.stringify(cleared));session=cleared;sessionEpoch++;classified.clear();projectLibrary.clear();account={};accountAt=0;
+   try{writeFileAtomicSync(accountFile,JSON.stringify({}));}catch{}
+   let remoteRevoked=!cookie;
+   if(cookie)try{
+    const response=await fetch(base+'/api/auth/logout',{method:'POST',redirect:'error',headers:{Cookie:cookie,Origin:base,Referer:base+'/','Content-Type':'application/json','Idempotency-Key':randomUUID()},body:'{}',signal:AbortSignal.timeout(8000)});
+    remoteRevoked=response.ok||response.status===401;
+   }catch{}
+   json(res,200,{ok:true,remoteRevoked,...(!remoteRevoked?{warning:'本机已退出，墨库服务暂未确认会话注销。'}:{})});return true;
+  }
+  const tagMatch=pathname.match(/^\/api\/library\/assets\/([a-f0-9-]{36})\/tags$/i);
+  if(method==='POST'&&tagMatch){const input=await body(req);const asset=await pin(()=>classified.appendTags(tagMatch[1],input.tags));json(res,200,{asset});return true;}
+  if(method==='POST'&&pathname==='/api/library/recycle/preview'){const input=await body(req);json(res,200,await pin(()=>recycle.preview(input)));return true;}
+  if(method==='POST'&&pathname==='/api/library/recycle/commit'){const input=await body(req);json(res,200,await pin(()=>recycle.commit(input)));return true;}
+  if(method==='GET'&&pathname==='/api/library/recycle/pending'){json(res,200,await pin(()=>recycle.pending(url.searchParams.get('projectId'))));return true;}
   if(method==='POST'&&pathname==='/api/library/import'){const input=await body(req);json(res,201,await pin(()=>importAsset(input)));return true;}
   if(method==='GET'&&pathname==='/api/library/fonts'){json(res,200,{items:fonts()});return true;}
   const fontMatch=pathname.match(/^\/api\/library\/fonts\/([a-f0-9-]{36})$/i);if(method==='GET'&&fontMatch){const f=store.db.libraryFonts?.find(f=>f.revisionId===fontMatch[1]);check(f,'字体尚未取用',404);const bytes=fs.readFileSync(f.filePath);res.writeHead(200,{'Content-Type':path.extname(f.filePath)==='.otf'?'font/otf':'font/ttf','Cache-Control':'private, max-age=31536000, immutable'});res.end(bytes);return true;}
@@ -107,7 +135,7 @@ export function createRemoteLibrary({dataDir,configPath,baseUrl='http://127.0.0.
   if(route==='/assets'&&url.searchParams.has('kind')){const kind=url.searchParams.get('kind'),params=new URLSearchParams(url.searchParams),offset=Math.max(0,Number(params.get('offset'))||0),limit=Math.max(1,Math.min(200,Number(params.get('limit'))||40)),items=[];const includeCollaboration=params.get('includeCollaboration')==='true';params.delete('includeCollaboration');params.delete('kind');params.set('limit','200');for(let begin=0;begin<10000;begin+=200){params.set('offset',String(begin));const page=await read('/api/assets?'+params);for(const item of expandMokuAssets(page.items)){ if(!includeCollaboration&&isCollaborationFile(item))continue;const font=/\.(otf|ttf|ttc|woff2?)$/i.test(item.name)||/font/.test(item.mime||''),image=/\.(png|jpe?g|webp|gif|svg|avif)$/i.test(item.name)||/^image\//.test(item.mime||''),text=[item.name,item.category,item.folder,...item.tags||[]].join(' ');if(kind==='font'&&font||kind==='image'&&image||kind==='document'&&!font&&!image||kind==='bubble'&&/气泡|对话框|对白|bubble|speech|thought|caption/i.test(text)||kind==='sfx'&&/拟声|音效|特效|氛围字|sfx|effect|sound/i.test(text))items.push(item);}if(page.items.length<200||items.length>offset+limit)break;}json(res,200,{items:items.slice(offset,offset+limit),offset,limit,more:items.length>offset+limit});return true;}
   const response=await remote('/api'+route+url.search),type=response.headers.get('content-type')||'application/octet-stream';res.writeHead(200,{'Content-Type':type,'Cache-Control':route.includes('/preview/')?'private, max-age=3600':'no-store'});res.end(Buffer.from(await response.arrayBuffer()));return true;
  }
- const api={handle,read,remote,memberIdentity,importAsset:input=>pin(()=>importAsset(input)),uploadAsset:input=>pin(()=>uploadAsset(input)),withSession:pin,rememberClassifiedAsset:classified.remember,projectUploadContext:projectLibrary.uploadContext,supportsClassified:classified.supported,organizeCollaborationAsset,ensureCollaborationFolder,fonts,baseUrl:base,defaultProjectId:defaults.projectId,defaultProjectName:defaults.projectName};
+ const api={handle,read,remote,memberIdentity,importAsset:input=>pin(()=>importAsset(input)),uploadAsset:input=>pin(()=>uploadAsset(input)),withSession:pin,assertSession:checkSession,rememberClassifiedAsset:classified.remember,projectUploadContext:projectLibrary.uploadContext,supportsClassified:classified.supported,organizeCollaborationAsset,ensureCollaborationFolder,registerSnapshotFont,fonts,baseUrl:base,defaultProjectId:defaults.projectId,defaultProjectName:defaults.projectName};
  const receiptsFile=path.join(dataDir,'moku-project-files.local.json');let receipts={};try{receipts=JSON.parse(fs.readFileSync(receiptsFile,'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
  const projectFiles=createProjectMediaFiles({store,library:api,dataDir,receipts,persist:()=>writeFileAtomicSync(receiptsFile,JSON.stringify(receipts))});
  api.packProject=async(project,projectId)=>await classified.supported()?projectFiles.pack(project,projectId):null;return api;

@@ -4,8 +4,9 @@
 .modern-workbench.unified-workbench .topbar .brand>span:last-child{display:inline}
 .modern-workbench.unified-workbench .topbar .brand-mark{width:24px;height:26px;flex:none}
 .modern-workbench.unified-workbench .topbar .brand-mark img{width:18px;height:18px}
-.modern-workbench.unified-workbench .topbar>.project-switcher{grid-area:project;min-width:0;width:100%}
-.modern-workbench.unified-workbench .topbar .project-trigger{width:100%;max-width:none;min-width:0;font-size:13px;padding:4px 6px}
+.modern-workbench.unified-workbench .topbar>.project-switcher{grid-area:project;display:flex;align-items:center;gap:4px;min-width:0;width:100%}
+.modern-workbench.unified-workbench .topbar .project-trigger{flex:1 1 auto;width:auto;max-width:none;min-width:0;font-size:13px;padding:4px 6px}
+.modern-workbench.unified-workbench .topbar #episode-version-open{flex:none;min-width:0}
 .modern-workbench.unified-workbench #workbench-primary-nav{grid-area:nav;display:flex;align-items:center;flex:none;gap:4px;margin:0;min-width:0;flex-wrap:nowrap}
 .modern-workbench.unified-workbench .topbar button,.modern-workbench.unified-workbench .topbar summary,.modern-workbench.unified-workbench #workbench-primary-nav>a{min-height:32px;font-size:12px;line-height:18px;padding:6px 8px;white-space:nowrap;box-sizing:border-box}
 .modern-workbench.unified-workbench #workbench-primary-nav>a,.modern-workbench.unified-workbench #workbench-primary-nav>button{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--text);text-decoration:none;flex:none}
@@ -45,4 +46,12 @@
  .modern-workbench.unified-workbench .topbar>.codex-connection-control{width:100%}
  .modern-workbench.unified-workbench .topbar #codex-connect{width:100%;font-size:11px;padding-inline:5px}
  .modern-workbench.unified-workbench .topbar #codex-connection-status{display:none}
+}
+@media(max-width:600px){
+ .modern-workbench.unified-workbench .canvas-toolbar{overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:thin}
+ .modern-workbench.unified-workbench .canvas-toolbar>.tools,.modern-workbench.unified-workbench .canvas-toolbar>.toolbar-right{flex:0 0 auto;min-width:max-content}
+}
+@media(max-width:330px){
+ .modern-workbench.unified-workbench .topbar{height:158px;min-height:158px;grid-template-columns:minmax(0,1fr) 66px 56px;grid-template-rows:repeat(4,32px);grid-template-areas:'project project more' 'nav nav nav' 'sync codex codex' 'generate export update'}
+ .modern-workbench.unified-workbench .topbar>#team-update-notice{width:100%}
 }

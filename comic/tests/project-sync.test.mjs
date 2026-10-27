@@ -10,15 +10,18 @@ const base=path.resolve(import.meta.dirname,'../../audit/cache-tests');fs.mkdirS
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
 async function fakeMoku({authorized=true,projects=[]}={}){
-  const state={authorized,projects,documents:new Map(),requests:[]};
+  const state={authorized,projects,documents:new Map(),requests:[],rejectReferences:false,rejectFormal:false,accountId:randomUUID()};
   const server=http.createServer(async (request,response)=>{
     let raw='';for await(const chunk of request)raw+=chunk;
     const body=raw?JSON.parse(raw):null;
     state.requests.push({method:request.method,url:request.url,body,idempotency:request.headers['idempotency-key']||''});
     const send=(status,value)=>{response.writeHead(status,{'Content-Type':'application/json'});response.end(JSON.stringify(value));};
     if(!state.authorized)return send(401,{error:{message:'未登录或会话已失效'}});
-    if(request.method==='GET'&&request.url==='/api/auth/me')return send(200,{user:{username:'tester',displayName:'测试账号'}});
+    if(request.url.startsWith('/api/documents')&&['POST','PUT'].includes(request.method)&&state.rejectReferences&&body?.references?.length)return send(422,{error:{code:'REFERENCE_REJECTED',message:'固定引用不属于此工程'}});
+    if(request.url.startsWith('/api/documents/')&&request.method==='PUT'&&state.rejectFormal)return send(409,{error:{code:'FORMAL_COMMIT_REQUIRED',message:'请使用正式版本提交'}});
+    if(request.method==='GET'&&request.url==='/api/auth/me')return send(200,{user:{id:state.accountId,username:'tester',displayName:'测试账号'}});
     if(request.method==='GET'&&request.url==='/api/projects')return send(200,{items:state.projects});
+    if(request.method==='GET'&&/^\/api\/project-library\/[a-f0-9-]{36}\/subjects$/.test(request.url))return send(200,{items:[]});
     if(request.method==='POST'&&request.url==='/api/documents'){
       const id=randomUUID(),document={id,name:body.name,type:body.type,objectVersion:1,revision:1,schemaVersion:body.schemaVersion,content:body.content,references:body.references,projectId:body.projectId};
       state.documents.set(id,document);return send(201,document);
@@ -48,7 +51,7 @@ async function fakeMoku({authorized=true,projects=[]}={}){
     },
     async remote(route,options={}){
       const response=await fetch(origin+route,{method:options.method||'GET',headers:options.headers,body:options.body});
-      if(!response.ok){const data=await response.json().catch(()=>({}));throw Object.assign(new Error(data?.error?.message||'HTTP '+response.status),{status:response.status});}
+      if(!response.ok){const data=await response.json().catch(()=>({}));throw Object.assign(new Error(data?.error?.message||'HTTP '+response.status),{status:response.status,code:data?.error?.code});}
       return response;
     },
   };
@@ -187,4 +190,52 @@ test('新分类墨库首次同步先要求明确归属，不按工程名猜项�
  await assert.rejects(sync.push(project.id),error=>error.code==='project_classification_required');
  assert.equal(sync.status(project.id).setupRequired,true);assert.equal(sync.status(project.id).status,'needs-classification');assert.equal(sync.status(project.id).pending,false);
  await sync.drain();assert.equal(remote.state.requests.length,0);assert.deepEqual(project,before);
+});
+
+test('切换墨库账号后旧同步队列暂停，重新确认归属前不写入',async t=>{
+ const tmp=fs.mkdtempSync(path.join(base,'account-switch-')),remoteProject={id:randomUUID(),name:'合成项目'},remote=await fakeMoku({projects:[remoteProject]}),{project,asset}=fixture();remote.library.supportsClassified=async()=>true;
+ const sync=makeSync({tmp,store:stubStore(project,asset),library:remote.library});t.after(async()=>{sync.close();await remote.close();fs.rmSync(tmp,{recursive:true,force:true});});
+ const link=()=>sync.handle({body:{projectId:project.id,remoteProjectId:remoteProject.id,classification:{characterIds:[],sceneIds:[]}}},{},{pathname:'/api/project-sync/link',method:'POST',url:new URL('http://fixture/api/project-sync/link')});
+ await link();await sync.push(project.id);const writes=()=>remote.state.requests.filter(r=>r.url.startsWith('/api/documents')&&['POST','PUT'].includes(r.method)).length,before=writes();
+ remote.state.accountId=randomUUID();project.revision++;sync.mark(project);await sync.drain();assert.equal(writes(),before);assert.equal(sync.status(project.id).setupRequired,true);assert.equal(sync.status(project.id).pending,false);
+ await assert.rejects(sync.push(project.id),error=>error.code==='project_account_confirmation_required');assert.equal(writes(),before);
+ await link();await sync.push(project.id);assert.equal(writes(),before+1);
+});
+
+test('墨库拒绝含固定引用的快照时不删引用重试；本机保存继续保留，处理后可手动重试',async t=>{
+ const tmp=fs.mkdtempSync(path.join(base,'reference-rejected-')),remote=await fakeMoku({projects:[{id:randomUUID(),name:'召唤万虫'}]}),{project,asset}=fixture(),sync=makeSync({tmp,store:stubStore(project,asset),library:remote.library});
+ t.after(async()=>{sync.close();await remote.close();fs.rmSync(tmp,{recursive:true,force:true});});
+ const before=structuredClone(project);remote.state.rejectReferences=true;
+ await assert.rejects(sync.push(project.id),error=>error.code==='project_snapshot_rejected');
+ const writes=()=>remote.state.requests.filter(r=>r.url.startsWith('/api/documents')&&['POST','PUT'].includes(r.method));
+ assert.equal(writes().length,1);assert.deepEqual(writes()[0].body.references,[asset.library.revisionId]);assert.equal(remote.state.documents.size,0);assert.deepEqual(project,before);
+ assert.match(sync.status(project.id).error,/未移除引用/);assert.equal(sync.status(project.id).blockedReason,'project_snapshot_rejected');assert.equal(sync.status(project.id).pending,false);
+ project.revision++;sync.mark(project);await sync.drain();assert.equal(writes().length,1,'后续本机保存不得自动重试');
+ sync.close();const reopened=makeSync({tmp,store:stubStore(project,asset),library:remote.library});t.after(()=>reopened.close());
+ reopened.mark(project);await reopened.drain();assert.equal(writes().length,1,'重启后仍须等待明确重试');assert.equal(reopened.status(project.id).blockedReason,'project_snapshot_rejected');
+ remote.state.rejectReferences=false;await reopened.push(project.id);assert.equal(reopened.status(project.id).status,'synced');assert.deepEqual([...remote.state.documents.values()][0].references,[asset.library.revisionId]);
+});
+
+test('正式工程拒绝旧快照时不做冲突自愈或自动重试，保留原远端版本',async t=>{
+ const tmp=fs.mkdtempSync(path.join(base,'formal-required-')),remote=await fakeMoku({projects:[{id:randomUUID(),name:'召唤万虫'}]}),{project,asset}=fixture(),sync=makeSync({tmp,store:stubStore(project,asset),library:remote.library});
+ t.after(async()=>{sync.close();await remote.close();fs.rmSync(tmp,{recursive:true,force:true});});
+ const first=await sync.push(project.id),prior=structuredClone(remote.state.documents.get(first.documentId));remote.state.rejectFormal=true;project.revision++;project.title+=' 修改';
+ const start=remote.state.requests.length;await assert.rejects(sync.push(project.id),error=>error.code==='FORMAL_COMMIT_REQUIRED');
+ assert.equal(remote.state.requests.slice(start).filter(r=>r.method==='PUT').length,1);assert.equal(remote.state.requests.slice(start).filter(r=>r.method==='GET'&&r.url.startsWith('/api/documents/')).length,0);
+ assert.deepEqual(remote.state.documents.get(first.documentId),prior);assert.match(sync.status(project.id).error,/本话版本/);assert.equal(sync.status(project.id).blockedReason,'FORMAL_COMMIT_REQUIRED');
+ const count=remote.state.requests.length;project.revision++;sync.mark(project);await sync.drain();assert.equal(remote.state.requests.length,count);
+ sync.close();const reopened=makeSync({tmp,store:stubStore(project,asset),library:remote.library});t.after(()=>reopened.close());
+ reopened.mark(project);await reopened.drain();assert.equal(remote.state.requests.length,count,'重启后不得自动走旧快照写入');
+ remote.state.rejectFormal=false;await reopened.push(project.id);assert.equal(reopened.status(project.id).status,'synced');assert.equal(reopened.status(project.id).blockedReason,'');
+});
+
+test('固定引用超过接口上限时明确拒绝，不能截断后报告同步成功',async t=>{
+ const tmp=fs.mkdtempSync(path.join(base,'too-many-references-')),remote=await fakeMoku({projects:[{id:randomUUID(),name:'召唤万虫'}]}),{project,asset}=fixture();
+ const assets=Array.from({length:2001},(_,i)=>({...asset,id:'asset_'+randomUUID(),name:'合成素材'+i,library:{...asset.library,assetId:randomUUID(),revisionId:randomUUID()}}));
+ project.references=assets.map(a=>({assetId:a.id,role:'character',name:a.name}));const store=stubStore(project,assets[0]);store.db.assets=assets;
+ const sync=makeSync({tmp,store,library:remote.library});t.after(async()=>{sync.close();await remote.close();fs.rmSync(tmp,{recursive:true,force:true});});
+ await assert.rejects(sync.push(project.id),error=>error.code==='project_snapshot_too_many_refs');
+ assert.equal(remote.state.requests.filter(r=>r.url.startsWith('/api/documents')&&['POST','PUT'].includes(r.method)).length,0);
+ assert.equal(sync.status(project.id).blockedReason,'project_snapshot_too_many_refs');assert.match(sync.status(project.id).error,/未截断引用/);
+ sync.mark(project);await sync.drain();assert.equal(remote.state.requests.length,0);assert.equal(project.references.length,2001);
 });

@@ -12,7 +12,7 @@ function locate(project,panelId){for(const page of project.pages||[]){const pane
 const assetSnapshot=a=>({id:a.id,filePath:a.filePath,mime:a.mime,width:a.width,height:a.height,name:a.name,libraryRole:a.libraryRole});
 function sourceState(project,panel,assets){
  const byId=assetMap(assets),background=byId.get(panel.imageAssetId);check(background,'破框背景图片不存在，请重新定位图片',409);
- return {content:panelContentKey(project,panel,[...byId.values()]),geometry:{x:panel.x,y:panel.y,w:panel.w,h:panel.h,points:panel.points,imageAssetId:panel.imageAssetId,imageTransform:panel.imageTransform},background:assetSnapshot(background)};
+ return {content:panelContentKey(project,panel,[...byId.values()]),direction:panelArtDirection(panel),geometry:{x:panel.x,y:panel.y,w:panel.w,h:panel.h,points:panel.points,imageAssetId:panel.imageAssetId,imageTransform:panel.imageTransform},background:assetSnapshot(background)};
 }
 export function breakoutSourceKey(project,panel,assets){return digest(sourceState(project,panel,assets));}
 /** Expansion is page-local. A transparent foreground never inherits the source polygon. */
@@ -45,12 +45,12 @@ export function applyBreakoutResult(project,request,{assetId,jobId,alphaVerified
  check(request.referenceStamp===undefined||(typeof request.referenceStamp==='string'&&request.referenceStamp.length<=200000),'破框参考文件快照无效',409);
  const {panel}=locate(project,request.panelId);panel.breakoutCandidates||=[];const existing=panel.breakoutCandidates.find(c=>c.assetId===assetId&&c.jobId===jobId);if(existing)return {project,candidate:existing,added:false};check(panel.breakoutCandidates.length<40,'破框候选已满，请整理候选后再生成',409);
  let sourceCurrent=false;try{sourceCurrent=breakoutSourceKey(project,panel,assets||request.referenceAssets)===request.sourceKey;}catch{}
- const candidate={version:1,assetId,jobId,alphaVerified:true,transparency:copy(alpha),sourceKey:request.sourceKey,sourceRevision:request.sourceRevision,backgroundAssetId:request.backgroundAssetId,canvas:copy(request.canvas),...(request.extents?{extents:copy(request.extents)}:{}),referenceAssetIds:[...request.referenceAssetIds],...(request.referenceStamp!==undefined?{referenceStamp:request.referenceStamp}:{}),createdAt:new Date().toISOString(),status:sourceCurrent&&!panel.locked?'ready':'stale',subject:request.subject};panel.breakoutCandidates.push(candidate);return {project,candidate,added:true};
+ const candidate={version:1,assetId,jobId,alphaVerified:true,transparency:copy(alpha),sourceKey:request.sourceKey,sourceKeyVersion:2,sourceRevision:request.sourceRevision,backgroundAssetId:request.backgroundAssetId,canvas:copy(request.canvas),...(request.extents?{extents:copy(request.extents)}:{}),referenceAssetIds:[...request.referenceAssetIds],...(request.referenceStamp!==undefined?{referenceStamp:request.referenceStamp}:{}),createdAt:new Date().toISOString(),status:sourceCurrent&&!panel.locked?'ready':'stale',subject:request.subject};panel.breakoutCandidates.push(candidate);return {project,candidate,added:true};
 }
 /** Confirming adds an independent layer; it never replaces the original scene image. */
 export function confirmBreakout(project,panelId,assetId,assets){
  const {page,panel}=locate(project,panelId);check(!panel.locked,'背景画格已锁定，不能应用破框前景',409);
- const candidate=(panel.breakoutCandidates||[]).find(c=>c.assetId===assetId);check(candidate,'破框候选不存在',404);check(candidate.status!=='stale','候选来源已过期，旧前景保留为候选；请按当前画面重新生成并核验',409);check(candidate.alphaVerified===true,'候选尚未通过真实alpha验收',409);verifiedAlpha(candidate.transparency);
+ const candidate=(panel.breakoutCandidates||[]).find(c=>c.assetId===assetId);check(candidate,'破框候选不存在',404);check(candidate.status!=='stale','候选来源已过期，旧前景保留为候选；请按当前画面重新生成并核验',409);check(candidate.sourceKeyVersion===2,'旧版候选未记录完整画面设计，原候选已保留；请重新生成并核验',409);check(candidate.alphaVerified===true,'候选尚未通过真实alpha验收',409);verifiedAlpha(candidate.transparency);
  const asset=assetMap(assets).get(assetId);check(asset,'破框候选图片不存在',404);check(asset.mime==='image/png'||asset.extension==='.png','破框前景必须是PNG',409);const alpha=verifiedAlpha(asset.transparency);check(asset.width===alpha.width&&asset.height===alpha.height,'透明像素证据与当前图片尺寸不一致，请重新验收',409);
  check(breakoutSourceKey(project,panel,assets)===candidate.sourceKey,'背景、画格、提示词或参考已改变，旧前景保留为候选；请按当前画面重新生成',409);
  const canvas=candidate.canvas;check(JSON.stringify(canvas)===JSON.stringify(breakoutCanvas(page,panel)),'破框画布锚点与当前来源不一致，请重新生成',409);const ratio=canvas.w/canvas.h,actualRatio=asset.width/asset.height;check(Math.abs(actualRatio/ratio-1)<=.025,'透明前景比例与计划画布不一致，候选已保留；请按计划尺寸重新生成',409);

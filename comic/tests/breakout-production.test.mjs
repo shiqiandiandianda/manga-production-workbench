@@ -24,9 +24,9 @@ test('边缘格的扩展限制在当前页面，前景可跨原框但不会被�
  const f=fixture();Object.assign(f.panel,{x:0,y:10,w:1280,h:1000});const c=breakoutCanvas(f.project.pages[0],f.panel);assert.equal(c.x,0);assert.equal(c.y,0);assert.equal(c.w,1280);assert.ok(c.h>f.panel.h);assert.equal(c.backgroundRect.y,10);
 });
 test('源指纹覆盖本格提示词、尺寸、轮廓、图片取景、样式、身份参考，忽略无关工程修订',()=>{
- const original=fixture(),key=breakoutSourceKey(original.project,original.panel,original.assets);const variants=[f=>f.panel.generation.prompt+='新版',f=>f.panel.x++,f=>f.panel.w++,f=>f.panel.points[0].x+=.03,f=>f.panel.imageTransform.scale+=.1,f=>f.project.style+='新版',f=>f.panel.artDirection.view='worm',f=>f.panel.referenceIds=[]];
- for(const mutate of variants){const f=fixture(); // Fresh UUIDs have their own baseline, so compare only within this instance.
-  const baseline=breakoutSourceKey(f.project,f.panel,f.assets);mutate(f);assert.notEqual(breakoutSourceKey(f.project,f.panel,f.assets),baseline);}
+ const original=fixture(),key=breakoutSourceKey(original.project,original.panel,original.assets);const variants=[f=>f.panel.generation.prompt+='新版',f=>f.panel.x++,f=>f.panel.w++,f=>f.panel.points[0].x+=.03,f=>f.panel.imageTransform.scale+=.1,f=>f.project.style+='新版',f=>f.panel.artDirection.view='worm',f=>f.panel.referenceIds=[],f=>f.panel.artDirection.breakoutSubject='更换越框主体',f=>f.panel.artDirection.breakoutExtents={unit:'ratio',left:.3,right:.2,top:.2,bottom:.2}];
+ for(const [index,mutate] of variants.entries()){const f=fixture(); // Fresh UUIDs have their own baseline, so compare only within this instance.
+  const baseline=breakoutSourceKey(f.project,f.panel,f.assets);mutate(f);assert.notEqual(breakoutSourceKey(f.project,f.panel,f.assets),baseline,'变更项 '+index+' 未更新来源指纹');}
  original.project.revision++;original.project.title='合成无关重命名';assert.equal(breakoutSourceKey(original.project,original.panel,original.assets),key);
 });
 test('结果只进候选，保留背景与全部既有图层；同一任务重复返回不会重复添加',()=>{
@@ -38,6 +38,10 @@ test('白底、空图或未验收结果不进可确认候选',()=>{
 test('生成过程中当前源改变或被锁定，仍保存真实透明候选但不自动应用',()=>{
  const r=finish(fixture(),{changed:true});assert.equal(r.candidate.status,'stale');const before=copy(r.project);assert.throws(()=>confirmBreakout(r.project,r.panel.id,r.asset.id,r.assets),/旧前景保留为候选/);assert.deepEqual(r.project,before);
  const f=fixture(),request=prepareBreakout(f.project,f.panel.id,f.assets);f.panel.locked=true;const result=applyBreakoutResult(f.project,request,{assetId:id('asset'),jobId:id('job'),alphaVerified:true,transparency:alpha(1120,1500),assets:f.assets});assert.equal(result.candidate.status,'stale');assert.throws(()=>confirmBreakout(f.project,f.panel.id,result.candidate.assetId,f.assets),/已锁定/);
+});
+test('旧版候选来源信息不足时保留原件并明确阻止采用',()=>{
+ const r=finish(fixture());delete r.candidate.sourceKeyVersion;const before=copy(r.project);
+ assert.throws(()=>confirmBreakout(r.project,r.panel.id,r.asset.id,r.assets),/旧版候选未记录完整画面设计/);assert.deepEqual(r.project,before);
 });
 test('即使字段源指纹相同，已标记原文件变化的stale候选也不能直接确认',()=>{
  const r=finish(fixture());r.candidate.status='stale';const before=copy(r.project);assert.throws(()=>confirmBreakout(r.project,r.panel.id,r.asset.id,r.assets),error=>error.status===409&&/来源已过期/.test(error.message));assert.deepEqual(r.project,before);

@@ -36,7 +36,7 @@ export function createClassifiedBubbleStyles({library,cacheFile,getStyles,source
    let entry=cache.items[style.id];
    if(!entry||entry.fingerprint!==fingerprint||force&&entry.confirmed){
     let previous;if(entry?.assetId){previous=await library.read(root(assetType)+'/assets/'+entry.assetId);check(previous.assetType===assetType,'样式分类已变化，请先核对原样式');}
-    const uploaded=await library.uploadAsset({projectId:null,assetKind:'image',assetType,name:style.label+'.png',bytes,mime:'image/png',...(previous?{assetId:previous.id,objectVersion:previous.objectVersion}:{})});
+    const uploaded=await library.uploadAsset({projectId:null,assetKind:'image',assetType,name:style.label+'.png',bytes,mime:'image/png',operationId:'bubble-style:'+hash(JSON.stringify([account,style.id,fingerprint,previous?.id,previous?.objectVersion])),...(previous?{assetId:previous.id,objectVersion:previous.objectVersion}:{})});
     entry=cache.items[style.id]={fingerprint,assetType,assetId:uploaded.assetId,revisionId:uploaded.revisionId,key:randomUUID(),confirmed:false};save(cache);
    }
    // A lost response retries the same revision and key, never another upload.

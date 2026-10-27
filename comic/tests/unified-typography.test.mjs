@@ -19,9 +19,9 @@ test('全部话统一字体原子保存，版本冲突和非法字体不部分�
  const invalid=await request({...payload,expectedRevisions:{...payload.expectedRevisions,[projects[1].id]:-1}});assert.equal(invalid.status,409);assert.equal(studio.store.db.projects[0].revision,projects[0].revision);
  const saved=await request(payload);assert.equal(saved.status,200);assert.equal(saved.data.projects.length,2);assert.ok(saved.data.changed>0);
  for(const project of saved.data.projects){assert.deepEqual(project.typography,validateTypography({fontFamily:'source-han-serif',fontSize:64}));assert.ok(project.pages.flatMap(p=>p.bubbles).filter(b=>['speech','thought','caption'].includes(b.type)).every(b=>b.fontFamily==='source-han-serif'&&b.fontSize===64));}
- assert.equal((await request(payload)).status,409);assert.equal((await request({...payload,fontSize:97})).status,400);assert.equal((await request({...payload,fontFamily:'unknown'})).status,400);
+ assert.equal((await request(payload)).status,409);const fresh={...payload,expectedRevisions:Object.fromEntries(saved.data.projects.map(p=>[p.id,p.revision]))},beforeInvalid=structuredClone(studio.store.db.projects);assert.equal((await request({...fresh,fontSize:1025})).status,400);assert.equal((await request({...fresh,fontFamily:'unknown'})).status,400);assert.deepEqual(studio.store.db.projects,beforeInvalid,'非法样式不能部分修改工程');
 });
-test('统一字号覆盖44到96，并拒绝非法数值',()=>{for(const value of [44,60,96])assert.equal(validateTypography({fontFamily:'system-sans',fontSize:value}).fontSize,value);for(const value of [43,97,NaN])assert.throws(()=>validateTypography({fontFamily:'system-sans',fontSize:value}));});
+test('统一字号覆盖10到1024，并拒绝非法数值',()=>{for(const value of [10,44,60,96,1024])assert.equal(validateTypography({fontFamily:'system-sans',fontSize:value}).fontSize,value);for(const value of [9,1025,NaN])assert.throws(()=>validateTypography({fontFamily:'system-sans',fontSize:value}));});
 
 
 

@@ -22,7 +22,7 @@ const png=createCanvas(600,400).toBuffer('image/png'),until=async check=>{for(le
 const launch=()=>chromium.launch({channel:'msedge',headless:true,env:{...process.env,TEMP:proof,TMP:proof}});
 
 test('列表缩略图采用全程不打开详情：延迟、连点、失败重试、固定版本、当前范围与滚动位置',{timeout:60000},async t=>{
- const names=Array.from({length:16},(_,i)=>'测试人物'+String(i+1).padStart(2,'0')),files=syntheticFiles(),board=JSON.parse(files[0].bytes),screens=JSON.parse(files[1].bytes);
+ const names=Array.from({length:40},(_,i)=>'测试人物'+String(i+1).padStart(2,'0')),files=syntheticFiles(),board=JSON.parse(files[0].bytes),screens=JSON.parse(files[1].bytes);
  for(const p of board['格']){p['出现角色']=names;p['服装']=Object.fromEntries(names.map(n=>[n,'黑衣']));p['台词']=[];}
  for(const s of screens['屏段'])s['附图']=names.map(n=>({'类型':'设定卡','人物':n,'服装':'黑衣','必须':true}));screens['文字']=[];
  files[0].bytes=Buffer.from(JSON.stringify(board));files[1].bytes=Buffer.from(JSON.stringify(screens));
@@ -36,7 +36,7 @@ test('列表缩略图采用全程不打开详情：延迟、连点、失败重�
   if(u.pathname==='/api/library/projects')return json({items:[{id:cloud,name:'合成图库'}]});if(u.pathname==='/api/library/assets')return json({items:u.searchParams.get('projectId')===cloud?catalogue:[],more:false});
   if(req.method==='POST'){let text='';for await(const c of req)text+=c;const input=JSON.parse(text);calls.push({path:u.pathname,input});
    if(u.pathname.endsWith('/reuse'))return json({changed:false,summary:{reused:0}});
-   if(u.pathname==='/api/library/import'){if(holdImport)await new Promise(r=>importRelease=r);if(failImport){failImport=false;return json({error:'合成断网'},503)}const remote=catalogue.find(a=>a.id===input.assetId);let a=assets.find(a=>a.library.assetId===remote.id);if(!a){a={id:'asset_'+randomUUID(),name:remote.name,width:600,height:400,libraryRole:remote.category,libraryName:remote.name.split('_')[0],libraryState:'白衣',productionStatus:'confirmed',library:{assetId:remote.id,revisionId:remote.recommendedRevisionId,sha256:'a'.repeat(64),projectId:cloud}};assets.push(a)}return json({asset:staleImport?{...a,library:{...a.library,revisionId:randomUUID()}}:a});}
+   if(u.pathname==='/api/library/import'){if(holdImport)await new Promise(r=>importRelease=r);if(failImport){failImport=false;return json({error:'合成断网'},503)}const remote=catalogue.find(a=>a.id===input.assetId);let a=assets.find(a=>a.library.assetId===remote.id);if(!a){a={id:'asset_'+randomUUID(),name:remote.name,width:600,height:400,libraryRole:remote.category,libraryName:remote.name.split('_')[0],libraryState:'白衣',productionStatus:'confirmed',library:{assetId:remote.id,revisionId:remote.recommendedRevisionId,sha256:'a'.repeat(64),projectId:cloud}};assets.push(a)}return json({asset:staleImport?{...a,library:{...a.library,...(staleImport==='asset'?{assetId:randomUUID()}:{revisionId:randomUUID()})}}:a});}
    if(u.pathname.endsWith('/bind')){if(holdBind)await new Promise(r=>bindRelease=r);if(failBind){failBind=false;return json({error:'合成版本冲突'},409)}project=prepareWorkspaceBinding(store,project,input,store.asset(input.assetId));project.revision++;return json({project});}
    throw Error('禁止其他写入 '+u.pathname);
   }
@@ -47,7 +47,7 @@ test('列表缩略图采用全程不打开详情：延迟、连点、失败重�
  const page=await browser.newPage({viewport:{width:1280,height:950}}),origin='http://127.0.0.1:'+server.address().port;page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());await page.goto(origin);
  await page.locator('[data-gallery-scope]').selectOption('panel');await page.locator('[data-asset-auto-match]').click();await page.waitForFunction(()=>document.querySelector('[data-asset-search-status]').textContent.startsWith('匹配完成'));
  const card=name=>page.locator('.asset-gallery-card').filter({has:page.locator('.asset-gallery-caption>strong',{hasText:new RegExp('^'+name+'$')})});
- const target=names.at(-1),candidate=card(target).locator('[data-gallery-adopt]').first(),chosen=await candidate.getAttribute('data-gallery-adopt');await candidate.scrollIntoViewIfNeeded();const scroll=await page.locator('[data-asset-list]').evaluate(n=>n.scrollTop);assert.ok(scroll>0);
+ const target=await page.locator('[data-asset-list]').evaluate(list=>{list.scrollTop=list.scrollHeight;const area=list.getBoundingClientRect();return [...list.querySelectorAll('[data-gallery-adopt]')].map(button=>({button,rect:button.getBoundingClientRect(),name:button.closest('.asset-gallery-card')?.querySelector('.asset-gallery-caption>strong')?.textContent})).find(item=>item.name?.startsWith('测试人物')&&item.name!=='测试人物01'&&item.rect.top>=area.top&&item.rect.bottom<=area.bottom)?.name;});assert.ok(target,'滚动后应有可见的候选图片');const candidate=card(target).locator('[data-gallery-adopt]').first(),chosen=await candidate.getAttribute('data-gallery-adopt');await candidate.scrollIntoViewIfNeeded();const scroll=await page.locator('[data-asset-list]').evaluate(n=>n.scrollTop);assert.ok(scroll>0);
  holdImport=true;holdBind=true;await candidate.evaluate(n=>{n.click();n.click()});await until(()=>!!importRelease);
  const inOverview=async()=>{assert.equal(await page.locator('#asset-detail-panel').isVisible(),false);assert.equal(await page.evaluate(()=>window.detailOpenings),0);assert.equal(await page.locator('#asset-gallery-workspace').isVisible(),true)};
  await inOverview();assert.equal(calls.filter(c=>c.path.endsWith('/import')).length,1);assert.equal(calls.filter(c=>c.path.endsWith('/bind')).length,0);await page.screenshot({path:path.join(proof,'gallery-adopting.png')});
@@ -58,9 +58,14 @@ test('列表缩略图采用全程不打开详情：延迟、连点、失败重�
  // Failures leave the same list and candidate available for retry.
  const retry=card(names[0]).locator('[data-gallery-adopt]').first();failImport=true;await retry.click();await page.waitForFunction(()=>document.querySelector('[data-asset-search-status]').textContent.includes('合成断网'));await inOverview();assert.equal(calls.filter(c=>c.path.endsWith('/bind')).length,1);
  staleImport=true;await retry.click();await page.waitForFunction(()=>document.querySelector('[data-asset-search-status]').textContent.includes('图片版本已改变'));staleImport=false;await inOverview();assert.equal(calls.filter(c=>c.path.endsWith('/bind')).length,1);
+ staleImport='asset';await retry.click();await page.waitForFunction(()=>document.querySelector('[data-asset-search-status]').textContent.includes('图片版本已改变'));staleImport=false;await inOverview();assert.equal(calls.filter(c=>c.path.endsWith('/bind')).length,1,'不同资产不得冒用相同版本编号');
  failBind=true;await retry.click();await page.waitForFunction(()=>document.querySelector('[data-asset-search-status]').textContent.includes('合成版本冲突'));await inOverview();
  await retry.click();await page.waitForFunction(()=>document.querySelector('[data-asset-search-status]').textContent.startsWith('已采用'));await inOverview();
  await card('测试庭院').locator('[data-gallery-adopt]').first().click();await page.waitForFunction(()=>document.querySelector('[data-asset-search-status]').textContent.startsWith('已采用'));await inOverview();assert.match(await card('测试庭院').innerText(),/已采用/);assert.deepEqual(errors,[]);
+ // An old account's pending import must never continue into a project binding.
+ const next=names.find(name=>name!==target&&name!==names[0]&&card(name));const pending=card(next).locator('[data-gallery-adopt]').first(),bindsBefore=calls.filter(c=>c.path.endsWith('/bind')).length;
+ holdImport=true;importRelease=null;await pending.click();await until(()=>!!importRelease);await page.evaluate(()=>window.dispatchEvent(new CustomEvent('moku-auth-changed')));holdImport=false;importRelease();await new Promise(resolve=>setTimeout(resolve,300));
+ assert.equal(calls.filter(c=>c.path.endsWith('/bind')).length,bindsBefore,'切账号后的旧导入结果不能绑定到工程');assert.equal(await page.locator('[data-gallery-adopt]').count(),0,'旧账号候选需清除');await inOverview();
  await page.screenshot({path:path.join(proof,'gallery-selected.png')});fs.writeFileSync(path.join(proof,'gallery-browser.json'),JSON.stringify({ok:true,detailOpenings:0,scopePreserved:true,scrollPreserved:true,doubleClickProtected:true,importFailureRetry:true,staleRevisionRejected:true,bindFailureRetry:true,characterAndScene:true,realProjectWrites:0,errors},null,2));
 });
 

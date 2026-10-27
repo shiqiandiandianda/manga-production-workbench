@@ -79,13 +79,14 @@ test('进度写盘合并为一次，状态变化与关闭时立即落盘',async 
 
 test('多窗口：只有服务端自有字段变化时沿用版本号，内容变化时载入或提示冲突',()=>{
   const base=createProject('窗口',true);base.revision=3;const baseComparable=comparableProject(base);
-  const imageOnly=structuredClone(base);imageOnly.revision=4;imageOnly.pages[0].panels[0].imageAssetId='asset_00000000-0000-4000-8000-000000000001';imageOnly.pages[0].panels[0].candidates=['asset_00000000-0000-4000-8000-000000000001'];imageOnly.storyboardWorkflow={versions:[]};imageOnly.updated='later';
+  const imageOnly=structuredClone(base);imageOnly.revision=4;imageOnly.pages[0].panels[0].candidates=['asset_00000000-0000-4000-8000-000000000001'];imageOnly.updated='later';
   const moved=structuredClone(base);moved.revision=4;moved.pages[0].panels[0].x+=40;
   for(const dirty of [false,true])assert.equal(revisionDecision({localRevision:3,server:imageOnly,baseComparable,dirty,saving:false}),'adopt-revision');
   assert.equal(revisionDecision({localRevision:3,server:moved,baseComparable,dirty:false,saving:false}),'adopt-content');
   assert.equal(revisionDecision({localRevision:3,server:moved,baseComparable,dirty:true,saving:false}),'conflict');
   assert.equal(revisionDecision({localRevision:3,server:moved,baseComparable,dirty:false,saving:true}),'ignore','保存进行中先等待结果');
-  assert.equal(revisionDecision({localRevision:4,server:moved,baseComparable,dirty:false,saving:false}),'ignore','较旧或相同版本不处理');
+  assert.equal(revisionDecision({localRevision:5,server:moved,baseComparable,dirty:false,saving:false}),'ignore','较旧版本不处理');
+  assert.equal(revisionDecision({localRevision:4,server:moved,baseComparable,dirty:false,saving:false}),'adopt-content','相同版本的后台内容更新也需载入');
   assert.equal(revisionDecision({localRevision:3,server:moved,baseComparable:'',dirty:true,saving:false}),'conflict','没有基准时按保守方式处理');
 });
 
@@ -94,8 +95,8 @@ test('Codex 参考图模式：默认逐张查看，direct 直接交给生图；�
   assert.equal(referenceMode({}),'view');assert.equal(referenceMode({COMIC_CODEX_REFERENCE_MODE:'Direct'}),'direct');
   assert.throws(()=>referenceMode({COMIC_CODEX_REFERENCE_MODE:'fast'}),/view 或 direct/);
   const view=buildImagePrompt(input),direct=buildImagePrompt({...input,referenceMode:'direct'});
-  assert.match(view,/先使用 view_image 读取/);assert.doesNotMatch(direct,/先使用 view_image 读取/);
-  assert.match(direct,/不需要先用 view_image 查看参考图/);assert.match(direct,/referenced_image_paths/);assert.match(direct,/\$imagegen/);
+  assert.match(view,/先读取清单中的参考图/);assert.doesNotMatch(direct,/先读取清单中的参考图/);
+  assert.match(direct,/直接使用清单中的参考图路径/);assert.match(direct,/referenced_image_paths/);assert.match(direct,/\$imagegen/);
 });
 
 test('未配置并发时与启动入口一致，默认同时生成 6 张',()=>{assert.equal(DEFAULT_CONCURRENCY,6);});

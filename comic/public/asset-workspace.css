@@ -123,8 +123,9 @@ body.asset-workspace-open .asset-sidebar-resize{display:none!important}
 .asset-source-review .asset-provenance-entry{padding:12px;border:1px solid #38556c;border-radius:7px}.asset-source-review blockquote{white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:760px){.asset-variant-review>article,.asset-source-review .asset-original-documents{padding:10px}.asset-evidence-actions{gap:6px}.asset-evidence-actions button{flex:1;min-width:140px}}
 #asset-gallery-workspace #asset-detail-panel.asset-detail-simple{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto minmax(0,1fr);gap:0;padding:18px 22px}
-#asset-gallery-workspace .asset-detail-simple .asset-detail-heading{grid-column:1;grid-row:1;padding:0 0 10px;align-items:center}
-#asset-gallery-workspace .asset-detail-simple .asset-detail-tabs{grid-column:1;grid-row:2;display:flex;flex-direction:row;gap:8px;border:0;padding:0;margin:0 0 8px;overflow:visible;align-self:auto}
+#asset-gallery-workspace .asset-detail-simple .asset-detail-heading{grid-column:1;grid-row:1;padding:0 0 5px;margin:0 0 5px;align-items:center}
+#asset-gallery-workspace .asset-detail-simple .asset-detail-tabs{grid-column:1;grid-row:2;display:flex;flex-direction:row;gap:8px;border:0;padding:0;margin:0 0 4px;overflow:visible;align-self:auto}
+#asset-gallery-workspace .asset-detail-simple .asset-record-toolbar{margin-bottom:8px}
 #asset-gallery-workspace #asset-detail-panel.asset-detail-simple [data-asset-status]{grid-column:1;grid-row:3;margin:0 0 8px;padding:0;font-size:13px}
 #asset-gallery-workspace .asset-detail-simple [data-asset-status]:empty{display:none}
 #asset-gallery-workspace #asset-detail-panel.asset-detail-simple>[data-asset-content]{grid-column:1;grid-row:4;min-width:0;min-height:0;overflow:auto;padding:0 4px 20px 0;container-type:normal}

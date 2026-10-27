@@ -8,7 +8,7 @@ import {createRequire} from 'node:module';
 import {privilegedFixtureReason} from '../privileged-fixtures.mjs';
 
 test('旧测试中会创建或读取管理员令牌的夹具必须在启动前阻断',()=>{
- for(const file of ['center/tests/http.test.mjs','comic/tests/asset-center.integration.test.mjs','comic/tests/asset-generator.integration.test.mjs'])assert.match(privilegedFixtureReason(file),/管理员令牌/);
+  for(const file of ['center/tests/http.test.mjs','comic/tests/asset-center.integration.test.mjs','comic/tests/asset-generator.integration.test.mjs'])assert.match(privilegedFixtureReason(file),/管理员/);
  assert.equal(privilegedFixtureReason('comic/tests/model.test.mjs'),'');
 });
 

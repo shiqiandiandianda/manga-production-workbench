@@ -1,6 +1,6 @@
 # 漫画工作台测试合集
 
-本合集基于 `dev` 源码建立。先阅读 [功能与链路清单](功能与链路清单.md)：标记“强感知”的是影响日常制作的功能，标记“核心链路”的是日常必须可走通的任务。[自动化用例索引](自动化用例索引.md) 列出静态发现的测试标题，[墨库对接与版本说明](墨库对接与版本说明.md) 说明上传身份和正式版本规则，[全量测试盘点](全量测试盘点-2026-10-28.md) 保存尚需核查的测试文件。清单里的测试引用是文件级关联，不能当作逐个动作已经验收。
+本合集基于 `dev` 源码建立。先阅读 [功能与链路清单](功能与链路清单.md)：标记“强感知”的是影响日常制作的功能，标记“核心链路”的是日常必须可走通的任务。[自动化用例索引](自动化用例索引.md) 列出静态发现的测试标题，[墨库对接与版本说明](墨库对接与版本说明.md) 说明上传身份和正式版本规则，[全量测试盘点](全量测试盘点-2026-10-28.md) 和 [非通过文件清单](全量失败清单-2026-10-28.md) 保存尚需核查的结果。清单里的测试引用是文件级关联，不能当作逐个动作已经验收。
 
 ## 如何选择
 
@@ -29,7 +29,7 @@ npm run quality:large -- --jobs 2 --timeout 150
 
 复制源码前及每个测试文件启动前，检查输出盘和源码所在盘的剩余空间；任一盘低于 3 GiB 时停止，并在 `results.json` 的 `stoppedReason` 记录原因。无法启动测试子进程时，运行器记录阻断并停止排队，不把未运行的文件记成业务失败。这些中断不算通过；单个测试仍需控制自己的磁盘使用。
 
-三个旧资产中心用例会在隔离环境生成或读取管理员令牌：`center/tests/http.test.mjs`、`comic/tests/asset-center.integration.test.mjs` 和 `comic/tests/asset-generator.integration.test.mjs`。运行器在启动之前将它们标为 `blocked` 并记录原因；这不是通过，也不覆盖现有用户权限要求。其他用例仍须事先审查其依赖和权限。
+以下旧用例即使使用隔离资料，也会使用管理员凭据或执行管理员操作，运行器在启动之前将它们标为 `blocked`，不计为通过：`center/tests/http.test.mjs`、`comic/tests/asset-center.integration.test.mjs`、`comic/tests/asset-generator.integration.test.mjs`、`distribution/tests/forced-upgrades.test.mjs`、`distribution/tests/rolling-upgrades.test.mjs`、`distribution/tests/publisher-admin-page.test.mjs`、`distribution/tests/publication.test.mjs` 和 `协作/tests/hub-server.test.mjs`。这些能力需要另行获得针对具体权限和操作的授权后才能验证。其他用例仍须事先审查其依赖和权限。
 
 仅查看计划，不执行：
 
@@ -63,6 +63,15 @@ npm run quality:small
 ```
 
 `QUALITY_NODE_MODULES` 目录应包含 `playwright` 和 `@napi-rs/canvas`。`QUALITY_MOKU_SOURCE` 支持构建号 `1.1.0-20261027-global1` 或 `2.0.1-20261028-recovery1`，并须包含测试依赖；运行器复制源码到本次测试目录、使用对应的 schema 23 或 24 创建独立 PGlite 数据库与普通合成账号。测试报告和 `inventory.json` 会记录实际版本；更换墨库版本时先更新和验证契约，不要绕过版本检查。如 OpenCV 等 Python 包安装在单独目录，用 `QUALITY_PYTHON_DEPS` 指定；默认也会检查仓库根目录未提交的 `.quality-deps/python`。测试字体只在运行时读取，不进入仓库。可用 `QUALITY_BROWSER_EXECUTABLE` 指定本机浏览器；设置后所有浏览器测试会使用它，报告结论只适用于指定浏览器。未设置时保留用例指定的浏览器，无指定时 Windows 默认 Edge。
+
+本地图像处理测试需要额外的 OpenCV 和 ONNX Runtime。可将专用测试依赖安装在仓库外的独立目录，然后在运行测试前设置 `QUALITY_PYTHON_DEPS`，例如在 `comic` 目录执行：
+
+```powershell
+& $env:QUALITY_PYTHON -m pip install --target D:\test-dependencies\image-python -r quality\requirements-test-image.txt
+$env:QUALITY_PYTHON_DEPS = 'D:\test-dependencies\image-python'
+```
+
+先设置前文的 `QUALITY_PYTHON`；这里的安装目录仅用于测试，不修改应用的 Python 环境。测试 U²-Net 还需要另行提供并校验下述模型文件。
 
 本地抠图模型测试可通过 `QUALITY_U2NET_MODEL` 指向已提供的 U²-Net 模型。运行器校验模型 MD5 为 `60024c5c889badc19c04ad937298a77b` 后复制到隔离源码目录；不提交模型，不接触真实图片。未指定时相应用例明确报告缺少模型。
 

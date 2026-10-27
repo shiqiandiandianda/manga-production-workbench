@@ -30,8 +30,9 @@ export function assetVariantMarkup(project,rows){
 }
 export function assetSourceMarkup(project,row){
  const docs=assetNovelDocuments(project,row),design=assetDesignEvidence(project,row);
- return `<section class="asset-source-review"><h3>${esc(row.name)} · 服装 / 状态核对</h3><p class="asset-variant-state">${esc(row.state||'资料未指定')}</p><p class="asset-inline-warning">制作资料中的状态是待判断的方案。分镜事件、设计说明和原著原文分别列出，请核对后决定用图。</p>${row.role==='character'?stateActions(row):''}
- <section class="asset-original-documents"><h4>随包原著原件</h4>${docs.length?docs.map(d=>`<article data-asset-novel-document="${esc(d.relativePath)}"><a target="_blank" rel="noopener" href="/api/projects/${encodeURIComponent(project.id)}/production/source?path=${encodeURIComponent(d.relativePath)}">${esc(d.relativePath)}</a><div data-asset-novel-passages>正在读取原文原件…</div></article>`).join(''):'<p>该工程未保存可定位的原著原件。下面仅为资料包提供的出处和摘录，不能当作已核实的原文服装依据。</p>'}</section>
+ const character=row.role==='character';
+ return `<section class="asset-source-review"><h3>${esc(row.name)} · ${character?'服装 / 状态核对':'资料出处'}</h3><p class="asset-variant-state">${esc(row.state||'资料未指定')}</p><p class="asset-inline-warning">制作资料中的状态是待判断的方案。分镜事件、设计说明和原著原文分别列出，请核对后决定用图。</p>${character?stateActions(row):''}
+ <section class="asset-original-documents"><h4>随包原著原件</h4>${docs.length?docs.map(d=>`<article data-asset-novel-document="${esc(d.relativePath)}"><a target="_blank" rel="noopener" href="/api/projects/${encodeURIComponent(project.id)}/production/source?path=${encodeURIComponent(d.relativePath)}">${esc(d.relativePath)}</a><div data-asset-novel-passages>正在读取原文原件…</div></article>`).join(''):'<p>该工程未保存可定位的原著原件。下面仅为资料包提供的出处和摘录，不能当作已核实的原著内容。</p>'}</section>
  ${design.map(d=>`<details class="asset-design-evidence"><summary>资料方案：${esc(d.version)}（含美术补足）</summary><p>${esc(d.basis||'资料未提供设计依据')}</p><small>${esc(d.source)}</small></details>`).join('')}
  <h4>分镜使用位置与资料摘录</h4>${row.sources.map(s=>`<details class="asset-provenance-entry"><summary>第${s.episode||'?'}话 · ${esc(s.code)} · ${esc(s.novelLocation||'原著位置未提供')}</summary><dl><dt>来源文件</dt><dd>${esc(s.source.file||'资料未提供')}${s.source.pointer?' · '+esc(s.source.pointer):''}</dd><dt>来源方案</dt><dd>${esc(s.assetVersion||'未提供')}</dd><dt>原资料状态</dt><dd>${esc(s.sourceState||s.state||'未提供')}</dd></dl>${s.novelQuote?`<strong>${esc(s.novelQuoteLabel||'资料提供的原著摘录')}</strong><blockquote>${esc(s.novelQuote)}</blockquote>`:'<p>本格未提供直接原文摘录。</p>'}${s.adaptationNote?`<strong>分镜编排说明（不是原文）</strong><blockquote>${esc(s.adaptationNote)}</blockquote>`:''}${s.description?`<strong>分镜画面摘录</strong><blockquote>${esc(s.description)}</blockquote>`:''}${s.notes?`<p>分镜备注：${esc(s.notes)}</p>`:''}<button data-asset-locate="${esc(s.panelId)}">定位使用位置</button></details>`).join('')}</section>`;
 }
@@ -50,14 +51,15 @@ export function createAssetSourceReader(){
   try{for(;;){const {done,value}=await reader.read();if(done)break;bytes+=value.byteLength;if(bytes>limit){await reader.cancel();throw large();}chunks.push(decoder.decode(value,{stream:true}));}chunks.push(decoder.decode());return chunks.join('');}finally{reader.releaseLock();}
   }finally{clearTimeout(timer);controllers.delete(controller);}
  }
- async function load(project,root,isCurrent=()=>true){
-  const nextOwner=project.id+'@'+project.productionPackage.hash;if(owner!==nextOwner){clear();owner=nextOwner;}
+ async function load(project,root,isCurrent=()=>true,{role='character'}={}){
+  const packageHash=project.productionPackage?.hash||'',nextOwner=project.id+'@'+packageHash;if(owner!==nextOwner){clear();owner=nextOwner;}
   await Promise.all([...root.querySelectorAll('[data-asset-novel-document]')].map(async node=>{
-   const path=node.dataset.assetNovelDocument,key=project.id+'@'+project.productionPackage.hash+':'+path,url='/api/projects/'+encodeURIComponent(project.id)+'/production/source?path='+encodeURIComponent(path),host=node.querySelector('[data-asset-novel-passages]');
+   const path=node.dataset.assetNovelDocument,key=project.id+'@'+packageHash+':'+path,url='/api/projects/'+encodeURIComponent(project.id)+'/production/source?path='+encodeURIComponent(path),host=node.querySelector('[data-asset-novel-passages]');
    try{
     const text=await requests.load(key,()=>readSource(url));if(!isCurrent()||!node.isConnected)return;
     const passages=originalClothingPassages(text);
-    host.innerHTML=`<p class="asset-inline-note">以下逐字读取自原件，列出本章服装相关段落供人工判断，未自动认定适用于当前状态。</p>${passages.length?passages.slice(0,20).map(p=>`<blockquote><small>原件第 ${p.line} 行 · 非空段 ${p.paragraph}</small><p>${esc(p.quote)}</p></blockquote>`).join(''):'<p>未检出服装关键词，请核对原文全文。</p>'}<details><summary>查看原文全文</summary><pre>${esc(text)}</pre></details>`;
+    const excerpt=role==='character'?`<p class="asset-inline-note">以下逐字读取自原件，列出本章服装相关段落供人工判断，未自动认定适用于当前状态。</p>${passages.length?passages.slice(0,20).map(p=>`<blockquote><small>原件第 ${p.line} 行 · 非空段 ${p.paragraph}</small><p>${esc(p.quote)}</p></blockquote>`).join(''):'<p>未检出服装关键词，请核对原文全文。</p>'}`:'<p class="asset-inline-note">原文逐字读取自原件，请人工核对与当前资产的关系。</p>';
+    host.innerHTML=`${excerpt}<details><summary>查看原文全文</summary><pre>${esc(text)}</pre></details>`;
    }catch(error){if(isCurrent()&&node.isConnected)host.textContent=error.message;}
   }));
  }

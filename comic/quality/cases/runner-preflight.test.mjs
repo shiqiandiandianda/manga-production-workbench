@@ -3,9 +3,20 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
+import {privilegedFixtureReason} from '../privileged-fixtures.mjs';
 
 const root=path.resolve(import.meta.dirname,'../../..');
 const runner=path.join(root,'comic/quality/run.mjs');
+
+test('管理员凭据和管理员操作用例在执行前被阻断，普通用例不受影响',()=>{
+  for(const file of [
+    'center/tests/http.test.mjs','comic/tests/asset-center.integration.test.mjs',
+    'comic/tests/asset-generator.integration.test.mjs','distribution/tests/forced-upgrades.test.mjs',
+    'distribution/tests/rolling-upgrades.test.mjs','distribution/tests/publisher-admin-page.test.mjs',
+    'distribution/tests/publication.test.mjs','协作/tests/hub-server.test.mjs',
+  ])assert.match(privilegedFixtureReason(file),/管理员/);
+  assert.equal(privilegedFixtureReason('comic/tests/project-management.test.mjs'),'');
+});
 
 function runWithPreload(code,args){
   assert.ok(process.env.QUALITY_RUN_DIR,'must run through the isolated quality runner');

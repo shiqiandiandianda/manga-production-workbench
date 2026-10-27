@@ -156,7 +156,7 @@ test('detached Python wrapper registers itself and child before fake generation'
   const marker = path.join(directory, 'generated.txt');
   const pipeline = path.join(directory, 'fake-pipeline.py');
   await writeFile(pipeline, `import subprocess, sys\nfrom pathlib import Path\nchild = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(.4)'])\nPath(${JSON.stringify(marker)}).write_text('fake generated')\nchild.wait()\n`);
-  const child = spawn(python, [path.join(root, 'repair/python/generation_worker.py'), '--pipeline', pipeline], {env:{...process.env, COMIC_GENERATION_SLOT_ORIGIN:origin, COMIC_GENERATION_SLOT_TOKEN:lease.token}, stdio:['ignore','pipe','pipe']});
+  const child = spawn(python, [path.join(root, 'repair-engine/python/generation_worker.py'), '--pipeline', pipeline], {env:{...process.env, COMIC_GENERATION_SLOT_ORIGIN:origin, COMIC_GENERATION_SLOT_TOKEN:lease.token}, stdio:['ignore','pipe','pipe']});
   const result = await childResult(child);
   assert.equal(result.code, 0, result.output);
   assert.equal(await readFile(marker, 'utf8'), 'fake generated');
@@ -174,7 +174,7 @@ test('stale wrapper identity fails closed before any pipeline code or fake gener
   const pipeline = path.join(directory, 'never-run.py');
   const marker = path.join(directory, 'unexpected.txt');
   await writeFile(pipeline, `from pathlib import Path\nPath(${JSON.stringify(marker)}).write_text('unexpected')\n`);
-  const child = spawn(python, [path.join(root, 'repair/python/generation_worker.py'), '--pipeline', pipeline], {env:{...process.env, COMIC_GENERATION_SLOT_ORIGIN:origin, COMIC_GENERATION_SLOT_TOKEN:lease.token}, stdio:['ignore','pipe','pipe']});
+  const child = spawn(python, [path.join(root, 'repair-engine/python/generation_worker.py'), '--pipeline', pipeline], {env:{...process.env, COMIC_GENERATION_SLOT_ORIGIN:origin, COMIC_GENERATION_SLOT_TOKEN:lease.token}, stdio:['ignore','pipe','pipe']});
   const result = await childResult(child);
   assert.equal(result.code, 1);
   assert.equal(result.output.includes(lease.token), false);

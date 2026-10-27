@@ -71,10 +71,14 @@ for(const production of [true,false])test(`本话资产总览选图后返回并�
  await page.locator('[data-rail-tab=references]').click();await page.locator('#asset-gallery-workspace').waitFor({state:'visible'});assert.equal(await page.locator('#asset-detail-panel').isVisible(),false);
  const card=name=>page.locator('.asset-gallery-card').filter({has:page.locator('.asset-gallery-caption>strong',{hasText:name})});
  await card(names[0]).locator('[data-gallery-settings]').click();
- // Current character details combine search and generation in one view.
- assert.equal(await page.locator('#asset-detail-panel [data-asset-view]').count(),2);
+ // Search and generation share one view; the source evidence has its own tab.
+ assert.deepEqual(await page.locator('#asset-detail-panel [data-asset-view]').evaluateAll(nodes=>nodes.map(n=>n.dataset.assetView)),['current','records','source']);
  assert.equal(await page.locator('[data-asset-view=current]').getAttribute('aria-selected'),'true');
  assert.equal(await page.locator('.asset-quick-generate').isVisible(),true);
+ await page.locator('[data-asset-view=source]').click();
+ assert.equal(await page.locator('[data-asset-view=source]').getAttribute('aria-selected'),'true');
+ assert.equal(await page.locator('.asset-source-review').isVisible(),true);
+ await page.locator('[data-asset-view=current]').click();
  await page.locator('[data-asset-close]').click();await page.locator('[data-asset-category=character]').click();
  assert.equal(await page.locator('.asset-gallery-card').count(),16);assert.equal(await page.locator('[data-asset-list-next]').count(),0);
  const list=page.locator('[data-asset-list]');assert.ok(await list.evaluate(el=>{const boxes=[...el.children].map(n=>n.getBoundingClientRect());return boxes.every((a,i)=>a.height>200&&boxes.every((b,j)=>i===j||a.right<=b.left||b.right<=a.left||a.bottom<=b.top||b.bottom<=a.top));}));

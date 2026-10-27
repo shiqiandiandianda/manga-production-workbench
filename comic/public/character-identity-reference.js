@@ -32,10 +32,16 @@ export function automaticCharacterIdentity(project,assets,need,{defaultIds=[],ap
  const target=characterIdentityProfile([need.name,need.state,appearanceNotes].filter(Boolean).join(' ')),all=characterIdentityCandidates(project,assets,need,{remote}),profile=a=>{const meta=stateReferenceMetadata(project,a);return characterIdentityProfile([a.name,meta.name,meta.state].join(' '));};
  const candidates=all.filter(a=>{const p=profile(a);if(p.chibi!==target.chibi)return false;if(target.age)return !p.age||p.age===target.age;return !['child','teen'].includes(p.age);});
  if(!candidates.length)return {status:all.length?'incompatible':'missing',assetId:null,candidateIds:[],reason:all.length?'已找到同人物，但年龄或Q版形态不同，不自动混用。':'本项目尚未找到这个人物的身份参考。'};
+ const defaults=new Set(defaultIds),selectedDefaults=candidates.filter(a=>defaults.has(a.id));
+ // Multiple explicit fixed versions are a user choice, not a tie that can be
+ // resolved by filename, hash, or sorting. Duplicate local copies of the same
+ // Moku asset and revision still represent one choice.
+ const selectedVersions=new Set(selectedDefaults.map(a=>a.library?.assetId&&a.library?.revisionId?[a.library.baseUrl||'',a.library.assetId,a.library.revisionId].join('\u0000'):a.id));
+ if(selectedVersions.size>1)return {status:'ambiguous',assetId:null,candidateIds:selectedDefaults.map(a=>a.id),reason:'此项已有多个参考版本，请先明确选择人物身份图。'};
  const usage=new Map(),mark=(id,weight=1)=>{if(id)usage.set(id,(usage.get(id)||0)+weight);};
  for(const p of project.pages||[])for(const panel of p.panels||[]){for(const r of panel.generation?.referenceRoles||[])if(r.role==='character'&&identityName(r.name)===identityName(need.name))mark(r.assetId,2);for(const b of Object.values(panel.referenceNeedBindings||{}))if(b.role==='character'&&identityName(b.name)===identityName(need.name))mark(b.assetId,3);}
  for(const e of project.productionPackage?.episodes||[])for(const s of e.segments||[])for(const r of s.references||[])if(identityName(r['人物'])===identityName(need.name))mark(r.binding?.assetId,2);
- const defaults=new Set(defaultIds),score=a=>{const m=stateReferenceMetadata(project,a);return (defaults.has(a.id)?10000:0)+Math.min(usage.get(a.id)||0,100)*100+(target.age&&profile(a).age===target.age?200:0)+(stateKey(m.state)===stateKey(need.state)?50:0)+(m.identityOnly&&/脸|face|身份/iu.test(a.name||'')?20:0)+(a.productionStatus==='confirmed'?10:0)-(/蒙面|遮脸|面罩|受伤/u.test(a.name||'')?80:0);};
+ const score=a=>{const m=stateReferenceMetadata(project,a);return (defaults.has(a.id)?10000:0)+Math.min(usage.get(a.id)||0,100)*100+(target.age&&profile(a).age===target.age?200:0)+(stateKey(m.state)===stateKey(need.state)?50:0)+(m.identityOnly&&/脸|face|身份/iu.test(a.name||'')?20:0)+(a.productionStatus==='confirmed'?10:0)-(/蒙面|遮脸|面罩|受伤/u.test(a.name||'')?80:0);};
  const sorted=[...candidates].sort((a,b)=>score(b)-score(a)||String(a.library?.assetId||a.id).localeCompare(String(b.library?.assetId||b.id))||String(a.library?.revisionId||a.id).localeCompare(String(b.library?.revisionId||b.id)));
  // Several outfits of one person are expected. Distinct explicit ages need evidence.
  const top=score(sorted[0]),ties=sorted.filter(a=>score(a)===top),ages=unique(ties.map(a=>profile(a).age));

@@ -80,7 +80,7 @@ export function panelArtDirection(panel,shot){
 /** Suggestions are explicitly proposed design, never silently approved or written back. */
 
 /** Only removes known machine-generated legacy lines, not arbitrary instructions in source fiction.
- * 旧项目专属模板曾把规则行写进已保存的提示词；模板下线后仍在生图前清掉这些行。 */
+ * 旧《大周玄衣卫》专属模板曾把规则行写进已保存的提示词；模板下线后仍在生图前清掉这些行。 */
 export function stripLegacyArtBoilerplate(description){return String(description||'');}
 const selected=(catalog,key)=>catalog.find(o=>o.id===key)?.instruction||'';
 export function comicStyleInstructions(style=''){return String(style||'');}

@@ -3,17 +3,23 @@ import {bootstrapAutoLayout} from './auto-layout-bootstrap.mjs';import {installS
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),port=Number(process.env.AUTO_LAYOUT_PORT||19848),dataRoot=path.join(process.env.WORKBENCH_RELEASE_DATA_ROOT||path.join(root,'runtime-data'),'auto-layout'),adopt=process.argv.includes('--adopt');
 bootstrapAutoLayout(root,{dataRoot});
 const python=process.env.COMIC_PYTHON_BIN||path.join(root,'runtime/python/python.exe'),directory=path.join(root,'auto-layout/learning-workbench');
+// Keep an adopted service's result/library directory on the next cold start too.
+let serviceData=process.env.AUTO_LAYOUT_DATA_DIR||path.join(dataRoot,'learning-workbench/data');
+const locationFile=path.join(dataRoot,'active-service.local.json');
+if(!process.env.AUTO_LAYOUT_DATA_DIR&&fs.existsSync(locationFile)){const active=JSON.parse(fs.readFileSync(locationFile,'utf8'));if(active.format!=='comic-layout-active-service-v1'||typeof active.root!=='string'||path.resolve(active.root)!==directory||typeof active.dataRoot!=='string'||!path.isAbsolute(active.dataRoot))throw Error('排版数据目录登记不匹配，未切换到其他结果目录');serviceData=active.dataRoot;}
+const serviceBase=path.resolve(serviceData,'../..');
 if(!fs.existsSync(python))throw Error('排版服务缺少本机 Python 运行环境，请先运行安装并接入');
-const health=async()=>{const r=await fetch('http://127.0.0.1:'+port+'/api/health',{signal:AbortSignal.timeout(2000)});if(!r.ok)throw Error('自动排版服务未就绪');const s=await r.json();if(s.integrationVersion!==1||path.resolve(s.root||'')!==directory)throw Error('排版后台身份不匹配');return s;};
-let child;
+const health=async()=>{const r=await fetch('http://127.0.0.1:'+port+'/api/health',{signal:AbortSignal.timeout(2000)});if(!r.ok)throw Error('自动排版服务未就绪');const s=await r.json();if(s.integrationVersion!==1||s.app!=='comic-layout-learning-workbench'||path.resolve(s.root||'')!==directory||typeof s.dataRoot!=='string'||!path.isAbsolute(s.dataRoot))throw Error('排版后台身份不匹配');const marker=path.join(dataRoot,'active-service.local.json'),bytes=JSON.stringify({format:'comic-layout-active-service-v1',root:s.root,dataRoot:s.dataRoot});fs.mkdirSync(dataRoot,{recursive:true});if(!fs.existsSync(marker)||fs.readFileSync(marker,'utf8')!==bytes){fs.writeFileSync(marker+'.tmp',bytes);fs.renameSync(marker+'.tmp',marker);}return s;};
+let child,stopping=false;
 if(adopt){await health();console.log('接管同目录已有排版后台的状态检查，运行中的任务继续。');}else{
- child=spawn(python,['-u',path.join(directory,'integration_server.py'),'--port',String(port)],{cwd:directory,windowsHide:true,env:{...process.env,PYTHONUTF8:'1',PYTHONDONTWRITEBYTECODE:'1',PYTHONPATH:[path.join(root,'auto-layout/vendor'),process.env.PYTHONPATH,path.join(root,'.runtime/image-tools/python/Lib/site-packages'),path.join(root,'.runtime/image-tools/extras')].filter(Boolean).join(path.delimiter),AUTO_LAYOUT_EDITOR_ORIGIN:process.env.ASSET_EDITOR||'http://127.0.0.1:18909',AUTO_LAYOUT_DATA_DIR:path.join(dataRoot,'learning-workbench/data'),AUTO_LAYOUT_LIBRARY_DIR:path.join(dataRoot,'library'),AUTO_LAYOUT_ENGINE_DATA_DIR:path.join(dataRoot,'engine/data'),CODEX_BIN:process.env.COMIC_CODEX_BIN||process.env.CODEX_BIN||''},stdio:['ignore','inherit','inherit']});
- child.on('error',e=>{console.error(e.message);process.exit(1);});child.on('exit',code=>process.exit(code||0));
+ child=spawn(python,['-u',path.join(directory,'integration_server.py'),'--port',String(port)],{cwd:directory,windowsHide:true,env:{...process.env,PYTHONUTF8:'1',PYTHONDONTWRITEBYTECODE:'1',PYTHONPATH:[path.join(root,'auto-layout/vendor'),process.env.PYTHONPATH,path.join(root,'.runtime/image-tools/python/Lib/site-packages'),path.join(root,'.runtime/image-tools/extras')].filter(Boolean).join(path.delimiter),AUTO_LAYOUT_EDITOR_ORIGIN:process.env.ASSET_EDITOR||'http://127.0.0.1:18909',AUTO_LAYOUT_DATA_DIR:serviceData,AUTO_LAYOUT_LIBRARY_DIR:path.join(serviceBase,'library'),AUTO_LAYOUT_ENGINE_DATA_DIR:path.join(serviceBase,'engine/data'),CODEX_BIN:process.env.COMIC_CODEX_BIN||process.env.CODEX_BIN||''},stdio:['ignore','inherit','inherit']});
+ child.on('error',e=>{console.error(e.message);process.exit(1);});child.on('close',code=>{if(!stopping)process.exit(code||0);});
 }
+if(!adopt){let ready=false;for(let attempt=0;attempt<100;attempt++){if(child.exitCode!==null)throw Error('排版后台启动失败');try{await health();ready=true;break;}catch{await new Promise(resolve=>setTimeout(resolve,200));}}if(!ready)throw Error('排版后台未就绪，未登记结果目录');}
 const exited=()=>child&&(child.exitCode!==null||child.signalCode),busy=async()=>exited()?false:!!(await health()).busy;
 async function close(){
  if(exited())return;let current;try{current=await health();}catch(e){if(adopt&&e.cause?.code==='ECONNREFUSED')return;throw e;}if(current.busy)throw Error('本机排版任务尚未结束，后台继续运行');
- if(child){await new Promise(resolve=>{child.once('exit',resolve);child.kill();});return;}
+ if(child){stopping=true;await new Promise(resolve=>{child.once('close',resolve);child.kill();});return;}
  const pid=current.pid;if(!Number.isSafeInteger(pid)||pid<=0)throw Error('排版进程身份无效');
  if(process.platform==='win32'){
   const result=spawnSync('powershell.exe',['-NoProfile','-Command','[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()\nGet-CimInstance Win32_Process -Filter "ProcessId='+pid+'" | Select-Object ProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress'],{windowsHide:true,encoding:'utf8'});if(result.status!==0)throw Error('无法核对排版进程');const processInfo=JSON.parse(result.stdout||'null');if(!processInfo)return;

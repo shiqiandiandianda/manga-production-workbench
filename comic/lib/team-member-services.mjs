@@ -35,9 +35,9 @@ export function createTeamMemberProxy({root,dataDir,library,body,json,channelFil
    try{await request('/profile','POST',profile);}catch{pending=true;}
    json(res,200,{ok:true,...profile,pending});return true;
   }
-  if(route==='/asset-corrections'&&['GET','POST'].includes(method)||/^\/members\/[^/]+\/name$/.test(route)&&method==='POST'){
+  if(/^\/members\/[^/]+\/name$/.test(route)&&method==='POST'){
    const input=method==='POST'?await body(req,16384):undefined,headers={'X-Dashboard-Control':req.headers['x-dashboard-control']||''};
-   const result=await request(route+url.search,method,input,headers);json(res,route==='/asset-corrections'&&method==='POST'?201:200,result);return true;
+   const result=await request(route+url.search,method,input,headers);json(res,200,result);return true;
   }
   json(res,404,{error:'成员服务接口不存在'});return true;
  }};

@@ -1,4 +1,5 @@
 import {rectangle,id} from './model.js';
+import {ensureProductionScreenLettering} from './production-screen-lettering.js';
 import {generationPlans} from './unified-layout-rules.js';
 import {validateAssistantGeometry} from './assistant-layout-geometry.js';
 import {validateLayoutDesign} from './layout-design.js';
@@ -27,7 +28,8 @@ function pagePriorUnit(project,page){
  return episode!==undefined&&segment?productionSegmentUnit(project,episode,segment):'screen';
 }
 function switchPageUnit(project,page,unit,previousOverride=null){
- const views=page.productionLayoutViews,previous=previousOverride||pagePriorUnit(project,page);
+ const previous=previousOverride||pagePriorUnit(project,page);
+ const views=page.productionLayoutViews||=( {version:1,[previous]:{height:page.height,background:page.background}} );
  if(views){
   views[previous]||={height:page.height,background:page.background};
   views[unit]||={height:page.height,background:page.background};
@@ -50,7 +52,7 @@ function switchPageUnit(project,page,unit,previousOverride=null){
   return null;
  };
  for(const item of [...page.panels,...page.bubbles]){
-  const mode=family(item);if(!mode)continue;
+  if(item.productionSupersededBy)continue;const mode=family(item);if(!mode)continue;
   if(mode!==unit){if(item.productionModeHidden!==true){item.productionModeVisible=item.visible!==false;item.productionModeHidden=true;}item.visible=false;}
   else if(item.productionModeHidden===true){item.visible=item.productionModeVisible!==false;delete item.productionModeHidden;delete item.productionModeVisible;}
  }
@@ -60,12 +62,12 @@ function switchGradients(project,episode,unit){
  for(const g of project.gradients||[])if(g.assistantLayoutAnchor?.episode===episode){if(unit==='screen'){if(!g.productionModeHidden){g.productionModeVisible=g.visible;g.productionModeHidden=true;}g.visible=false;}else if(g.productionModeHidden){g.visible=g.productionModeVisible!==false;delete g.productionModeHidden;delete g.productionModeVisible;}}
 }
 /** Switch one screen segment only. This is what the "生成单位" select uses. */
-export function switchProductionSegmentUnit(project,segmentId,unit,{ensureLettering=true}={}){
+export function switchProductionSegmentUnit(project,segmentId,unit,{ensureLettering=true,previousUnit=null}={}){
  if(!['screen','panel'].includes(unit))fail('请选择屏段或单格');
  const pages=project.pages.filter(p=>p.storyboard?.segmentId===segmentId&&!p.designEpisodeRole);
  if(!pages.length)fail('屏段不存在或尚未生成画板');
- for(const page of pages)switchPageUnit(project,page,unit);
- if(unit==='panel'&&ensureLettering)ensureProductionSegmentLettering(project,segmentId);
+ for(const page of pages)switchPageUnit(project,page,unit,previousUnit);
+ if(ensureLettering){if(unit==='panel')ensureProductionSegmentLettering(project,segmentId);else ensureProductionScreenLettering(project,segmentId);}
  const episode=pages[0].storyboard?.episode;
  if(Number.isInteger(episode)){
   const view=project.productionEpisodeViews?.[episode]||{};
@@ -75,15 +77,15 @@ export function switchProductionSegmentUnit(project,segmentId,unit,{ensureLetter
  return project;
 }
 /** Bulk switch kept for layout import/reflow, where every segment becomes single panels. */
-export function switchProductionEpisodeUnit(project,episode,unit){
+export function switchProductionEpisodeUnit(project,episode,unit,{previousUnits=null}={}){
  if(!['screen','panel'].includes(unit))fail('请选择屏段或单格');
- const pages=episodePages(project,episode),previous=productionEpisodeUnit(project,episode);
- for(const page of pages)switchPageUnit(project,page,unit,previous);
+ const pages=episodePages(project,episode);
+ for(const page of pages)switchPageUnit(project,page,unit,previousUnits?.get(page.storyboard?.segmentId));
  switchGradients(project,episode,unit);
  const episodeData=project.productionPackage?.episodes.find(e=>e.episode===episode);
  const view={...(project.productionEpisodeViews?.[episode]||{}),unit,segments:{}};
  for(const segment of episodeData?.segments||[])view.segments[segment.id]=unit;
- if(unit==='panel')for(const segment of episodeData?.segments||[])ensureProductionSegmentLettering(project,segment.id);
+ for(const segment of episodeData?.segments||[])(unit==='panel'?ensureProductionSegmentLettering:ensureProductionScreenLettering)(project,segment.id);
  project.productionEpisodeViews||={};project.productionEpisodeViews[episode]=view;
  return project;
 }

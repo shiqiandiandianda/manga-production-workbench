@@ -217,7 +217,7 @@ class ProjectLibrary:
 
     def generate(self,script,job_id,on_finish,version=None,reasoning_effort='high'):
         project=self.ensure_registered(script['projectId']);version=version or project.get('candidateVersion') or project.get('activeVersion')
-        if not version:raise ValueError('请先添加本项目参考并学习，不能借用其他项目的风格')
+        if not version:raise ValueError('请先添加本项目参考并学习，不能借用大周或其他项目的风格')
         bundle=self.version_folder(project['id'],version)
         folder=self.data/'runs'/job_id;folder.mkdir(parents=True,exist_ok=True)
         save(folder/'job.json',{'id':job_id,'status':'running','phase':'layout','message':'正在使用本项目学习版本自动试排：'+version})
@@ -229,12 +229,6 @@ class ProjectLibrary:
                     code=subprocess.run([sys.executable,str(self.engine/'layout_agent.py'),'--data',str(bundle/'data'),'--input',str(folder/'request.json'),'--out',str(folder)],stdout=output,stderr=error,creationflags=flags).returncode
                 if code:raise ValueError('试排失败，已保留日志和模型结果：'+(folder/'stdout.log').read_text(encoding='utf-8')[-1200:])
                 packet=read(folder/'geometry.json');validate_geometry(packet,script)
-                contract=script.get('layoutRuleContract')
-                if contract:
-                    packet['layoutRuleDigest']=contract['digest']
-                    for shot,panel in zip(script['shots'],packet['panels']):
-                        image=shot.get('existingArtwork')
-                        if image and abs(panel['h']-panel['w']*image['height']/image['width'])>1.01:raise ValueError('排版结果改变了已有裁图比例：'+shot['key'])
                 save(self.data/'drafts'/(script['id']+'.json'),packet)
                 with self.lock:
                     current=self.project(project['id']);entry=next(v for v in current['versions'] if v['id']==version);entry['trialPassed']=True;entry['trialScriptId']=script['id'];self.update(current)

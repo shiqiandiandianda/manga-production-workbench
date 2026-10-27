@@ -9,7 +9,7 @@ const fail=message=>{throw Object.assign(new Error(message),{status:400});};
 export function validateTypography(input){
   if(!input||!Object.hasOwn(FONT_FAMILIES,input.fontFamily))fail('请选择支持的字体');
   const value={...TYPOGRAPHY_DEFAULT,...Object.fromEntries(TYPOGRAPHY_FIELDS.filter(key=>Object.hasOwn(input,key)).map(key=>[key,input[key]]))};
-  for(const [key,min,max,label] of [['fontSize',1,1024,'字号'],['fontWeight',100,900,'字重'],['letterSpacing',-10,64,'字间距'],['lineHeight',.8,3,'行距倍率'],['padding',0,96,'文字内边距']]){
+  for(const [key,min,max,label] of [['fontSize',10,1024,'字号'],['fontWeight',100,900,'字重'],['letterSpacing',-10,64,'字间距'],['lineHeight',.8,3,'行距倍率'],['padding',0,96,'文字内边距']]){
     value[key]=Number(value[key]);if(!Number.isFinite(value[key])||value[key]<min||value[key]>max)fail(label+'须为 '+min+'–'+max);
   }
   if(!Number.isInteger(value.fontSize)||!Number.isInteger(value.fontWeight)||value.fontWeight%100||!Number.isInteger(value.padding))fail('字号、字重和内边距须为有效整数，字重以 100 为步长');
@@ -23,7 +23,7 @@ export function rememberTypography(input){const value=validateTypography(input);
 export function projectTypography(project){
   const first=project?.pages?.flatMap(page=>page.bubbles||[]).find(bubble=>['speech','thought','caption'].includes(bubble.type));
   const value={...TYPOGRAPHY_DEFAULT,...(first?normalizeBubbleStyle(first):{}),...project?.typography};
-  if(value.fontSize<1||value.fontSize>1024)value.fontSize=TYPOGRAPHY_DEFAULT.fontSize;
+  if(value.fontSize<10||value.fontSize>1024)value.fontSize=TYPOGRAPHY_DEFAULT.fontSize;
   value.letterSpacing=Math.min(64,Math.max(-10,value.letterSpacing));value.padding=Math.min(96,Math.max(0,value.padding));
   try{return validateTypography(value);}catch{return {...TYPOGRAPHY_DEFAULT};}
 }
@@ -43,11 +43,10 @@ export function typographyMarkup(value,prefix,{scope=false,projectCount=0,trial=
   const select=(key,label,choices)=>'<label>'+label+'<select id="'+prefix+'-'+key+'" data-typography-field aria-label="统一'+label+'">'+Object.entries(choices).map(([v,text])=>'<option value="'+v+'" '+(String(config[key])===v?'selected':'')+'>'+text+'</option>').join('')+'</select></label>';
   const number=(key,label,min,max,step=1)=>'<label>'+label+'<input id="'+prefix+'-'+key+'" data-typography-field aria-label="统一'+label+'" type="number" min="'+min+'" max="'+max+'" step="'+step+'" value="'+config[key]+'"></label>';
   return '<section class="unified-typography" data-typography-panel><div class="typography-heading"><div><strong>统一字体</strong><small>对白 · 心声 · 旁白</small></div><button type="button" data-typography-reset>恢复默认</button></div>'
-    +'<div class="typography-fields">'+select('fontFamily','字体',FONT_LABELS)+number('fontSize','字号 px',1,1024)
+    +'<div class="typography-fields">'+select('fontFamily','字体',FONT_LABELS)+number('fontSize','字号 px',10,1024)
     +select('fontWeight','字重 / 粗细',{...WEIGHTS,...(!Object.hasOwn(WEIGHTS,config.fontWeight)?{[config.fontWeight]:String(config.fontWeight)}:{})})
     +'<label>文字颜色<div class="typography-color"><input id="'+prefix+'-textColor" data-typography-field type="color" value="'+config.textColor+'" aria-label="统一文字颜色"><input id="'+prefix+'-textColorHex" data-typography-field type="text" value="'+config.textColor+'" maxlength="7" spellcheck="false" aria-label="统一颜色 HEX"></div></label>'
     +number('letterSpacing','字间距 px',-10,64,.5)+number('lineHeight','行距 × 字号',.8,3,.05)+'</div>'
-    +'<div class="typography-preview" data-typography-preview aria-label="字体预览"></div>'
     +'<details class="typography-advanced"><summary>更多排版：对齐、横竖排、内边距</summary><div class="typography-fields">'+select('textAlign','文字对齐',{left:'靠左',center:'居中',right:'靠右'})+select('writingMode','文字排列',{horizontal:'横排',vertical:'竖排'})+select('textDirection','书写方向',{ltr:'左到右',rtl:'右到左'})+number('padding','文字内边距 px',0,96)+'</div></details>'
     +(scope?'<label>应用范围<select id="'+prefix+'-scope" aria-label="字体应用范围"><option value="project">当前工程全部画板</option><option value="all">全部已保存话（'+projectCount+' 个工程）</option></select></label>':'')
     +'<p class="typography-note">'+(trial?'本次导入各话沿用同一设置。重新试排会按字重、间距和文字排列计算气泡。':'统一对白、心声和旁白，锁定文字需先解锁。修改间距或排列后，可用“分类 / 重排”调整气泡布局。')+'</p>'

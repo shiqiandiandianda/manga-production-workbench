@@ -1,25 +1,44 @@
 const STORAGE_KEY='comic-canvas-tool-position-v1';
+const SIZE_KEY='comic-canvas-tool-scale-v1';
+const DEFAULT_SCALE=.85,MIN_SCALE=.7,MAX_SCALE=1.1;
 const margin=8;
 
 // Store only this browser's tool position, never a change to the comic document.
 export function mountFloatingCanvasTools({dock,area,toolbar}){
  const heading=dock.querySelector('.canvas-tool-heading');
  const canvas=area.querySelector('#canvas-scroll')||area;
- let preferred=null,drag=null;
+ let preferred=null,drag=null,scale=DEFAULT_SCALE;
+ try{const value=Number(localStorage.getItem(SIZE_KEY));if(Number.isFinite(value)&&value>=MIN_SCALE&&value<=MAX_SCALE)scale=value;}catch{}
  try{const value=JSON.parse(localStorage.getItem(STORAGE_KEY));if(Number.isFinite(value?.x)&&Number.isFinite(value?.y))preferred=value;}catch{}
  heading.tabIndex=0;
  heading.setAttribute('aria-label','移动常用工具');
  heading.title='拖动标题栏移动；方向键微调；双击恢复默认位置';
  function save(){try{if(preferred)localStorage.setItem(STORAGE_KEY,JSON.stringify(preferred));else localStorage.removeItem(STORAGE_KEY);}catch{}}
  function place(position=preferred){
-  const width=Math.min(224,innerWidth-margin*2),rect=canvas.getBoundingClientRect();
+  dock.style.transform='scale('+scale+')';
+  const naturalWidth=Math.min(224,(innerWidth-margin*2)/scale),width=naturalWidth*scale,rect=canvas.getBoundingClientRect();
+  dock.style.width=naturalWidth+'px';
   const target=position||{x:rect.right-width-12,y:toolbar.getBoundingClientRect().bottom+12};
   const x=Math.max(margin,Math.min(innerWidth-width-margin,target.x));
   const minY=Math.max(margin,Math.min(toolbar.getBoundingClientRect().bottom+margin,innerHeight-160-margin));
   const y=Math.max(minY,Math.min(innerHeight-160-margin,target.y));
-  dock.style.left=x+'px';dock.style.top=y+'px';dock.style.maxHeight=Math.max(44,innerHeight-y-margin)+'px';
+  dock.style.left=x+'px';dock.style.top=y+'px';dock.style.maxHeight=Math.max(44,(innerHeight-y-margin)/scale)+'px';
   return {x,y};
  }
+ function resizeTools(delta){
+  scale=Math.max(MIN_SCALE,Math.min(MAX_SCALE,Math.round((scale+delta)*100)/100));
+  try{localStorage.setItem(SIZE_KEY,String(scale));}catch{}
+  syncSize();place();
+ }
+ function syncSize(){
+  for(const button of dock.querySelectorAll('[data-tool-size]')){
+   const shrink=button.dataset.toolSize==='smaller';
+   button.disabled=shrink?scale<=MIN_SCALE:scale>=MAX_SCALE;
+   button.title=(shrink?'缩小工具栏':'放大工具栏')+' · 当前 '+Math.round(scale*100)+'%';
+  }
+ }
+ for(const button of dock.querySelectorAll('[data-tool-size]'))button.addEventListener('click',()=>resizeTools(button.dataset.toolSize==='smaller'?-.05:.05));
+ syncSize();
  function finish(event){
   if(!drag||event.pointerId!==drag.id)return;
   if(event.type==='pointercancel'){preferred=drag.preferred;place();}else if(drag.moved){preferred=place();save();}

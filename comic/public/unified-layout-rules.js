@@ -1,4 +1,5 @@
-import {id,clone} from './model.js';
+import {artworkFrame} from './artwork-framing.mjs';
+import {id,clone,bounds} from './model.js';
 
 /** This is packing of model-decided frame sizes, not a second artistic layout. */
 export function generationPlans(episode,geometry){
@@ -37,7 +38,7 @@ export function buildPreplannedProject(original,script,geometry){
 
 export function unifiedGenerationInstructions(project,panel){
  const grid=panel.productionGrid||panel.panelSlice;
- if(grid){const ep=project.productionPackage?.episodes.find(e=>e.panelRecords.some(r=>r.id===grid.panelId&&r.segmentId===grid.segmentId)),binding=project.layoutRuleBindings?.[ep?.episode],target=binding?.targetPanels?.find(p=>p.key===grid.panelId);if(target&&grid.placementSource==='assistant-preview')return '\n【本格采用已确认的排版助手预览】\n只生成 '+grid.panelId+' 这一格，目标尺寸 '+target.w+'×'+target.h+'，严格保持此宽高比；下方源提示词的旧画幅和排版尺寸以本目标为准。人物、剧情、台词、原构图和参考绑定保持原文。规则：'+binding.contract.name+'；冻结版本：'+binding.contract.version+'。\n';}
+ if(grid){const ep=project.productionPackage?.episodes.find(e=>e.panelRecords.some(r=>r.id===grid.panelId&&r.segmentId===grid.segmentId)),binding=project.layoutRuleBindings?.[ep?.episode],target=binding?.targetPanels?.find(p=>p.key===grid.panelId);if(target&&grid.placementSource==='assistant-preview'){const box=bounds(panel);return '\n【本格采用已确认的排版助手预览】\n只生成 '+grid.panelId+' 这一格，目标尺寸 '+Math.round(box.w)+'×'+Math.round(box.h)+'，严格保持此宽高比；下方源提示词的旧画幅和排版尺寸以本目标为准。人物、剧情、台词、原构图和参考绑定保持原文。规则：'+binding.contract.name+'；冻结版本：'+binding.contract.version+'。\n';}}
  if(!panel.productionSegment)return '';
  const ep=project.productionPackage?.episodes.find(e=>e.segments.some(s=>s.id===panel.productionSegment)),binding=project.layoutRuleBindings?.[ep?.episode];
  if(!binding)return '';
@@ -52,5 +53,5 @@ export function unifiedGenerationInstructions(project,panel){
 export function assertNativeAspect(script,geometry){
  if(!script.layoutRuleContract)return;
  if(geometry.layoutRuleDigest!==script.layoutRuleContract.digest)throw Object.assign(Error('排版规则与冻结版本不一致'),{status:400});
- for(const shot of script.shots){const a=shot.existingArtwork,p=geometry.panels.find(p=>p.key===shot.key);if(a&&(!p||Math.abs(p.h-p.w*a.height/a.width)>1.01))throw Object.assign(Error('排版框与已有图片原比例冲突：'+shot.key+'；请在助手中修正框位，不会重新生图'),{status:400});}
+ for(const shot of script.shots){const a=artworkFrame(shot),p=geometry.panels.find(p=>p.key===shot.key);if(a&&(!p||Math.abs(p.h-p.w*a.height/a.width)>1.01))throw Object.assign(Error('排版框与已确认的目标框形冲突：'+shot.key+'；请在助手中修正框位，不会重新生图'),{status:400});}
 }

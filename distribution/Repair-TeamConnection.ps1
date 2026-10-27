@@ -1,4 +1,4 @@
-﻿param([string]$ToolDirectory,[switch]$ValidateOnly,[switch]$NoUpgrade)
+param([string]$ToolDirectory,[switch]$ValidateOnly,[switch]$NoUpgrade)
 $ErrorActionPreference='Stop'
 $repairPayload=Join-Path $PSScriptRoot 'connection-patch.json'
 if(!(Test-Path -LiteralPath $repairPayload)){throw '缺少 connection-patch.json，请完整解压同事连接修复包。'}

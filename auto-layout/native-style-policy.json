@@ -1,0 +1,36 @@
+{
+  "enabled": true,
+  "engine": "dazhou-native-style-v1",
+  "styleBookVersion": "dazhou-native-v15",
+  "projects": [
+    "dazhou"
+  ],
+  "autoReturn": true,
+  "forbidNonOverlappingStaircase": true,
+  "supportGeometryVersion": "content-sequence-v13",
+  "integratedRequirementsVersion": "dazhou-integrated-requirements-v15",
+  "taskTransport": "parent-service-poll-v1",
+  "narrativeGroupingVersion": "narrative-main-support-v7",
+  "sourceNormalizationVersion": "source-channels-v8",
+  "relationGraphVersion": "source-relations-v13",
+  "readingPlannerVersion": "arc-screen-rhythm-v12",
+  "nativeBookDigests": {
+    "dazhou-native-v1": "a4ee2a25b4a352e4869b9ce2d4dc8a01cb1915a521fd0e3077038369a7b889af",
+    "dazhou-native-v10": "299e01a48e3be990bf2cafee082b59beff5670ae28b7e93ed5a12dc8a2407889",
+    "dazhou-native-v11": "b119389e6ad3cead50aa4985d650e1c3e380806f27a4385ab2477c4d1b6134bc",
+    "dazhou-native-v2": "7463f5ea2867b5f4fd9b93f77cdd3abfa8a06543dd251b415fcb5e4aae63ed63",
+    "dazhou-native-v3": "8bd932aed356ea4cd735c6e442b3b4f97c3dded5c959fc13e8b964d4cda147ba",
+    "dazhou-native-v4": "af3f66dba1d2fa0485247237327324ff81b66856fd1450de644c52946709afd1",
+    "dazhou-native-v5": "9f5451ad5921e28779ebe013aba7391c4d00aa9ef9c441c7e57a1fd899abf860",
+    "dazhou-native-v6": "83619f6faaf86fd9141aa5202f5971e3e55f49a43c29f102598cd2647e8b8b71",
+    "dazhou-native-v7": "f4c9f9bb757631ab839c0ee28aa7cf8516265e36f82b9d7d730dd7224d655424",
+    "dazhou-native-v8": "212cf0adc2dfa0f08d09dc168d1d0bb252ad964701a8ab246ae26ee94d851d60",
+    "dazhou-native-v9": "aa9773c53a787e59c9f96fece14f06a067f4925d456672378d576d35788855a7",
+    "dazhou-native-v12": "cbfc12b1fd94496995fab797dab44a7852717dd1a55510dc6e607cf51f1b94c9",
+    "dazhou-native-v13": "46fb75a9821a59dba3a584bbdde2cd84b8823754ca14d4eda17f753aa206235e",
+    "dazhou-native-v14": "b5e514fc4d6c1c79ce3fab868acb26865b89cc468650281bce8fde5166ad5885",
+    "dazhou-native-v15": "92feabf89c29d3b729fdd7f27fe2e48ce62691455fdd7427595f69eb356e6efd"
+  },
+  "combinationPlannerVersion": "source-combinations-v1",
+  "paragraphFocusVersion": "paragraph-core-priority-v1"
+}

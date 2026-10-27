@@ -31,7 +31,16 @@ def validate_dialogue_groups(packet, script):
         if not anchors:errors.append('信息段落缺少原文依据')
         for anchor in anchors:
             pos=index.get(anchor.get('shotCode'),-1);quote=anchor.get('quote','')
-            if not start<=pos<=end or len(quote)<4 or quote not in (str(shots[pos].get('description',''))+'\n'+str(shots[pos].get('dialogue',''))):errors.append('信息段落引用并非对应范围内的原脚本原文')
+            label='信息段落引用 '+str(anchor.get('shotCode','未标注'))+'：'
+            if not start<=pos<=end:
+                errors.append(label+'镜号不在本段范围内');continue
+            fields=[str(shots[pos].get(k,'')) for k in ('description','dialogue')]
+            if not isinstance(quote,str) or not quote or not any(quote in field for field in fields):
+                errors.append(label+'不是本格description或dialogue中的连续原文');continue
+            # Short complete utterances (for example 宋玄！) are real source evidence.
+            # A short fragment or punctuation alone remains invalid.
+            if len(quote)<4 and (quote not in fields or not any(c.isalnum() for c in quote)):
+                errors.append(label+'不足4字时必须引用本格完整短句，不能截取片段或仅用标点')
     plan=packet.get('dialoguePlan',{})
     if plan and plan.get('scriptContentDigest')!=digest(shots):errors.append('信息段落方案的脚本指纹不符')
     for sequence in plan.get('sequences',[]):

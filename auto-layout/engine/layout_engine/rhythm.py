@@ -1,5 +1,7 @@
 """Narrative boundaries and actual two-dimensional panel relationships."""
+from artwork_framing import frame_artwork
 import statistics
+from .selective_overlap import validate_selective_overlap
 
 def time_phase(value):
     text=str(value or '')
@@ -41,11 +43,19 @@ def validate_overlap_decisions(packet,script):
         else:aligned=False
         if not aligned:errors.append(b['key']+'叠角声明与左右坐标不符')
         if d.get('verificationStatus')!='pending_artwork':errors.append(b['key']+'未取得成图时不能声称实际主体避让已通过')
+    if packet.get('rhythmPolicy',{}).get('overlapNecessityMode')=='selective_v1':
+        try:validate_selective_overlap(packet,script)
+        except ValueError as exc:errors.append(str(exc))
     if errors:raise ValueError('；'.join(dict.fromkeys(errors)))
     return True
 
 def validate_rhythm(packet,script):
-    panels=packet['panels'];links=packet.get('connections',[]);policy=packet['rhythmPolicy'];errors=[]
+    user_constraints=None
+    if packet.get('nativeUserConstraints') is not None or packet.get('generator',{}).get('mode')=='native-style-rules':
+        from native_user_constraints import trusted_constraints
+        user_constraints=trusted_constraints(packet)
+    from native_user_constraints import dimension_errors
+    panels=packet['panels'];links=packet.get('connections',[]);policy=packet['rhythmPolicy'];errors=dimension_errors(packet,script,user_constraints)
     if policy.get('framingMode')=='source_shot_and_composition':
         decisions=packet.get('framingDecisions',[])
         if [d.get('key') for d in decisions]!=[p['key'] for p in panels]:errors.append('景别承载决策必须逐一按顺序覆盖全部画格')
@@ -69,7 +79,8 @@ def validate_rhythm(packet,script):
     if len(links)!=max(0,len(panels)-1):raise ValueError('节奏连接必须覆盖全部相邻画格')
     allowed=set(packet['learningRelationshipIds']);continuation_gaps=[];beats=0;segment_length=1
     for i,p in enumerate(panels):
-        if p['h']/p['w']<policy.get('minimumAspectHOverW',0):errors.append(p['key']+'不符合用户取消横向扁矮格的要求')
+        art=frame_artwork(script['shots'][i]) if script and i<len(script['shots']) else None
+        if not art and p['h']/p['w']<(user_constraints['minimumHOverW'] if user_constraints else policy.get('minimumAspectHOverW',0)):errors.append(p['key']+'不符合用户取消横向扁矮格的要求')
         if not i:continue
         a=panels[i-1];link=links[i-1]
         if (link['fromShotCode'],link['toShotCode'])!=(a['key'],p['key']):errors.append('节奏连接镜号或顺序错误')
@@ -108,6 +119,9 @@ def validate_rhythm(packet,script):
     if policy.get('dialogueMode')=='information_paragraphs_v1':
         from .dialogue import validate_dialogue_groups
         try:validate_dialogue_groups(packet,script)
+        except ValueError as exc:errors.append(str(exc))
+    if policy.get('overlapDecisionMode')!='story_framing_composition_v2' and policy.get('overlapNecessityMode')=='selective_v1':
+        try:validate_selective_overlap(packet,script)
         except ValueError as exc:errors.append(str(exc))
     if errors:raise ValueError('；'.join(dict.fromkeys(errors)))
     return True

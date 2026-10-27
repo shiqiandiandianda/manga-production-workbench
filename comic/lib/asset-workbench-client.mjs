@@ -2,7 +2,7 @@ import {isIP} from 'node:net';
 import fs from 'node:fs';import path from 'node:path';import {createHash} from 'node:crypto';import {writeFileAtomicSync} from './durable-files.mjs';
 export const imageHash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const fail=(message,status=409)=>Object.assign(Error(message),{status});
-export function generatorURL(value){let url;try{url=new URL(value);}catch{throw fail('请填写角色场景工具的 HTTP 地址',400);}if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw fail('工具地址只填写主机和端口，例如 http://192.168.1.10:8790',400);if(url.protocol==='http:'&&!(['localhost','[::1]'].includes(url.hostname)||isIP(url.hostname)===4&&/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(url.hostname)))throw fail('HTTP只允许本机或私有局域网IP；远程请填写局域网IP地址',400);return url.origin;}
+export function generatorURL(value){let url;try{url=new URL(value);}catch{throw fail('请填写角色场景工具的 HTTP 地址',400);}if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw fail('工具地址只填写主机和端口，例如 http://127.0.0.1:8790',400);if(url.protocol==='http:'&&!(['localhost','[::1]'].includes(url.hostname)||isIP(url.hostname)===4&&/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(url.hostname)))throw fail('HTTP只允许本机或私有局域网IP；远程请填写局域网IP地址',400);return url.origin;}
 export class AssetWorkbenchClient{
  constructor({url,token,fetchImpl=fetch}){this.url=generatorURL(url);this.token=token;this.fetch=fetchImpl;}
  async request(route,{method='GET',data,signal,binary=false}={}){

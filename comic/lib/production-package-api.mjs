@@ -1,5 +1,7 @@
+import {ensureEpisodeLettering} from '../public/production-episode-lettering.js';
+import {ensureProductionScreenLettering} from '../public/production-screen-lettering.js';
 import {PRODUCTION_PACKAGE_LIMITS as limits} from '../public/production-package-limits.js';
-import {layoutAssistantEpisode,switchProductionSegmentUnit,productionSegmentUnit} from '../public/production-episode-layout.js';
+import {layoutAssistantEpisode,switchProductionEpisodeUnit,switchProductionSegmentUnit,productionSegmentUnit} from '../public/production-episode-layout.js';
 import {productionTextReference} from '../public/production-package-model.js';
 import {productionExtraReferenceRoles} from '../public/production-extra-references.js';
 import {FONT_FAMILIES} from '../public/lettering.js';
@@ -20,7 +22,7 @@ import {applyRemoteBubbleStyles} from '../public/comic-styles.js';
 import {applyBubbleMaterial} from '../public/bubble-material.js';
 import {builtinBubbleStyle} from '../public/builtin-bubble-data.js';
 import {productionAssetBinding} from './production-reference-files.mjs';
-import {prepareProductionPanel,findProductionPanel,productionPanelRecord,productionPanelRegion,applyProductionPanelLettering,ensureProductionSegmentLettering} from '../public/production-panel-generation.js';
+import {prepareProductionPanel,findProductionPanel,productionPanelRecord,productionPanelRegion,applyProductionPanelLettering,ensureProductionSegmentLettering,automaticLetteringUntouched} from '../public/production-panel-generation.js';
 import {productionPanelPrompts,productionPanelDataIssues} from '../public/production-panel-prompts.js';
 import {auditPanelReferences} from '../public/panel-reference-audit.js';
 const active=['queued','preparing','running','recoverable','awaiting_confirmation','delegated'];
@@ -30,9 +32,9 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
  const sourcePath=(hash,relativePath)=>{check(/^[a-f0-9]{64}$/.test(hash),'资料快照无效');return path.join(sourceRoot,hash,...packagePath(relativePath).split('/'));};
  const complete=(project,referenceSegments)=>{ensureProjectPanelGeneration(project,store.db.assets);for(const e of project.productionPackage?.episodes||[])for(const s of e.segments){if(referenceSegments&&!referenceSegments.has(s.id))continue;const f=productionFrame(project,s.id),roles=[];for(const r of s.references){if(productionTextReference(f,s,r))continue;if(r.skipped)continue;let assetId=r.binding?.assetId;if(r['类型']==='上一段成图')assetId=productionSourceAsset(productionFrame(project,e.segments.find(v=>v.localId===r['段ID'])?.id));if(assetId)roles.push({assetId,name:[r['人物'],r['服装']].filter(Boolean).join(' · ')||r['类型'],role:r['类型']==='设定卡'?'character':r['类型'].includes('场景')?'scene':/道具/.test(r['类型'])?'prop':'style'});}roles.push(...productionExtraReferenceRoles(project,f,store.db.assets));const unique=[...new Map(roles.map(r=>[r.assetId,r])).values()];delete f.referenceRequirements;f.referenceIds=unique.map(r=>r.assetId);f.generation.referenceRoles=unique;}normalizeLayerOrder(project);validateProject(project);return project;};
  async function applyLettering(next,s,frame,input,options){
-   check(input.sourceAssetId===undefined||input.sourceAssetId===frame.imageAssetId,'成图已改变，请重新打开定位界面',409);const before=new Set(next.pages.flatMap(p=>p.bubbles.map(b=>b.id))),styles=input.materialStyles||{},selected=Object.values(styles).filter(Boolean),materials=new Map();
+   check(input.sourceAssetId===undefined||input.sourceAssetId===frame.imageAssetId,'成图已改变，请重新打开定位界面',409);const before=new Set(next.pages.flatMap(p=>p.bubbles.map(b=>b.id))),automatic=new Set(next.pages.flatMap(p=>p.bubbles.filter(automaticLetteringUntouched).map(b=>b.id))),styles=input.materialStyles||{},selected=Object.values(styles).filter(Boolean),materials=new Map();
    if(selected.length){let manifest;for(const key of Object.keys(styles)){const styleId=styles[key];if(!styleId)continue;let style=builtinBubbleStyle(styleId);if(!style){check(getBubbleManifest,'气泡素材读取接口尚未就绪');if(!manifest){manifest=await getBubbleManifest();applyRemoteBubbleStyles(manifest.items);}style=manifest.items.find(m=>m.id===styleId);check(style?.revisionId,'所选墨库气泡款式不存在');}let localAssetId;if(style.texture){const imported=await library.importAsset({assetId:style.assetId,revisionId:style.revisionId});check(imported.kind==='image','气泡纹理不是图片');localAssetId=imported.asset.id;}materials.set(key,{styleId,localAssetId,assetId:style.assetId,revisionId:style.revisionId,definitionSha256:packageDigest(Buffer.from(JSON.stringify(style)))});}check(store.project(next.id).revision===input.expectedRevision,'读取素材期间工程已改变，请重试',409);idle(next);}
-   const count=applyProductionLettering(next,s.id,input,options);s.materialBindings={...s.materialBindings,...Object.fromEntries(materials)};for(const page of next.pages)for(const bubble of page.bubbles)if(bubble.productionSegment===s.id&&(!before.has(bubble.id)||input.replace||(input.materialChangedKeys||[]).includes(JSON.stringify([bubble.productionOriginal?.['素材']?.['库']||bubble.productionOriginal?.['类型'],bubble.productionOriginal?.['素材']?.['款式']||'默认'])))){const original=bubble.productionOriginal,key=JSON.stringify([original?.['素材']?.['库']||original?.['类型'],original?.['素材']?.['款式']||'默认']),material=materials.get(key);if(material&&bubble.shape!=='none'&&(!dialogueSegments(bubble).length||(input.materialChangedKeys||[]).includes(key))){const typed=applyBubbleMaterial(bubble,material.styleId,material.localAssetId);typed.productionMaterialVersion=material;Object.assign(bubble,typed);}}
+   const count=applyProductionLettering(next,s.id,input,options);s.materialBindings={...s.materialBindings,...Object.fromEntries(materials)};for(const page of next.pages)for(const bubble of page.bubbles)if(bubble.productionSegment===s.id&&(!before.has(bubble.id)||automatic.has(bubble.id)||input.replace||(input.materialChangedKeys||[]).includes(JSON.stringify([bubble.productionOriginal?.['素材']?.['库']||bubble.productionOriginal?.['类型'],bubble.productionOriginal?.['素材']?.['款式']||'默认'])))){const original=bubble.productionOriginal,key=JSON.stringify([original?.['素材']?.['库']||original?.['类型'],original?.['素材']?.['款式']||'默认']),material=materials.get(key);if(material&&bubble.shape!=='none'&&(!dialogueSegments(bubble).length||(input.materialChangedKeys||[]).includes(key))){const typed=applyBubbleMaterial(bubble,material.styleId,material.localAssetId);typed.productionMaterialVersion=material;Object.assign(bubble,typed);}}
    const configured=resolveProductionStyle(next,s.id);if(input.fontChanged)configured.fontFamily=input.fontFamily;for(const page of next.pages)for(const bubble of page.bubbles)if(bubble.productionSegment===s.id&&(!before.has(bubble.id)||input.replace)){const original=bubble.productionOriginal,key=JSON.stringify([original?.['素材']?.['库']||original?.['类型'],original?.['素材']?.['款式']||'默认']);const style=structuredClone(configured);if(dialogueSegments(bubble).length||(input.materialChangedKeys||[]).includes(key))style.boxes={};applyProductionStyle(bubble,style);}
    return count;
  }
@@ -52,17 +54,21 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
    complete(project);
    if(old){const backup=path.join(dataDir,'backups',old.id+'_before_package_'+old.revision+'.json');fs.mkdirSync(path.dirname(backup),{recursive:true});fs.writeFileSync(backup,JSON.stringify(old));store.db.projects[store.db.projects.indexOf(old)]=project;}else store.db.projects.push(project);scans.delete(input.scanId);json(res,old?200:201,saveProject(project,{editor:!!old}));return true;
   }
-  const match=pathname.match(/^\/api\/projects\/([a-z]+_[0-9a-f-]{36})\/production\/(source|bind|references|layout|detect|compose|background|resolve|issues|mode|styles|unit|relayout-panels|episode-layout|episode-preview|panels|panel|panel-lettering)$/);if(!match)return false;
+  const match=pathname.match(/^\/api\/projects\/([a-z]+_[0-9a-f-]{36})\/production\/(source|bind|references|layout|detect|compose|background|resolve|issues|mode|styles|unit|episode-unit|relayout-panels|episode-layout|episode-preview|panels|panel|panel-lettering|screen-lettering|episode-lettering)$/);if(!match)return false;
   const project=store.project(match[1]),pkg=project.productionPackage;check(pkg,'当前工程不是制作资料包工程',404);
   if(method==='GET'&&match[2]==='episode-preview'){
-   const number=Number(url.searchParams.get('episode'));check(Number.isInteger(number),'请选择当前话');const source=resolveAssistantEpisode(project,number);
-   json(res,200,source?{available:true,projectId:project.id,episode:number,scriptId:source.scriptId,geometry:source.geometry,contract:source.contract,packetHash:createHash('sha256').update(JSON.stringify(source.geometry)).digest('hex')}:{available:false,projectId:project.id,episode:number});return true;
+   const number=Number(url.searchParams.get('episode'));check(Number.isInteger(number),'请选择当前话');const source=resolveAssistantEpisode(project,number,{scriptId:url.searchParams.get('scriptId')||undefined});
+   json(res,200,source?{available:true,projectId:project.id,episode:number,scriptId:source.scriptId,...(url.searchParams.get('summary')==='1'?{}:{geometry:source.geometry}),contract:source.contract,packetHash:createHash('sha256').update(JSON.stringify(source.geometry)).digest('hex')}:{available:false,projectId:project.id,episode:number});return true;
   }
   if(method==='GET'&&match[2]==='source'){const rel=packagePath(url.searchParams.get('path')),file=pkg.manifest.find(f=>f.relativePath===rel);check(file,'原始资料不存在',404);const bytes=fs.readFileSync(sourcePath(pkg.hash,rel));check(packageDigest(bytes)===file.sha256,'缓存原件摘要不符，请重新导入',409);res.writeHead(200,{'Content-Type':/\.xlsx$/i.test(rel)?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'text/plain; charset=utf-8','Content-Disposition':"inline; filename*=UTF-8''"+encodeURIComponent(path.posix.basename(rel)),'Cache-Control':'no-store'});res.end(bytes);return true;}
-  check(method==='POST','制作资料接口不存在',404);const input=await body(req);check(project.revision===input.expectedRevision,'工程已改变，请保存并重试',409);if(!['references','unit','panels','panel','panel-lettering'].includes(match[2])&&!(match[2]==='mode'&&input.gridId))idle(project);
+  check(method==='POST','制作资料接口不存在',404);const input=await body(req);check(project.revision===input.expectedRevision,'工程已改变，请保存并重试',409);if(!['references','unit','panels','panel','panel-lettering','episode-lettering'].includes(match[2])&&!(match[2]==='mode'&&input.gridId))idle(project);
   // Every mutation uses a clone so validation failures never partially edit a saved project.
-  const next=structuredClone(project),s=productionSegment(next,input.segmentId),frame=productionFrame(next,input.segmentId);const commit=options=>{complete(next,options?.referenceSegments);store.db.projects[store.db.projects.indexOf(project)]=next;return saveProject(next,{editor:true});};
+  const returnStarted=performance.now();const cloneStarted=performance.now();const next=structuredClone(project),s=productionSegment(next,input.segmentId),frame=productionFrame(next,input.segmentId);const commit=options=>{complete(next,options?.referenceSegments);store.db.projects[store.db.projects.indexOf(project)]=next;return saveProject(next,{editor:true});};
 
+  if(match[2]==='episode-lettering'){
+   check(Number.isInteger(input.episode)&&pkg.episodes.some(e=>e.episode===input.episode),'请选择有效的话数');
+   const result=ensureEpisodeLettering(next,input.episode);json(res,200,{...result,project:result.segments?commit({referenceSegments:new Set()}):project});return true;
+  }
   if(match[2]==='styles'){
    check(s&&['screen','episode','all'].includes(input.scope),'请选择屏段及应用范围');const patch=input.patch;check(patch&&typeof patch==='object'&&!Array.isArray(patch)&&Object.keys(patch).length&&Object.keys(patch).every(k=>[...PRODUCTION_FONT_FIELDS,'boxes'].includes(k)),'样式设置无效');
    if(patch.fontFamily!==undefined)check(Object.hasOwn(FONT_FAMILIES,patch.fontFamily),'请选择支持的字体');if(patch.fontSize!==undefined)check(Number.isFinite(patch.fontSize)&&patch.fontSize>=10&&patch.fontSize<=2048,'字号范围为10至2048');if(patch.fontWeight!==undefined)check([300,400,500,600,700,800,900].includes(patch.fontWeight),'字重无效');
@@ -85,11 +91,30 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
   }
   if(match[2]==='episode-layout'){
    check(Number.isInteger(input.episode),'请选择当前话');const source=resolveAssistantEpisode(project,input.episode,{scriptId:input.scriptId,expectedPacketHash:input.expectedPacketHash});if(!source){json(res,200,{requiresPreview:true,episode:input.episode});return true;}
-   const result=layoutAssistantEpisode(next,input.episode,source,{assets:store.db.assets});complete(next,new Set());
-   const backup=path.join(dataDir,'backups',project.id+'_before_assistant_layout_'+project.revision+'.json');fs.mkdirSync(path.dirname(backup),{recursive:true});if(!fs.existsSync(backup))fs.writeFileSync(backup,JSON.stringify(project,null,2),{flag:'wx'});
-   json(res,200,{project:commit({referenceSegments:new Set()}),...result,backupCreated:true});return true;
+   const sourceChecked=performance.now();const result=layoutAssistantEpisode(next,input.episode,source,{assets:store.db.assets});const geometryApplied=performance.now();
+   const backup=path.join(dataDir,'backups',project.id+'_before_assistant_layout_'+project.revision+'.json');fs.mkdirSync(path.dirname(backup),{recursive:true});if(!fs.existsSync(backup))fs.writeFileSync(backup,JSON.stringify(project),{flag:'wx'});const backupDone=performance.now();
+   const saved=commit({referenceSegments:new Set()}),committed=performance.now();
+   json(res,200,{project:saved,...result,backupCreated:true,returnTiming:{sourceAndCloneMs:sourceChecked-returnStarted,geometryMs:geometryApplied-sourceChecked,backupMs:backupDone-geometryApplied,normalizeValidateSaveMs:committed-backupDone,totalMs:committed-returnStarted}});return true;
+  }
+  if(match[2]==='episode-unit'){
+   check(Number.isInteger(input.episode)&&['screen','panel'].includes(input.unit),'请选择话数和生成单位');
+   const episode=next.productionPackage.episodes.find(e=>e.episode===input.episode);check(episode?.segments.length,'当前话没有屏段');
+   check(!['single-mode-20261027','post-lettering-20261027'].includes(next.productionPackage.sourceFormat),'单格专用资料包没有整屏模式');
+   const previousUnits=new Map(episode.segments.map(segment=>[segment.id,productionSegmentUnit(next,input.episode,segment.id)]));
+   for(const segment of episode.segments){
+    check(productionFrame(next,segment.id),'屏段画板不存在：'+segment.id);
+    if(input.unit==='panel')for(const gridId of segment.panelIds)if(!findProductionPanel(next,segment.id,gridId))prepareProductionPanel(next,segment.id,gridId);
+   }
+   switchProductionEpisodeUnit(next,input.episode,input.unit,{previousUnits});
+   const backup=path.join(dataDir,'backups',project.id+'_before_episode_unit_'+project.revision+'.json');fs.mkdirSync(path.dirname(backup),{recursive:true});if(!fs.existsSync(backup))fs.writeFileSync(backup,JSON.stringify(project,null,2),{flag:'wx'});
+   json(res,200,{project:commit({referenceSegments:new Set()}),unit:input.unit,segments:episode.segments.length,backupCreated:true});return true;
   }
   check(s&&frame,'请选择有效屏段');
+  if(match[2]==='screen-lettering'){
+   check(productionSegmentUnit(next,s.episode,s.id)==='screen','请先切换到屏段模式');
+   const result=ensureProductionScreenLettering(next,s.id,{manual:true});
+   json(res,200,{project:commit({referenceSegments:new Set()}),...result});return true;
+  }
   if(match[2]==='panels'){
    const rows=s.panelIds.map(id=>productionPanelRecord(next,s.id,id));check(rows.length&&rows.every(Boolean),'本屏段的单镜头资料不完整');
    const preview=input.prepareOnly===true,source=input.mode==='clean'?'post-lettering':'imported',issues=[],panelIds=[];
@@ -120,15 +145,16 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
   }
   if(match[2]==='unit'){
    check(s&&['screen','panel'].includes(input.unit),'请选择屏段或单格生成');
+   const previousUnit=productionSegmentUnit(next,s.episode,s.id);
    if(input.unit==='panel')for(const gridId of s.panelIds)if(!findProductionPanel(next,s.id,gridId))prepareProductionPanel(next,s.id,gridId);
-   switchProductionSegmentUnit(next,s.id,input.unit);json(res,200,commit({referenceSegments:new Set()}));return true;
+   switchProductionSegmentUnit(next,s.id,input.unit,{previousUnit});json(res,200,commit({referenceSegments:new Set()}));return true;
   }
   if(match[2]==='panel'){const prepared=prepareProductionPanel(next,s.id,input.gridId);if(productionSegmentUnit(next,s.episode,s.id)==='panel')applyProductionPanelLettering(next,s.id,input.gridId,{automatic:true});json(res,200,{project:commit(),panelId:prepared.panel.id});return true;}
   if(match[2]==='panel-lettering'){check(input.confirmed===true,'请确认本格台词后加入文字层');check(productionPanelRecord(next,s.id,input.gridId),'单格不属于当前屏段');const result=applyProductionPanelLettering(next,s.id,input.gridId);json(res,200,{project:commit(),...result});return true;}
   if(match[2]==='mode'){
    check(['clean','empty'].includes(input.mode),'请选择空泡或无泡');const source=input.mode==='clean'?'post-lettering':'imported';
    if(input.gridId){const record=productionPanelRecord(next,s.id,input.gridId);check(record,'单格不属于当前屏段');const prompts=productionPanelPrompts(record);check((input.mode==='clean'?prompts.clean:prompts.empty).text,'分镜表缺少本格'+(input.mode==='clean'?'无泡':'空泡')+'提示词：'+record.id);s.panelPromptSources={...s.panelPromptSources,[record.id]:source};const target=findProductionPanel(next,s.id,record.id);if(target){check(!target.locked,'请先解锁本格',409);prepareProductionPanel(next,s.id,record.id);target.generation.promptSource=source;}}
-   else frame.generation.promptSource=source;
+   else {if(input.mode==='empty')check(String(next.shots.find(v=>v.id===frame.shotId)?.sourceFields?.['生图提示词']||'').trim(),'本屏未提供空泡提示词，不能借用无泡原文');frame.generation.promptSource=source;if(productionSegmentUnit(next,s.episode,s.id)==='screen')ensureProductionScreenLettering(next,s.id);}
    if(input.gridId&&findProductionPanel(next,s.id,input.gridId)&&productionSegmentUnit(next,s.episode,s.id)==='panel')applyProductionPanelLettering(next,s.id,input.gridId,{automatic:true});
    json(res,200,commit());return true;
   }
@@ -151,6 +177,6 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
   return false;
  }
  function exportSources(project){return project.productionPackage?.manifest.map(f=>({relativePath:f.relativePath,sha256:f.sha256,dataBase64:fs.readFileSync(sourcePath(project.productionPackage.hash,f.relativePath)).toString('base64')}));}
- function restoreSources(project,files){if(!project.productionPackage)return;check(Array.isArray(files)&&files.length===project.productionPackage.manifest.length&&new Set(files.map(f=>f.relativePath)).size===files.length,'制作工程缺少原始资料快照或路径重复');check(packageDigest(Buffer.from(JSON.stringify(project.productionPackage.manifest.map(f=>[f.relativePath,f.sha256]))))===project.productionPackage.hash,'制作资料快照摘要与清单不符');let size=0;for(const file of files){const expected=project.productionPackage.manifest.find(f=>f.relativePath===file.relativePath);check(expected&&expected.sha256===file.sha256&&typeof file.dataBase64==='string'&&file.dataBase64.length<=12*1024*1024,'制作原件清单不符');const bytes=Buffer.from(file.dataBase64,'base64');size+=bytes.length;check(size<=limits.bytes&&packageDigest(bytes)===expected.sha256,'制作原件摘要不符');}for(const file of files){const dest=sourcePath(project.productionPackage.hash,file.relativePath);fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,Buffer.from(file.dataBase64,'base64'));}}
+ function restoreSources(project,files){if(!project.productionPackage)return;check(Array.isArray(files)&&files.length===project.productionPackage.manifest.length&&new Set(files.map(f=>f.relativePath)).size===files.length,'制作工程缺少原始资料快照或路径重复');check(packageDigest(Buffer.from(JSON.stringify(project.productionPackage.manifest.map(f=>[f.relativePath,f.sha256]))))===project.productionPackage.hash,'制作资料快照摘要与清单不符');let size=0;for(const file of files){const expected=project.productionPackage.manifest.find(f=>f.relativePath===file.relativePath);check(expected&&expected.sha256===file.sha256&&typeof file.dataBase64==='string'&&file.dataBase64.length<=Math.ceil(limits.fileBytes*4/3)+4,'制作原件清单不符');const bytes=Buffer.from(file.dataBase64,'base64');size+=bytes.length;check(size<=limits.bytes&&packageDigest(bytes)===expected.sha256,'制作原件摘要不符');}for(const file of files){const dest=sourcePath(project.productionPackage.hash,file.relativePath);fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,Buffer.from(file.dataBase64,'base64'));}}
  return {handle,exportSources,restoreSources,applyLettering};
 }

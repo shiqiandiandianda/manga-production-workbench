@@ -10,8 +10,8 @@ import {createHash} from 'node:crypto';
 import {importStoryboard} from './storyboard-import.mjs';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 export const packageDigest=bytes=>createHash('sha256').update(bytes).digest('hex');
-const allowed=/\.(json|xlsx|md|txt|csv|tsv|png|jpe?g|webp|svg|py|pyc)$/i;
-const fileLimit=name=>/\.(png|jpe?g|webp)$/i.test(name)?32*1024*1024:limits.fileBytes;
+const allowed=/\.(json|xlsx|md|txt|html|csv|tsv|png|jpe?g|webp|svg|py|pyc)$/i;
+const fileLimit=()=>limits.fileBytes;
 export function packagePath(value){const s=String(value||'').replaceAll('\\','/');if(!s||s.startsWith('/')||/^[a-z]:/i.test(s)||s.split('/').some(p=>!p||p==='.'||p==='..')||s.includes('\0'))fail('资料相对路径无效');return s;}
 export async function loadPackageFiles(input,library){
  const files=[];let total=0;
@@ -19,12 +19,12 @@ export async function loadPackageFiles(input,library){
  if(input.sourceType==='moku'){
   if(input.remoteProjectId!=='public'&&!/^[a-f0-9-]{36}$/i.test(input.remoteProjectId||''))fail('请选择明确的墨库项目');
   const prefix=String(input.folder||'').replaceAll('\\','/').replace(/^\/+|\/+$/g,'');
-  for(let offset=0;offset<10000;offset+=200){const page=await library.read('/api/assets?'+new URLSearchParams({projectId:input.remoteProjectId,limit:'200',offset:String(offset)}));if(!Array.isArray(page.items))fail('墨库资料列表格式无效');
+  for(let offset=0;offset<Infinity;offset+=200){const page=await library.read('/api/assets?'+new URLSearchParams({projectId:input.remoteProjectId,limit:'200',offset:String(offset)}));if(!Array.isArray(page.items))fail('墨库资料列表格式无效');
    for(const item of page.items){const folder=String(item.folder||'').replaceAll('\\','/').replace(/^\/+|\/+$/g,'');if(prefix&&folder!==prefix&&!folder.startsWith(prefix+'/'))continue;if(!allowed.test(item.name)||item.name.startsWith('~$'))continue;
-    const detail=await library.read('/api/assets/'+item.id);if(detail.deletedAt)fail('资料已被删除：'+item.name,409);const rid=item.displayRevisionId||detail.recommendedRevisionId,revision=detail.revisions?.find(r=>r.id===rid);if(!revision||!/^([a-f0-9]{64})$/i.test(revision.sha256))fail('墨库资料缺少固定版本或摘要：'+item.name);if(revision.size>8*1024*1024)fail('墨库资料超过8MB：'+item.name);
-    const response=await library.remote('/api/revisions/'+rid+'/download'),chunks=[];let size=0;for await(const chunk of response.body){size+=chunk.length;if(size>8*1024*1024)fail('墨库资料超过8MB');chunks.push(Buffer.from(chunk));}const bytes=Buffer.concat(chunks);if(packageDigest(bytes)!==revision.sha256)fail('墨库资料校验失败：'+item.name,502);
+    const detail=await library.read('/api/assets/'+item.id);if(detail.deletedAt)fail('资料已被删除：'+item.name,409);const rid=item.displayRevisionId||detail.recommendedRevisionId,revision=detail.revisions?.find(r=>r.id===rid);if(!revision||!/^([a-f0-9]{64})$/i.test(revision.sha256))fail('墨库资料缺少固定版本或摘要：'+item.name);
+    const response=await library.remote('/api/revisions/'+rid+'/download'),chunks=[];let size=0;for await(const chunk of response.body){size+=chunk.length;chunks.push(Buffer.from(chunk));}const bytes=Buffer.concat(chunks);if(packageDigest(bytes)!==revision.sha256)fail('墨库资料校验失败：'+item.name,502);
     const rel=[prefix?folder.slice(prefix.length).replace(/^\//,''):folder,item.name].filter(Boolean).join('/');add(rel,bytes,{sourceType:'moku',projectId:input.remoteProjectId,assetId:item.id,revisionId:rid,objectVersion:detail.objectVersion});
-   }if(page.items.length<200)break;if(offset===9800)fail('资料范围过大，请指定更具体的文件夹');
+   }if(page.items.length<200)break;
   }
  }else if(input.directory){
   const root=fs.realpathSync(String(input.directory));if(!fs.statSync(root).isDirectory())fail('请选择资料文件夹');

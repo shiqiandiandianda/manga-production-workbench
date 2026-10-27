@@ -1,5 +1,6 @@
 """Narrative boundaries and actual two-dimensional panel relationships."""
 import statistics
+from .selective_overlap import validate_selective_overlap
 
 def time_phase(value):
     text=str(value or '')
@@ -42,6 +43,7 @@ def validate_overlap_decisions(packet,script):
         if not aligned:errors.append(b['key']+'叠角声明与左右坐标不符')
         if d.get('verificationStatus')!='pending_artwork':errors.append(b['key']+'未取得成图时不能声称实际主体避让已通过')
     if errors:raise ValueError('；'.join(dict.fromkeys(errors)))
+    if packet.get('rhythmPolicy',{}).get('overlapNecessityMode')=='selective_v1':validate_selective_overlap(packet,script)
     return True
 
 def validate_rhythm(packet,script):
@@ -110,4 +112,5 @@ def validate_rhythm(packet,script):
         try:validate_dialogue_groups(packet,script)
         except ValueError as exc:errors.append(str(exc))
     if errors:raise ValueError('；'.join(dict.fromkeys(errors)))
+    if packet.get('rhythmPolicy',{}).get('overlapNecessityMode')=='selective_v1':validate_selective_overlap(packet,script)
     return True

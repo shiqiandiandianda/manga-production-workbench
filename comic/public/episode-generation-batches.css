@@ -1,0 +1,13 @@
+.episode-batch-status:not([hidden]){display:flex;flex-wrap:wrap;gap:6px 20px;padding:8px 14px;border-top:1px solid #344c60;background:#1b3142;color:#d4eaff;font-size:13px;max-height:120px;overflow:auto;flex:none}
+.episode-batch-status>span{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.episode-batch-status button{padding:4px 10px;white-space:nowrap}
+.modern-workbench .job-tray.collapsed:has(#episode-batch-status:not([hidden])){max-height:220px}
+.modern-workbench .canvas-layer-order #canvas-generate-current-panel{height:auto;min-height:36px;white-space:normal;padding:6px 4px;line-height:1.5;margin-top:8px;border-color:#5987a9;background:#285371;color:#e5f4ff}
+.canvas-layer-order #canvas-generate-current-panel b{display:none}
+.canvas-layer-order.compact #canvas-generate-current-panel b{display:block}
+
+/* Batch progress shares the task heading, including while cards are collapsed. */
+.modern-workbench .job-heading #episode-batch-status:not([hidden]){display:inline-flex;flex:0 1 auto;min-width:0;gap:14px;padding:0;border:0;background:transparent;max-height:none;overflow-x:auto;overflow-y:hidden;white-space:nowrap;flex-wrap:nowrap}
+.modern-workbench .job-heading #episode-batch-status>span{flex:none;flex-wrap:nowrap;white-space:nowrap}
+.modern-workbench .job-heading:has(#episode-batch-status:not([hidden])) .job-latest-status{display:none}
+.modern-workbench .job-tray.collapsed:has(#episode-batch-status:not([hidden])){max-height:52px}

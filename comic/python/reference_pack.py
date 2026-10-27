@@ -176,7 +176,8 @@ def pack_references(directory, references, roles, *, edit=False):
         attachments.append({'index': number, 'file': str(file.resolve()), 'sha256': _sha(file), 'merged': merged, 'sources': records, **size})
     receipt = {'version': 1, 'limit': LIMIT, 'sourceCount': len(files), 'attachedCount': len(attachments), 'editBaseKeptSeparate': edit, 'attachments': attachments}
     (Path(directory) / 'reference-pack.json').write_text(json.dumps(receipt, ensure_ascii=False, indent=2), encoding='utf-8')
-    lines = ['【本次实际附图映射，取代前文清单序号与附图序号的对应关系】', f'原始{len(files)}张参考已自动整理成{len(attachments)}张实际附图，全部参考保留。R编号是原参考清单ID，B00是重绘底图；仅将下列实际附图路径传入referenced_image_paths，不再另传原件。']
+    lines = ['【本次实际附图映射，取代前文清单序号与附图序号的对应关系】', f'原始{len(files)}张参考已自动整理成{len(attachments)}张实际附图，全部参考保留。R编号是原参考清单ID，B00是重绘底图；原文图号指原始参考，不直接指实际附图序号，须按下方映射寻找对应图片或拼图单元；仅将下列实际附图路径传入referenced_image_paths，不再另传原件。']
+    lines.append('重绘时图1对应B00，图2对应R01，后续图号依次对应R02、R03等。' if edit else '非重绘时图1对应R01，图2对应R02，后续图号依次类推。')
     for attachment in attachments:
         lines.append(f"实际附图{attachment['index']}：{'带标签参考拼图' if attachment['merged'] else '独立原图'}")
         for record in attachment['sources']:

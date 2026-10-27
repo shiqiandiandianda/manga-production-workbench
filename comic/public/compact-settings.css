@@ -1,0 +1,39 @@
+/* Compact only the fixed-board and page settings; other editors keep their sizing. */
+body.modern-workbench.unified-workbench #inspector-panel .panel-properties select{box-sizing:border-box;height:38px;min-height:38px;padding:5px 9px;line-height:22px}
+body.modern-workbench.unified-workbench #inspector-panel .board-inspector section{padding:9px 0;border-bottom:1px solid #344756}
+body.modern-workbench.unified-workbench #inspector-panel .board-inspector h3{margin:0 0 7px;font-size:13px}
+body.modern-workbench.unified-workbench #inspector-panel .board-inspector label{margin:5px 0;font-size:12px}
+body.modern-workbench.unified-workbench #inspector-panel .board-inspector :is(input:not([type=checkbox]),select,textarea){margin-top:3px;min-height:30px;padding:5px 7px;font-size:12px;box-sizing:border-box}
+body.modern-workbench.unified-workbench #inspector-panel .board-inspector textarea{height:44px;resize:vertical}
+body.modern-workbench.unified-workbench #inspector-panel .board-inspector button{min-height:29px;padding:5px 7px;font-size:12px}
+.board-inspector .board-two-columns{gap:6px}
+.board-inspector .board-two-columns>button{margin-bottom:0}
+.board-inspector .board-number-row{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end}
+.board-inspector .board-number-row>button{margin-bottom:5px}
+.board-inspector .board-auto-row{margin:3px 0 6px}
+body.modern-workbench.unified-workbench #inspector-panel .board-inspector :is(.sub-note,small){font-size:11px;line-height:1.4;margin:5px 0}
+.board-inspector .board-auto-row small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.board-inspector .board-layer-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.board-inspector .board-advanced{margin-top:7px}
+.board-inspector .board-advanced summary{font-size:12px;color:#aac9e1;cursor:pointer;padding:5px 0}
+body.modern-workbench.unified-workbench #inspector-panel .unified-typography{padding:10px;margin:10px 0;border-radius:7px}
+#inspector-panel .typography-heading{margin-bottom:7px;gap:5px}
+#inspector-panel .typography-fields{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:6px}
+body.modern-workbench.unified-workbench #inspector-panel .unified-typography label{font-size:12px;margin:0 0 5px}
+body.modern-workbench.unified-workbench #inspector-panel .unified-typography :is(input,select){min-height:31px;margin-top:3px;padding:5px 6px;font-size:12px;box-sizing:border-box}
+body.modern-workbench.unified-workbench #inspector-panel .unified-typography .typography-color input[type=color]{flex-basis:28px;width:28px;height:31px;padding:2px}
+body.modern-workbench.unified-workbench #inspector-panel .unified-typography .typography-color input[type=text]{font-size:11px;padding:5px 2px}
+#inspector-panel .typography-advanced{margin:6px 0}
+#inspector-panel .typography-advanced[open] .typography-fields{margin-top:6px}
+body.modern-workbench.unified-workbench #inspector-panel .typography-note{font-size:11px;line-height:1.4;margin:6px 0}
+#inspector-panel .episode-bubble-style-entry h3{font-size:13px;margin:6px 0}
+#inspector-panel .episode-bubble-style-entry p{font-size:12px;line-height:1.4;margin:5px 0 8px}
+body.modern-workbench.unified-workbench #inspector-panel .episode-bubble-style-entry{padding:9px;margin:8px 0}
+#asset-gallery-workspace .asset-gallery-caption{grid-template-rows:auto 18px;gap:4px 8px;padding:9px 10px}
+#asset-gallery-workspace .asset-gallery-caption strong{font-size:14px;line-height:20px}
+#asset-gallery-workspace .asset-gallery-media{margin:0 9px;height:200px}
+#asset-gallery-workspace .asset-gallery-actions{padding:8px 9px;gap:5px}
+#asset-gallery-workspace .asset-card-message{min-height:0;padding:5px 10px;line-height:1.4}
+#asset-gallery-workspace .asset-preparation-note{margin:5px 10px;font-size:11px}
+#asset-gallery-workspace .asset-gallery-filters{padding-bottom:8px;margin-bottom:8px;gap:6px}
+body.modern-workbench.unified-workbench #inspector-panel .episode-bubble-style-entry button{min-height:31px;padding:5px 7px;font-size:12px}

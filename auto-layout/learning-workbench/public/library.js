@@ -68,6 +68,7 @@
   version.replaceChildren(...(current?.versions||[]).map((v,i)=>({...v,displayName:v.label||('版本'+(i+1))})).reverse().map(v=>new Option(v.displayName+(v.id===current.activeVersion?' · 当前默认':v.trialPassed?' · 已试排':' · 待试排'),v.id)));
   const desired=forceLatest?current?.candidateVersion:previous||current?.candidateVersion||current?.activeVersion;if(desired)version.value=desired;
   el('libraryActivate').disabled=!current?.versions.some(v=>v.id===version.value&&(v.trialPassed||v.status==='active'));
+  if(script?.layoutRuleContract&&script.projectId===key){const c=script.layoutRuleContract;version.replaceChildren(new Option(c.name+' · 冻结版本',c.version));version.disabled=true;el('libraryActivate').disabled=true;}else version.disabled=false;
   el('libraryStatus').textContent=current?.activeVersion?'当前已启用：版本'+(current.versions.findIndex(v=>v.id===current.activeVersion)+1):'尚未启用学习版本。先选择参考并学习，再试排和预览。';await renderRules();
  }
  el('libraryVersion').onchange=()=>{renderRules();const p=library?.projects.find(p=>p.id===project);el('libraryActivate').disabled=!p?.versions.some(v=>v.id===el('libraryVersion').value&&(v.trialPassed||v.status==='active'));};

@@ -22,7 +22,7 @@ def validate_palette_evidence(packet,script,profile,evidence):
                 if quote['key'] not in shots or not quote['quote'] or quote['quote'] not in str(shots[quote['key']].get(quote['field'],'')):raise ValueError('脚本色彩依据与原文不符')
         elif selected.get(e['referenceId'])!=e['sourceSha256']:raise ValueError('色彩参考不在本次学习集或来源版本不匹配')
 
-def apply_palette_response(packet,script,response,evidence):
+def apply_palette_response(packet,script,response,evidence,validate=True):
     check_contract(response,PALETTE_SCHEMA)
     expected=[(s['startShotCode'],s['endShotCode']) for s in packet['sections']]
     decisions=response['paletteDecisions']
@@ -45,7 +45,7 @@ def apply_palette_response(packet,script,response,evidence):
     if not evidence.get('specialFlashbackKeys') and any(str(bg.get(k,'')).lower()=='#000000' for bg in response['backgrounds'] for k in ('color','endColor')):raise ValueError('本话没有特殊回忆依据，不能使用黑底')
     result=copy.deepcopy(packet);result['backgrounds']=copy.deepcopy(response['backgrounds']);result['paletteDecisions']=copy.deepcopy(decisions)
     result['generator'].update(backgrounds='codex-cli-scene-palette',paletteResponseDigest=digest(response))
-    validate_geometry(result,script)
+    if validate:validate_geometry(result,script)
     assert result['panels']==packet['panels'] and result['canvas']==packet['canvas'] and result['connections']==packet['connections']
     return result
 

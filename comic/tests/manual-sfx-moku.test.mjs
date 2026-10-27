@@ -1,0 +1,31 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import {createRequire} from 'node:module';
+import {createStudio} from '../server.mjs';
+import {createProject} from '../public/model.js';
+
+test('墨库特效入口保留手工文字：中文输入确认不误加，取消、去重、撤销、保存重开', {timeout:60000},async t=>{
+ const parent=path.resolve('.runtime/temp');fs.mkdirSync(parent,{recursive:true});const dir=fs.mkdtempSync(path.join(parent,'manual-sfx-'));
+ const fake={close(){},status:async()=>({connected:false}),generate(){throw Error('Real AI forbidden');}};
+ const studio=createStudio({dataDir:dir,seedReference:false,bridge:fake,jimengBridge:fake,storyboardGenerator:fake});let browser;
+ await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));
+ t.after(async()=>{await browser?.close();studio.close();studio.server.closeAllConnections();await new Promise(r=>studio.server.close(r));assert.equal(path.dirname(dir),parent);fs.rmSync(dir,{recursive:true,force:true});});
+ const project=createProject('手工文字特效隔离验收');project.references=[];project.shots.forEach(s=>s.referenceIds=[]);studio.store.db.projects.push(project);studio.store.save();
+ const origin='http://127.0.0.1:'+studio.server.address().port,require=createRequire(import.meta.url),{chromium}=require(path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));
+ browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1600,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/*',r=>{const u=new URL(r.request().url());return u.origin===origin||['data:','blob:'].includes(u.protocol)?r.continue():r.abort();});
+ await page.route('**/api/library/**',r=>r.fulfill({json:{connected:false,error:'隔离验收未登录',items:[]}}));
+ const read=()=>fetch(origin+'/api/projects/'+project.id).then(r=>r.json()),sfx=p=>p.pages.flatMap(p=>p.bubbles).filter(b=>b.sfxLibrary),saved=()=>page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');
+ await page.goto(origin+'/?project='+project.id);await saved();const initial=sfx(await read()).length;
+ const open=async()=>{await page.locator('.workspace-rail [data-open-sfx]').click();await page.locator('#library-create-text-sfx').click();await page.locator('#manual-sfx-text').waitFor();};
+ await open();await page.locator('#manual-sfx-text').fill('不会保存');await page.locator('#modal-actions').getByRole('button',{name:'取消',exact:true}).click();assert.equal(sfx(await read()).length,initial);
+ await open();const input=page.locator('#manual-sfx-text'),cdp=await page.context().newCDPSession(page);await input.click();await cdp.send('Input.imeSetComposition',{text:'peng',selectionStart:4,selectionEnd:4});await page.keyboard.press('Enter');assert.equal(sfx(await read()).length,initial);assert.ok(await page.locator('#modal').evaluate(e=>e.open));
+ await cdp.send('Input.imeSetComposition',{text:'',selectionStart:0,selectionEnd:0});await input.fill('砰！');await page.locator('#manual-sfx-preset').selectOption('speed');await page.locator('#manual-sfx-form button[type=submit]').dblclick();await page.locator('#modal').waitFor({state:'hidden'});await saved();
+ let state=await read();assert.equal(sfx(state).length,initial+1);const layer=sfx(state).at(-1);assert.equal(layer.text,'砰！');assert.equal(layer.sfxPreset,'speed');assert.equal(layer.parentPanelId,undefined);
+ await page.locator('#undo').click();await saved();assert.equal(sfx(await read()).length,initial);await page.locator('#redo').click();await saved();assert.equal(sfx(await read()).at(-1).id,layer.id);
+ await page.reload();await saved();assert.equal(sfx(await read()).at(-1).text,'砰！');assert.equal(studio.store.db.jobs.length,0);assert.deepEqual(errors,[]);
+ const evidence=path.resolve('../audit-data/manual-sfx');fs.mkdirSync(evidence,{recursive:true});fs.writeFileSync(path.join(evidence,'report.json'),JSON.stringify({passed:true,ordinarySyntheticProject:true,realIMEComposition:true,cancel:true,doubleClickDeduplication:true,undoRedo:true,reopen:true,realAI:false,browserErrors:errors},null,2));await page.screenshot({path:path.join(evidence,'manual-sfx-restored.png')});
+});

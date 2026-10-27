@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#292638">
+  <title>角色工房 · 漫画角色工作台</title>
+  <link rel="stylesheet" href="/styles.css?v=1.11.0-refine2">
+  <script src="/app.js?v=1.18.0" defer></script>
+  <script src="/body-templates.js?v=1.18.0" defer></script>
+  <script src="/materials.js?v=1.18.0" defer></script>
+  <script src="/outfit-tools.js?v=1.18.0" defer></script>
+  <script src="/quick-tools.js?v=1.18.0" defer></script>
+  <link rel="stylesheet" href="/quick-tools.css?v=1.18.0">
+  <script src="/resources.js?v=1.18.0" defer></script>
+  <link rel="stylesheet" href="/resources.css?v=1.18.0">
+  <script src="/guided-tour.js?v=1.18.0" defer></script>
+  <link rel="stylesheet" href="/materials.css?v=1.18.0">
+  <link rel="stylesheet" href="/guided-tour.css?v=1">
+</head>
+<body>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="icon-project" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 4v16M8 10h13"/></symbol>
+    <symbol id="icon-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M17 5a3 3 0 0 1 0 6M21 20v-2a6 6 0 0 0-3-5"/></symbol>
+    <symbol id="icon-clothing" viewBox="0 0 24 24"><path d="m8 4-5 3 2 5 3-1v9h8v-9l3 1 2-5-5-3a4 4 0 0 1-8 0Z"/></symbol>
+    <symbol id="icon-queue" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m6 9 1 1 2-2M12 9h5m-11 6 1 1 2-2M12 15h5"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 16v4h16v-4"/></symbol>
+    <symbol id="icon-book" viewBox="0 0 24 24"><path d="M12 6v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v15h-5a4 4 0 0 0-4 2 4 4 0 0 0-4-2H3Z"/></symbol>
+    <symbol id="icon-spark" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3ZM20 2v4m-2-2h4"/></symbol>
+    <symbol id="icon-portrait" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="9" r="3"/><path d="M6 20v-1a6 6 0 0 1 12 0v1"/></symbol>
+    <symbol id="icon-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 6-6 4 4 3-3 5 5"/></symbol>
+    <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7a9 9 0 1 0 1 9M20 3v5h-5"/></symbol>
+    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+  </svg>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#home" data-page="home" aria-label="角色工房首页"><span class="brand-mark">角</span><span>角色工房<small>漫画角色创作工作台</small></span></a>
+      <div class="sidebar-caption">创作工作台</div>
+      <nav class="navigation" aria-label="主导航">
+        <button class="nav-item active" data-page="home"><span class="nav-symbol"><svg class="ui-icon" aria-hidden="true"><use href="#icon-spark"/></svg></span>首页</button>
+        <button class="nav-item" data-page="project"><span class="nav-symbol"><svg class="ui-icon" aria-hidden="true"><use href="#icon-project"/></svg></span>项目制作</button>
+        <button class="nav-item" data-page="library"><span class="nav-symbol"><svg class="ui-icon" aria-hidden="true"><use href="#icon-people"/></svg></span>素材库</button>
+        <button class="nav-item" data-page="queue"><span class="nav-symbol"><svg class="ui-icon" aria-hidden="true"><use href="#icon-queue"/></svg></span>任务队列<span id="queue-count" class="nav-count" hidden>0</span></button>
+        <button class="nav-item" data-page="settings"><span class="nav-symbol"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"/></svg></span>连接设置</button>
+      </nav>
+      <div class="sidebar-projects"><div class="sidebar-caption">最近项目 <button class="icon-button" data-action="create-project" aria-label="新建项目">＋</button></div><div id="project-shortcuts"></div></div>
+      <div class="sidebar-footer"><span class="small-dot"></span><div>本地保存，随时继续<small>由已登录的 Codex 完成创作</small></div></div>
+    </aside>
+    <div class="content-shell">
+      <header class="topbar"><div id="breadcrumb">创作工作台 <span>/</span> 项目制作</div><div class="topbar-actions"><button type="button" class="button small" data-action="open-guide">新手指引</button><span id="connection-status" class="status-badge"><i></i>检查连接中</span><button class="icon-button refresh-button" data-action="refresh" title="刷新连接与项目" aria-label="刷新连接与项目"><svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"/></svg></button></div></header>
+      <main id="main" tabindex="-1"><div class="loading"><div class="spinner"></div><p>正在打开你的创作工作台…</p></div></main>
+      <footer class="content-footer">角色工房 <span>剧本 · 角色 · 服装 · 动作</span><span>文件保存在本机</span></footer>
+    </div>
+  </div>
+  <dialog id="modal"><div id="modal-content"></div></dialog>
+  <div id="toast-region" class="toast-region" role="status" aria-live="polite"></div>
+</body>
+</html>

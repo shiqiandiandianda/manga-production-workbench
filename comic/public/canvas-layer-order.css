@@ -1,0 +1,13 @@
+.canvas-layer-order{position:absolute;z-index:6;display:flex;flex-direction:column;gap:4px;padding:5px;border:1px solid #375669;border-radius:8px;background:#172936;box-shadow:0 3px 12px #0005}
+.canvas-layer-order[hidden]{display:none}
+.modern-workbench .canvas-layer-order button{display:flex;align-items:center;justify-content:center;gap:5px;width:92px;height:32px;min-height:32px;margin:0;padding:0 6px;border:1px solid transparent;border-radius:4px;background:transparent;color:#d5eaff;font-size:13px;white-space:nowrap}
+.canvas-layer-order button:not(:disabled):hover{background:#315168;border-color:#5586a7}
+.canvas-layer-order button:focus-visible{outline:2px solid #8ac7ff;outline-offset:1px}
+.canvas-layer-order button:disabled{opacity:.35;cursor:default}
+.canvas-layer-order b{font-size:19px;font-weight:500;line-height:1}
+.canvas-layer-order.compact{padding:3px;gap:3px}
+.modern-workbench .canvas-layer-order.compact button{width:28px;height:28px;min-height:28px;padding:0}
+.canvas-layer-order.compact button span{display:none}
+.modern-workbench .canvas-layer-order #repair-current-panel{margin-top:5px;border-color:#456782;background:#2a4864;color:#dcefff}
+.canvas-layer-order #repair-current-panel b{display:none}
+.canvas-layer-order.compact #repair-current-panel b{display:block}

@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';
+test('强制升级把执行器的排队和执行任务持久化为已取消，重启不会自动续跑',async()=>{
+ const base=path.resolve(import.meta.dirname,'../../verification/forced-upgrades-20261024');fs.mkdirSync(base,{recursive:true});const dir=fs.mkdtempSync(path.join(base,'executor-'));process.env.WORKBENCH_DATA_DIR=dir;
+ const {files}=await import('../server/paths.mjs'),{createJobManager}=await import('../server/jobs.mjs');fs.writeFileSync(files.jobs,JSON.stringify({version:1,jobs:[{id:'q',status:'queued',items:[{status:'queued'}]},{id:'r',status:'queued',items:[{status:'running'}]},{id:'done',status:'completed',items:[{status:'completed',assetId:'KEEP'}]}]}));
+ const manager=createJobManager({config:{read:async()=>({intake:{jobTimeoutSeconds:120}})},archive:{},scene:{},workshop:{}});await manager.init();manager._jobs.get('r').status='running';await manager.forceStop();const saved=JSON.parse(fs.readFileSync(files.jobs));assert.equal(saved.jobs.find(j=>j.id==='q').status,'cancelled');assert.equal(saved.jobs.find(j=>j.id==='r').status,'cancelled');assert.equal(saved.jobs.find(j=>j.id==='done').items[0].assetId,'KEEP');
+ const next=createJobManager({config:{read:async()=>({intake:{jobTimeoutSeconds:120}})},archive:{},scene:{},workshop:{}});await next.init();assert.equal(next._jobs.get('q').status,'cancelled');assert.equal(next._jobs.get('r').status,'cancelled');await next.shutdown();
+});

@@ -1,0 +1,9 @@
+{
+  "url": "http://127.0.0.1:19080",
+  "token": "由管理员单独提供的作品专用接单器令牌",
+  "workId": "由需求回执提供的work编号",
+  "provider": "external",
+  "adapter": "./adapter.example.mjs",
+  "directory": "D:/共享资产接单数据",
+  "once": true
+}

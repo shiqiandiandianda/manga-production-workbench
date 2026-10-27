@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import http from 'node:http';
+import {randomUUID,createHash} from 'node:crypto';
+import {createProject,id} from '../public/model.js';
+import {migrateLayerDocument} from '../public/layers.js';
+import {ensureProjectPanelGeneration} from '../public/panel-generation.js';
+import {auditPanelReferences} from '../public/panel-reference-audit.js';
+import {createMokuProjectLibrary} from '../lib/moku-project-library.mjs';
+import {createReferenceGenerationResults} from '../lib/reference-generation-results.mjs';
+import {mockMoku} from './moku-project-library-fixture.mjs';
+
+test('completed scene returns through classified upload and fixed-version binding; retry keeps original bytes and one upload',async t=>{
+ const dataDir=fs.mkdtempSync(path.join(import.meta.dirname,'scene-return-'));
+ t.after(()=>{assert.equal(path.dirname(dataDir),import.meta.dirname);fs.rmSync(dataDir,{recursive:true,force:true});});
+ const project=migrateLayerDocument(createProject('合成作品')).project;project.shots=[project.shots[0]];
+ Object.assign(project.shots[0],{participants:'无',characterStates:'',location:'城外废弃庭院',props:'无',description:'空景，固定门窗与庭院布局'});
+ project.pages[0].panels=[project.pages[0].panels[0]];project.pages[0].bubbles=[];project.assetLibrary={version:1,assetIds:[],directories:[],recursive:true};ensureProjectPanelGeneration(project,[]);
+ const panel=project.pages[0].panels[0],need=auditPanelReferences(project,panel,[]).needs.find(n=>n.role==='scene');assert.ok(need);
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a9sAAAAASUVORK5CYII=','base64'),sha256=createHash('sha256').update(png).digest('hex'),recordId='production_'+randomUUID(),record={id:recordId,name:need.name,type:'scene',status:'completed',source:{projectId:project.id,panelId:panel.id,needId:need.id},imageUrl:'/api/production-records/'+recordId+'/image?slot=card'};
+ let generations=0;const origin=http.createServer((req,res)=>{if(req.method!=='GET'){generations++;res.writeHead(405);return res.end();}if(req.url.includes('/image?')){res.setHeader('Content-Type','image/png');return res.end(png);}res.setHeader('Content-Type','application/json');res.end(JSON.stringify(record));});
+ await new Promise(resolve=>origin.listen(0,'127.0.0.1',resolve));t.after(()=>{origin.closeAllConnections();origin.close();});
+ const m=mockMoku(),classified=createMokuProjectLibrary({dataDir,request:m.request,reader:m.reader}),assets=[],mapping={},store={db:{projects:[project],assets,jobs:[]},project(){return this.db.projects[0];},asset:assetId=>assets.find(a=>a.id===assetId),save(){}};
+ const library={defaultProjectId:m.projectId,uploadAsset:input=>classified.upload(input),async importAsset(receipt){const remote=m.assets.get(receipt.assetId);assert.deepEqual(remote.bytes,png);const asset={id:id('asset'),name:remote.name,width:1,height:1,library:{projectId:m.projectId,assetId:receipt.assetId,revisionId:receipt.revisionId,sha256,category:'scene'}};assets.push(asset);return {kind:'image',asset};}};
+ const handler=createReferenceGenerationResults({store,library,assetStudioUrl:'http://127.0.0.1:'+origin.address().port,mapping,save(){},saveProject:p=>{p.revision++;return p;}}),adopt=async()=>{const input={projectId:project.id,panelId:panel.id,needId:need.id,recordId,expectedRevision:store.project().revision},url=new URL('http://local/api/project-center/reference-generation/adopt');let response;await handler({}, {},{pathname:url.pathname,method:'POST',url},(status,value)=>{assert.equal(status,200);response=value;},async()=>input);return response;};
+ const first=await adopt(),request=m.calls.find(c=>c.method==='POST'&&c.route.endsWith('/image/scene/uploads'));
+ assert.deepEqual(request.input.sceneIds,[request.input.objectId]);assert.equal(first.asset.library.sha256,sha256);assert.equal(first.asset.referenceGeneration.recordId,recordId);assert.equal(first.asset.productionStatus,'confirmed');
+ assert.equal(auditPanelReferences(first.project,first.project.pages[0].panels[0],assets).needs.find(n=>n.role==='scene').status,'ready');
+ const second=await adopt();assert.equal(second.asset.id,first.asset.id);assert.equal(second.asset.library.revisionId,first.asset.library.revisionId);assert.equal(m.uploads.size,1);assert.equal(assets.length,1);assert.equal(generations,0);assert.equal(Object.keys(mapping).length,1);
+});

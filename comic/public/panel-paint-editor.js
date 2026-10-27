@@ -1,0 +1,18 @@
+import {moveGradientMidpoint} from './gradient-stops.js';
+import {defaultGradient,normalizedPanelPoint,MAX_MASK_STROKES,MAX_STROKE_POINTS,MAX_MASK_POINTS} from './panel-effects.js';
+export class PanelPaintEditor{
+ constructor({root,getTarget,getTool,getBrush,toPagePoint,onStart,onChange,onCommit,onCancel,onError,onCursor}){Object.assign(this,{root,getTarget,getTool,getBrush,toPagePoint,onStart,onChange,onCommit,onCancel,onError,onCursor});this.gesture=null;
+  root.addEventListener('pointerleave',()=>this.onCursor?.(null));root.addEventListener('pointerdown',e=>this.start(e),true);root.addEventListener('pointermove',e=>this.move(e),true);root.addEventListener('pointerup',e=>this.finish(e),true);root.addEventListener('pointercancel',e=>this.finish(e,true),true);window.addEventListener('blur',()=>this.cancel());
+ }
+ start(e){const endpoint=e.target.closest('[data-gradient-endpoint]'),tool=endpoint?'gradient':this.getTool();if(!['mask','gradient'].includes(tool)||e.button!==0)return;const target=this.getTarget();if(!target?.panel||target.panel.locked||!e.target.closest('[data-panel]'))return;
+  e.preventDefault();e.stopImmediatePropagation();if(e.target.closest('[data-panel]').dataset.panel!==target.panel.id)return;const {panel,pageId}=target,before=structuredClone(panel),p=normalizedPanelPoint(panel,this.toPagePoint(e,pageId));
+  if(tool==='mask'){const strokes=panel.mask?.strokes||[],total=strokes.reduce((n,s)=>n+s.points.length,0);if(strokes.length>=MAX_MASK_STROKES||total>=MAX_MASK_POINTS)return this.onError('蒙版笔画较多，请撤销一些笔画或清空蒙版后继续');const brush=this.getBrush();this.onStart();panel.mask={enabled:true,strokes:[...strokes,{mode:brush.mode,size:brush.size/Math.min(panel.w,panel.h),hardness:brush.hardness,opacity:brush.opacity,points:[p]}]};}
+  if(tool==='gradient')this.onStart();this.gesture={tool,pointer:e.pointerId,panel,pageId,before,start:p,handle:e.target.closest('[data-gradient-endpoint]')?.dataset.gradientEndpoint};this.root.setPointerCapture(e.pointerId);this.onChange();
+ }
+ move(e){const target=this.getTarget();if(this.getTool()==='mask'&&target?.panel)this.onCursor?.({point:this.toPagePoint(e,target.pageId),pageId:target.pageId});else this.onCursor?.(null);const s=this.gesture;if(!s||s.pointer!==e.pointerId)return;e.preventDefault();e.stopImmediatePropagation();const p=normalizedPanelPoint(s.panel,this.toPagePoint(e,s.pageId));
+  if(s.tool==='mask'){const stroke=s.panel.mask.strokes.at(-1),last=stroke.points.at(-1),distance=Math.hypot((p.x-last.x)*s.panel.w,(p.y-last.y)*s.panel.h);if(distance<Math.max(1,stroke.size*Math.min(s.panel.w,s.panel.h)*.04))return;if(stroke.points.length>=MAX_STROKE_POINTS||s.panel.mask.strokes.reduce((n,v)=>n+v.points.length,0)>=MAX_MASK_POINTS){this.finish(e);this.onError('这条笔画已达到长度限制，请分段涂抹');return;}stroke.points.push(p);}
+  else{const g={...(s.panel.gradient||defaultGradient()),enabled:true};delete g.angle;if(s.handle==='middle'){s.panel.gradient=g;moveGradientMidpoint(s.panel,p);}else if(s.handle)g[s.handle]=p;else{g.start=s.start;g.end=p;}if(Math.hypot((g.end.x-g.start.x)*s.panel.w,(g.end.y-g.start.y)*s.panel.h)<2)return;s.panel.gradient=g;}this.onChange();
+ }
+ finish(e,cancelled=false){const s=this.gesture;if(!s||s.pointer!==e.pointerId)return;e.preventDefault();e.stopImmediatePropagation();this.gesture=null;if(this.root.hasPointerCapture(e.pointerId))this.root.releasePointerCapture(e.pointerId);if(cancelled){Object.assign(s.panel,s.before);for(const key of ['mask','gradient'])if(!(key in s.before))delete s.panel[key];this.onCancel();}else this.onCommit();}
+ cancel(){if(this.gesture)this.finish({pointerId:this.gesture.pointer,preventDefault(){},stopImmediatePropagation(){}},true);}
+}

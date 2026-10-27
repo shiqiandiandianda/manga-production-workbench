@@ -1,0 +1,19 @@
+本项目内置字体：思源黑体（Source Han Sans SC VF）与思源宋体（Source Han Serif SC VF）。
+两份字体均来自 Adobe 官方 GitHub 发布，二进制文件未经修改。
+
+Source Han Sans SC VF:
+© 2014-2025 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.
+License: SIL Open Font License, Version 1.1.
+Full license: LICENSE-SourceHanSans.txt
+
+Source Han Serif SC VF:
+© 2017-2024 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.
+License: SIL Open Font License, Version 1.1.
+Full license: LICENSE-SourceHanSerif.txt
+(The upstream release LICENSE file is preserved verbatim; the 2017-2024 notice above is read from the supplied font's name table.)
+
+Source is a trademark of Adobe in the United States and/or other countries.
+
+使用说明：允许免费商用、用于漫画作品、嵌入软件及随软件分发。分发字体时保留版权声明与完整许可证；不得单独销售字体本身。修改字体须遵守 OFL 和保留字体名称限制。OFL 不要求使用字体创作的漫画或其他文档采用 OFL 许可。免费可商用不等于字体没有版权。
+
+版本、官方来源与文件校验记录见 Sources.json。

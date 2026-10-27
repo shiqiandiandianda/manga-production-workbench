@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>资产工作室 · 资产生成</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="production-home">
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="/">
+        <span class="brand-mark">资</span>
+        <span class="brand-text">
+          <b>资产工作室</b>
+          <small>ASSET STUDIO</small>
+        </span>
+      </a>
+
+      <nav class="nav">
+        <a class="nav-item active" href="/">
+          <span class="nav-icon">✦</span>
+          <span>生成资产</span>
+        </a>
+
+      </nav>
+
+      <div class="nav-section">工作流</div>
+      <div class="nav-hint">
+        <span>01</span> 规格
+        <span>02</span> 组件
+        <span>03</span> 审批
+      </div>
+
+      <div class="sidebar-foot">
+        <div class="engine status" id="status">
+          <i class="dot" id="dot"></i>
+          <span id="status-text">连接引擎…</span>
+        </div>
+        <div class="moku-line">墨库 <b id="moku" role="status">检查中…</b> <button type="button" id="moku-refresh">重新检查</button></div>
+        <label class="moku-pick">上传到
+          <select id="moku-project"></select>
+        </label>
+        <p class="sidebar-note">只生成资产，不管理项目、剧本、接单。</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">资产生产 / 生成</p>
+          <h1>资产工作室</h1>
+          <p class="sub">先选资产，再查看详情与拼图</p>
+        </div>
+        <div class="top-actions">
+          <button class="btn ghost" id="production-home-open">最近生成</button><button class="btn primary" id="production-new">新建资产</button><button class="btn ghost" id="open-production-history">生成记录</button>
+        </div>
+      </header>
+
+      <section id="production-home" aria-label="最近生成的资产"><div class="production-home-heading"><div><h2>最近生成</h2><p>选择资产查看详情、继续生成或调整拼图。</p></div><button class="btn ghost" data-home-refresh>刷新</button></div><div class="production-home-filters"><input type="search" data-home-search placeholder="搜索资产名称、服装或场景" aria-label="搜索最近生成资产"><select data-home-type aria-label="资产类型"><option value="">全部类型</option><option value="character">人物</option><option value="scene">场景</option><option value="prop">道具</option></select></div><p data-home-status role="status"></p><div class="production-home-grid"></div></section>
+      <div class="workspace">
+        <section class="card form-card">
+          <div class="card-head">
+            <div class="card-title">
+              <span class="step">01</span>
+              <h2>资产配置</h2>
+            </div>
+            <span class="chip">V005</span>
+          </div>
+
+          <div class="card-body">
+            <div class="tabs" role="tablist" aria-label="资产类型">
+              <button type="button" class="tab active" data-type="character">角色</button>
+              <button type="button" class="tab" data-type="scene">场景</button>
+              <button type="button" class="tab" data-type="prop">道具</button>
+            </div>
+
+            <div class="modes" aria-label="生成模式">
+              <button type="button" class="mode" data-mode="identity">首次身份</button>
+              <button type="button" class="mode" data-mode="outfit">换装锁脸</button>
+              <button type="button" class="mode" data-mode="state">状态变体</button>
+              <button type="button" class="mode" data-mode="costume">服装设计</button>
+              <button type="button" class="mode" data-mode="hands">手部卡</button>
+              <button type="button" class="mode active" data-mode="text">纯文生图</button>
+            </div>
+
+            <div class="ref-grid">
+              <label class="field upload" id="identity-field">
+                <span class="field-label">身份参考 <em>换装 / 状态 / 首次身份必填</em></span>
+                <input type="file" id="reference" accept="image/png,image/jpeg,image/webp">
+                <div class="upload-box">
+                  <span class="upload-plus">＋</span>
+                  <span>点击选择图片</span>
+                </div>
+                <div class="reference-preview" id="reference-preview" hidden>
+                  <img id="reference-image" alt="身份参考">
+                  <button type="button" class="icon-btn" id="reference-clear">移除</button>
+                </div>
+              </label>
+
+              <label class="field upload" id="costume-reference-field" hidden>
+                <span class="field-label">服装参考 <em>优先同宗门 / 同品级</em></span>
+                <input type="file" id="costume-reference" accept="image/png,image/jpeg,image/webp">
+                <div class="upload-box">
+                  <span class="upload-plus">＋</span>
+                  <span>点击选择图片</span>
+                </div>
+                <div class="reference-preview" id="costume-reference-preview" hidden>
+                  <img id="costume-reference-image" alt="服装参考">
+                  <button type="button" class="icon-btn" id="costume-reference-clear">移除</button>
+                </div>
+              </label>
+
+              <label class="field upload" id="hand-reference-field" hidden>
+                <span class="field-label">手部参考 <em>换装角色卡用</em></span>
+                <input type="file" id="hand-reference" accept="image/png,image/jpeg,image/webp">
+                <div class="upload-box">
+                  <span class="upload-plus">＋</span>
+                  <span>点击选择图片</span>
+                </div>
+                <div class="reference-preview" id="hand-reference-preview" hidden>
+                  <img id="hand-reference-image" alt="手部参考">
+                  <button type="button" class="icon-btn" id="hand-reference-clear">移除</button>
+                </div>
+              </label>
+            </div>
+
+            <div class="form-grid">
+              <label class="field">
+                <span class="field-label">从分镜表载入</span>
+                <select id="picker">
+                  <option value="">手动填写</option>
+                </select>
+              </label>
+
+              <label class="field">
+                <span class="field-label">名称</span>
+                <input id="name" placeholder="例如：宋凌天" autocomplete="off">
+              </label>
+
+              <label class="field" id="outfit-field">
+                <span class="field-label">服装 / 形态</span>
+                <input id="outfit" placeholder="例如：世家少年常服（入门初期）" autocomplete="off">
+              </label>
+            </div>
+
+            <div class="spec" id="character-spec">
+              <label class="field"><span>人物定位</span><select id="character-role"><option value="auto">按资料自动判断</option><option value="background">普通路人 · 平常相貌</option><option value="lead">主要人物 · 沿用确认设定</option></select></label>
+              <p id="character-role-hint">路人采用普通五官和朴素发型，不套用俊美男主模板；年龄、性别和体型按资料。</p>
+              <label class="field"><span>人物外观补充</span><textarea id="character-appearance-notes" rows="2" maxlength="1600" placeholder="例如：普通青年，脸型偏长，眉毛平直，发髻朴素，与男主的眉眼和发型明显区分"></textarea></label>
+            </div>
+
+            <div class="spec" id="scene-spec" hidden>
+              <div class="spec-head">
+                <span class="field-label">场景参数</span>
+                <span class="chip soft">二维动漫 · 同一空间正反打</span>
+              </div>
+              <div class="spec-grid">
+                <label class="field"><span>正打机位与朝向</span><input id="scene-camera" placeholder="例如：轻俯视，场景南侧向北；只写俯拍时采用候选轴线"></label>
+                <label class="field"><span>时间</span><input id="scene-time" placeholder="例如：夜晚"></label>
+                <label class="field"><span>天气</span><input id="scene-weather" placeholder="例如：晴"></label>
+              </div>
+              <label class="field"><span>反打机位与朝向</span><input id="scene-reverse-camera" placeholder="例如：由北向南，镜头位于道路北端，朝来时入口拍摄"></label>
+              <label class="field"><span>反打画面描述</span><textarea id="scene-reverse-description" rows="3" placeholder="写清从另一侧应看到的空间、出口、墙面或道路走向"></textarea></label>
+              <label class="field"><span>空间细节与固定关系</span><textarea id="scene-reverse-details" rows="3" placeholder="例如：石灯笼、门楼、树木保持世界位置；新机位看见门楼背面，不搬动陈设"></textarea></label>
+            </div>
+
+            <details class="spec" id="asset-prompt-preview" hidden>
+              <summary>查看实际生成提示词 · 二维动漫</summary>
+              <p>场景与道具使用二维手绘线稿和平涂。反打更换相机位置、可见面与背景区域。</p>
+              <button type="button" class="btn" id="asset-prompt-preview-refresh">更新提示词预览</button>
+              <pre id="asset-prompt-preview-text" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:460px;overflow:auto;font:12px/1.7 sans-serif"></pre>
+            </details>
+
+            <div class="request-meta" id="request-meta" hidden></div>
+
+            <details class="request-source" id="request-source" hidden>
+              <summary>V005 原始请求 <em>只作来源，不直接生成</em></summary>
+              <p id="request-source-text"></p>
+            </details>
+
+            <div class="spec-status" id="spec-status" hidden></div>
+
+            <div class="spec" id="costume-spec" hidden>
+              <div class="spec-head">
+                <span class="field-label">服装规格</span>
+                <span class="chip soft">服装设计模式</span>
+              </div>
+              <div class="spec-grid">
+                <label class="field"><span>宗门</span><input id="sect" value="太玄门"></label>
+                <label class="field"><span>峰 / 分支</span><input id="peak" value="灵剑峰"></label>
+                <label class="field"><span>品级</span><input id="rank" value="内门弟子"></label>
+                <label class="field"><span>场合</span><input id="occasion" value="日常 / 正式"></label>
+                <label class="field"><span>主色</span><input id="main-color" value="白色"></label>
+                <label class="field"><span>辅色</span><input id="accent-color" value="靛蓝"></label>
+                <label class="field"><span>纹样</span><input id="pattern" value="蓝色云纹"></label>
+                <label class="field"><span>腰带</span><input id="sash" value="深蓝腰带"></label>
+                <label class="field"><span>靴</span><input id="boots" value="黑色长靴"></label>
+                <label class="field"><span>护腕</span><input id="wrist" value="黑色护腕"></label>
+              </div>
+            </div>
+
+            <label class="field">
+              <span class="field-label">提示词</span>
+              <textarea id="prompt" rows="5" placeholder="描述这张资产：视角、服装、背景、画风。越短越稳。"></textarea>
+            </label>
+
+            <div class="generate-bar">
+              <label class="field compact">
+                <span class="field-label">尺寸</span>
+                <select id="size">
+                  <option value="1024x1536">1024 × 1536 · 竖版</option>
+                  <option value="1536x1024">1536 × 1024 · 横版</option>
+                  <option value="1536x864">1536 × 864 · 16:9</option>
+                  <option value="1024x1024">1024 × 1024 · 方图</option>
+                </select>
+              </label>
+              <button type="button" class="btn primary generate-btn" id="generate">生成资产</button>
+            </div>
+
+            <p class="hint">角色标准卡：标题 + 左大脸 + 正面 / 3-4 侧 / 背面 + 四手。换装 / 状态先上传已批准标准卡，锁脸不换人。</p>
+          </div>
+        </section>
+
+        <section class="card preview-card">
+          <div class="card-head">
+            <div class="card-title">
+              <span class="step">02</span>
+              <h2>预览与入库</h2>
+            </div>
+            <span class="chip" id="preview-chip">等待生成</span>
+          </div>
+
+          <div class="preview-stage">
+            <div class="empty" id="empty">
+              <div class="empty-icon">＋</div>
+              <strong>还没有生成</strong>
+              <p>左侧选好模式和参考图，点“生成资产”。</p>
+            </div>
+
+            <div class="progress" id="progress" hidden>
+              <div class="spinner"></div>
+              <strong id="phase">排队中</strong>
+              <p id="message">正在提交任务…</p>
+            </div>
+
+            <figure class="result" id="result" hidden>
+              <img id="image" alt="生成结果">
+              <figcaption id="caption"></figcaption>
+            </figure>
+
+            <p class="error" id="error" hidden></p>
+          </div>
+
+          <div class="actions" id="actions" hidden>
+            <button type="button" class="btn primary" id="adopt">采用并上传墨库</button>
+            <button type="button" class="btn ghost" id="push">送入主工作台</button>
+            <button type="button" class="btn ghost" id="retry">重试</button>
+          </div>
+        </section>
+
+        <section class="card board-panel" id="board-panel">
+          <div class="board-head">
+            <div class="card-title">
+              <span class="step">03</span>
+              <h2>拼版</h2>
+            </div>
+            <span class="board-dim">3840 × 1890</span>
+          </div>
+          <div class="board-tools">
+            <button class="btn ghost small" id="board-sample" type="button">示例</button>
+            <button class="btn ghost small" id="board-expand" type="button">放大</button>
+            <label class="board-ref">身份<input type="file" id="board-identity" accept="image/png,image/jpeg,image/webp"></label>
+            <label class="board-ref">服装<input type="file" id="board-costume" accept="image/png,image/jpeg,image/webp"></label>
+            <label class="board-ref" id="scene-master-bind" hidden>主景绑定
+              <select id="scene-master-scene"></select>
+              <button class="btn ghost small" id="scene-master-save" type="button">设为主景</button>
+            </label>
+          </div>
+          <div class="board-canvas">
+            <div class="board-grid" id="board-grid"></div>
+          </div>
+          <div class="board-aux">
+            <span class="aux-label">附加状态（不进入主卡）</span>
+            <div class="aux-grid" id="aux-grid"></div>
+          </div>
+          <div class="board-foot">
+            <input id="board-title" value="宋凌天｜灵剑峰内门道袍" aria-label="拼版标题">
+            <div class="board-actions">
+              <button class="btn ghost" id="board-export" type="button">导出 PNG</button>
+              <button class="btn primary" id="board-save" type="button">保存并入库</button>
+            </div>
+            <span id="board-status"></span>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="/app.mjs"></script>
+  <script type="module" src="/board.mjs"></script>
+  <script type="module" src="/production-history.mjs"></script>
+</body>
+</html>

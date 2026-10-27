@@ -1,0 +1,54 @@
+{
+  "checkedOn": "2026-10-08",
+  "license": "SIL Open Font License 1.1",
+  "permittedUsage": "免费商用、漫画创作、软件嵌入和随软件分发；保留版权声明和完整许可证，不得单独销售字体，修改版本须遵守OFL保留名称条款。字体有版权。作品本身不受OFL许可要求约束。",
+  "binaryModified": false,
+  "validation": {
+    "method": "Node.js Brotli decompression of original WOFF2 bytes; parsed name, fvar, and Unicode cmap format 4/12 tables; compared Git blob SHA-1 with official GitHub API",
+    "sample": "你好，这是我的漫画故事。今天我们一起出发！为什么？因为梦想不会等待……等等，快跑！轰隆！啪！嗖！砰！啊呀哼嗯哈哈呜呜喂哇唉咦糟糕救命主角对白旁白第一话第十二章镜头画面人物场景气泡拟声文字编辑导出保存简体中文：；、（）「」『』《》【】“”‘’—…！？ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+    "uniqueSampleCharacters": 164,
+    "missingSampleCharacters": []
+  },
+  "fonts": [
+    {
+      "name": "思源黑体",
+      "cssFamily": "Source Han Sans SC",
+      "internalFamily": "Source Han Sans SC VF",
+      "file": "SourceHanSansSC-VF.ttf.woff2",
+      "format": "WOFF2, TrueType variable",
+      "releaseVersion": "2.005R",
+      "fontVersion": "Version 2.005;addfeatures 5.0.0b21",
+      "copyright": "© 2014-2025 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.",
+      "sourceUrl": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/2.005R/Variable/WOFF2/TTF/SourceHanSansSC-VF.ttf.woff2",
+      "releaseUrl": "https://github.com/adobe-fonts/source-han-sans/releases/tag/2.005R",
+      "licenseFile": "LICENSE-SourceHanSans.txt",
+      "licenseSourceUrl": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/2.005R/LICENSE.txt",
+      "licenseSha256": "fcac737e761ec63dbfbdce11030a1780161920d80315edba9c8beff1c2bac5a2",
+      "bytes": 14129688,
+      "sha256": "cfec773cdc2ea964de8713471c6fd20774bc40617f5567f92efeeccaca6604b0",
+      "gitBlobSha1": "8193cfa89082993717b9200104337ede9e795238",
+      "weightAxis": { "min": 250, "default": 250, "max": 900 },
+      "unicodeCoverageCount": 44853
+    },
+    {
+      "name": "思源宋体",
+      "cssFamily": "Source Han Serif SC",
+      "internalFamily": "Source Han Serif SC VF",
+      "file": "SourceHanSerifSC-VF.ttf.woff2",
+      "format": "WOFF2, TrueType variable",
+      "releaseVersion": "2.003R",
+      "fontVersion": "Version 2.003;hotconv 1.1.1;makeotfexe 2.6.0",
+      "copyright": "© 2017-2024 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.",
+      "sourceUrl": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/2.003R/Variable/WOFF2/TTF/SourceHanSerifSC-VF.ttf.woff2",
+      "releaseUrl": "https://github.com/adobe-fonts/source-han-serif/releases/tag/2.003R",
+      "licenseFile": "LICENSE-SourceHanSerif.txt",
+      "licenseSourceUrl": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/2.003R/LICENSE.txt",
+      "licenseSha256": "9ff5bb567e1b92c801fc1069e5fbf992ff8efccacb9db94e5959a5b3ba9bb903",
+      "bytes": 21600852,
+      "sha256": "95bee5840bd5bcc68ada7d9c32fbf40af38a7dadeb77bfae4dd26d85b131ce20",
+      "gitBlobSha1": "aaa442f88d37230bd33c29b0673633f94296cee3",
+      "weightAxis": { "min": 250, "default": 250, "max": 900 },
+      "unicodeCoverageCount": 44779
+    }
+  ]
+}

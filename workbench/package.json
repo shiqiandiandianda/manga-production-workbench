@@ -1,0 +1,16 @@
+{
+  "name": "asset-generation-workbench",
+  "version": "2.0.0",
+  "private": true,
+  "description": "资产生成工作台：场记（分镜/场景资产）+ 角色工房（角色/服装/手部资产）合并版，内置局域网接单 API、命名归档、素材检索 API。",
+  "type": "module",
+  "engines": { "node": ">=22.13.0" },
+  "main": "server/main.mjs",
+  "scripts": {
+    "start": "node server/main.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node server/main.mjs --check"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

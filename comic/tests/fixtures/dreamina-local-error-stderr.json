@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "1",
+  "ok": false,
+  "error": {
+    "code": "cli.invalid_node_id",
+    "class": "input_validation",
+    "message": "Invalid node ID",
+    "retryable": false,
+    "requiredAction": "inspect",
+    "validation": {
+      "reasonCode": "node_id_invalid",
+      "fieldPath": "nodeId",
+      "detail": "Use node_ followed by 10 lowercase Crockford Base32 characters."
+    }
+  }
+}

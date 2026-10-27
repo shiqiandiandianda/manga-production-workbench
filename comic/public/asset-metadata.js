@@ -1,0 +1,17 @@
+export const assetNameKey=value=>String(value??'').normalize('NFKC').toLowerCase().replace(/[\s_｜|·（）()\-]+/gu,'');
+export function assetLibraryRole(asset){const explicit=asset?.libraryRole;if(['character','scene','prop','style'].includes(explicit))return explicit;if(asset?.library?.characterGroupId||asset?.characterGroupId)return 'character';return ({character:'character',角色:'character',人物:'character',scene:'scene',场景:'scene',prop:'prop',道具:'prop',style:'style',画风:'style'})[asset?.library?.category]||null;}
+export function assetMetadata(asset){
+ const file=String(asset.name||asset.relativePath||asset.filePath||'').replace(/\\/g,'/').split('/').at(-1),stem=file.replace(/\.(png|jpe?g|webp)$/i,'').normalize('NFKC');
+ const prefix=/^(?:(?:BASE|SUP)_)?(CHAR|SCENE|PROP|STYLE)_\d+(?:_DETAIL)?(?:_R\d+)?_/i.exec(stem);
+ const version=/(?:^|_)(?:v|r)(\d+)(?:_|$)/i.exec(stem)?.[1]||'';
+ const body=stem.replace(/^(?:(?:BASE|SUP)_)?(?:CHAR|SCENE|PROP|STYLE)_\d+(?:_DETAIL)?(?:_R\d+)?_/i,'').replace(/^\d{2,}[_-]/,'').replace(/_(?:v|r)\d+(?=_|$)/ig,'');
+ const tokens=body.split(/[_|]+/).map(s=>s.trim()).filter(Boolean),kind=tokens.includes('主景')?'主景':tokens.includes('细节')?'细节':tokens.some(s=>/^(设定|设定卡|三视图)$/.test(s))?'设定':'图片';
+ const words=tokens.filter(s=>! /^(主景|细节|设定|设定卡|三视图|DETAIL|R\d+)$/i.test(s));
+ const role=assetLibraryRole(asset)||({CHAR:'character',SCENE:'scene',PROP:'prop',STYLE:'style'})[prefix?.[1].toUpperCase()]||(['主景','细节'].includes(kind)?'scene':'other');
+ const groupedName=asset.library?.characterName||asset.characterName;
+ const named=asset.libraryName||groupedName||words.join(' · ')||stem;
+ const state=asset.libraryState||asset.library?.outfitName||asset.outfitName||(role==='character'||body.includes('|')?words.slice(1).join(' · '):'');
+ const name=asset.libraryName||groupedName||(role==='character'||body.includes('|')?words[0]:named);
+ const aliases=[...new Set([...(Array.isArray(asset.libraryAliases)?asset.libraryAliases:String(asset.libraryAliases||'').split(/[、,，;；]+/).filter(Boolean)),...(Array.isArray(asset.library?.tags)?asset.library.tags:[])])];
+ return {name:name||file,state,stateExplicit:!!(asset.libraryState||asset.library?.outfitName||asset.outfitName),role,kind,version,file,parts:words,aliases,keys:[name,...aliases,...(role==='scene'?words:[])].map(assetNameKey).filter(Boolean)};
+}

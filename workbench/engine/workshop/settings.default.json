@@ -1,0 +1,18 @@
+{
+  "runtimeMode": "bundled",
+  "maxConcurrentJobs": 8,
+  "resourceControl": {
+    "enabled": true,
+    "previewsEnabled": true,
+    "reserveMemoryMB": 1024,
+    "estimatedWorkerMB": 256,
+    "minimumFreeDiskGB": 2,
+    "thumbnailCacheMB": 256
+  },
+  "dailyFaces": {
+    "enabled": false,
+    "time": "09:00",
+    "style": "国漫",
+    "instructions": ""
+  }
+}

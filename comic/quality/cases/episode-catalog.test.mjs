@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import {randomUUID} from 'node:crypto';import {createTeamProjects} from '../../lib/team-projects.mjs';
+test('episode catalog filters by stable episode ID and rejects foreign episode before listing engineering',async()=>{
+ const pid=randomUUID(),a=randomUUID(),b=randomUUID(),calls=[],directory=path.resolve('outputs/v41-moku-project-picker/catalog-fixture-'+randomUUID());fs.mkdirSync(directory,{recursive:true});
+ const library={read:async r=>{calls.push(r);if(r.endsWith('/episodes'))return {items:[{id:a,name:'第1话'},{id:b,name:'第2话'},{id:randomUUID(),deletedAt:'recycled'}]};if(r.endsWith('/engineerings'))return {items:[{id:randomUUID(),episodeId:a,name:'第一话',currentSnapshotId:randomUUID()},{id:randomUUID(),episodeId:b,name:'第二话'}]};throw Error('unexpected route') }};
+ const api=createTeamProjects({dataDir:directory,store:{db:{projects:[],assets:[],jobs:[]}},library,projectView:p=>p,saveProject(){throw Error('must not save')},body(){throw Error('must not read body')},json:(_r,_s,v)=>{output=v}});let output;
+ const run=async query=>{output=null;await api.handle({}, {},{method:'GET',pathname:'/api/teamwork/catalog',url:new URL('http://local/api/teamwork/catalog?remoteProjectId='+pid+query)});return output};
+ try{assert.equal((await run('')).episodes.length,2);const v=await run('&episodeId='+a);assert.equal(v.items.length,1);assert.equal(v.items[0].episodeId,a);assert.equal(v.items[0].hasSnapshot,true);const n=calls.length;await assert.rejects(run('&episodeId='+randomUUID()),/话不属于/);assert.equal(calls.length,n+1);assert.ok(calls.every(r=>r.startsWith('/api/')));}finally{api.close()}
+});

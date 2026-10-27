@@ -1,0 +1,16 @@
+@echo off
+set "COMIC_RELEASE_ROOT=%~dp0.."
+for %%I in ("%COMIC_RELEASE_ROOT%") do set "COMIC_RELEASE_ROOT=%%~fI"
+if exist "%COMIC_RELEASE_ROOT%\config.local.bat" call "%COMIC_RELEASE_ROOT%\config.local.bat"
+if not defined COMIC_NODE for /f "delims=" %%I in ('where node.exe 2^>nul') do if not defined COMIC_NODE set "COMIC_NODE=%%I"
+if not defined COMIC_NODE set "COMIC_NODE=%LOCALAPPDATA%\Programs\mcp-runtimes\nodejs\node.exe"
+if not defined COMIC_PYTHON_BIN if exist "%COMIC_RELEASE_ROOT%\.venv\Scripts\python.exe" set "COMIC_PYTHON_BIN=%COMIC_RELEASE_ROOT%\.venv\Scripts\python.exe"
+if not defined COMIC_PYTHON_BIN set "COMIC_PYTHON_BIN=%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+if not defined COMIC_CANVAS_MODULE if exist "%COMIC_RELEASE_ROOT%\dependencies\node_modules\@napi-rs\canvas\index.js" set "COMIC_CANVAS_MODULE=%COMIC_RELEASE_ROOT%\dependencies\node_modules\@napi-rs\canvas"
+if not defined COMIC_CANVAS_MODULE set "COMIC_CANVAS_MODULE=%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules\@napi-rs\canvas"
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+set "PYTHONDONTWRITEBYTECODE=1"
+if not defined COMIC_PORT set "COMIC_PORT=18896"
+if not defined IMAGE_REPAIR_PORT set "IMAGE_REPAIR_PORT=14426"
+exit /b 0

@@ -1,0 +1,1 @@
+Zod 3.25.76, MIT. Production ESM files copied verbatim from the existing project-center installation. Included to make scene engine startup independent of external node_modules. Upstream: https://github.com/colinhacks/zod/tree/v3.25.76

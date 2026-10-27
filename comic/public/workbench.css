@@ -1,0 +1,377 @@
+.modern-workbench {--bg: #111923; --panel: #18222d; --panel2: #1b2632; --line: #2c3a49; --text: #e7edf6; --muted: #93a3b6; --blue: #91c8fb; font-family: "Source Han Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif; font-size: 14px; grid-template-rows: 58px minmax(0px, 1fr) auto;}
+.modern-workbench .ui-icon {display: block; width: 21px; height: 21px; flex: 0 0 auto; filter: invert(87%) sepia(10%) saturate(285%) hue-rotate(174deg);}
+.modern-workbench button {display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 38px; padding: 8px 12px; border-radius: 6px;}
+.modern-workbench button.primary {background: rgb(153, 206, 252); color: rgb(20, 40, 59); border-color: rgb(143, 194, 239); font-weight: 600;}
+.modern-workbench input,  .modern-workbench select,  .modern-workbench textarea {background: rgb(18, 29, 40); border-color: rgb(52, 69, 87); border-radius: 6px; padding: 10px 11px; color: var(--text);}
+.modern-workbench label {font-size: 13px; line-height: 1.55; color: rgb(181, 194, 210); margin: 13px 0px 7px;}
+.modern-workbench .topbar {height: auto; min-height: 58px; flex-wrap: wrap; gap: 8px 20px; padding: 8px 20px; background: rgb(23, 33, 44); z-index: 35;}
+.modern-workbench .brand {gap: 12px; font-size: 19px;}
+.modern-workbench .brand-mark {width: 33px; height: 33px; padding: 4px;}
+.modern-workbench .brand-mark img {width: 26px; height: 26px;}
+.project-switcher {position: relative; min-width: 0px;}
+.modern-workbench .project-trigger {width: min(290px, 24vw); justify-content: space-between; background: rgb(20, 30, 40); border-color: rgb(44, 59, 77); gap: 18px; text-align: left;}
+#project-label {min-width: 0px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.project-choices {max-height: 330px; overflow: auto;}
+.ui-popover {position: absolute; z-index: 40; min-width: 210px; padding: 7px; border: 1px solid rgb(59, 76, 96); border-radius: 8px; background: rgb(24, 35, 47); box-shadow: rgba(0, 0, 0, 0.4) 0px 12px 32px;}
+.ui-popover button {width: 100%; text-align: left; justify-content: flex-start; border: 0px; background: transparent; white-space: normal;}
+.ui-popover button:hover,  .ui-popover button.active {background: rgb(42, 61, 82);}
+.ui-popover kbd {margin-left: auto; color: var(--muted); font-size: 11px;}
+.project-menu {left: 0px; top: calc(100% + 8px); width: 360px; max-width: calc(-30px + 100vw);}
+.menu-divider {height: 1px; background: var(--line); margin: 6px 0px;}
+.save-indicator {display: flex; align-items: center; gap: 7px; color: rgb(169, 186, 203); white-space: nowrap;}
+.save-indicator .ui-icon {width: 17px; height: 17px;}
+#save-state {color: inherit; font-size: 12px; display: inline !important;}
+.modern-workbench .connection {max-width: 200px; background: rgb(21, 34, 46); min-height: 38px; font-size: 13px;}
+.modern-workbench .connection .dot {width: 9px; height: 9px;}
+.modern-workbench .export-wrap > .primary {min-width: 106px; justify-content: space-between;}
+.modern-workbench .export-wrap > .primary .ui-icon {filter: brightness(0); width: 17px; height: 17px;}
+.modern-workbench .dropdown {top: 46px; width: 235px;}
+.modern-workbench .dropdown button {justify-content: flex-start;}
+.modern-workbench .app-shell {grid-template-columns: 80px 260px minmax(0px, 1fr) 344px; overflow: hidden;}
+.modern-workbench .app-shell.sidebar-collapsed {grid-template-columns: 80px 0px minmax(0px, 1fr) 344px;}
+.modern-workbench .app-shell.inspector-collapsed {grid-template-columns: 80px 260px minmax(0px, 1fr) 0px;}
+.modern-workbench .app-shell.sidebar-collapsed.inspector-collapsed {grid-template-columns: 80px 0px minmax(0px, 1fr) 0px;}
+.modern-workbench .app-shell > .workspace-rail {grid-area: 1 / 1;}
+.modern-workbench .app-shell > .sidebar {grid-area: 1 / 2;}
+.modern-workbench .app-shell > .editor {grid-area: 1 / 3;}
+.modern-workbench .app-shell > .inspector {grid-area: 1 / 4;}
+.workspace-rail {display: flex; flex-direction: column; border-right: 1px solid var(--line); background: rgb(25, 35, 46); padding: 12px 4px; min-height: 0px;}
+.modern-workbench .rail-button {position: relative; display: flex; flex-direction: column; gap: 8px; height: 78px; min-height: 78px; width: 100%; border: 0px; background: transparent; color: rgb(148, 166, 186); padding: 9px 2px; font-size: 13px;}
+.rail-button .ui-icon {width: 24px; height: 24px;}
+.modern-workbench .rail-button.active {color: rgb(152, 207, 252); background: rgb(33, 48, 67);}
+.rail-button.active::before {content: ""; position: absolute; left: -4px; top: 8px; bottom: 8px; width: 3px; background: rgb(100, 179, 255); border-radius: 2px;}
+.modern-workbench .canvas-toolbar {height: auto; min-height: 60px; flex-wrap: wrap; gap: 8px 16px; padding: 8px 18px; background: rgb(25, 35, 46); min-width: 0px;}
+.workspace-controls {position: relative; gap: 10px; flex: 0 0 auto;}
+.toolbar-separator {width: 1px; height: 24px; background: rgb(51, 65, 81); margin: 0px 4px; flex: 0 0 auto;}
+.modern-workbench .icon-button {min-width: 32px; min-height: 32px; padding: 5px; border-color: transparent; background: transparent;}
+.view-menu {left: 170px; top: 48px;}
+.modern-workbench .tools {flex: 1 1 640px; min-width: 0px; flex-wrap: wrap; gap: 8px;}
+.modern-workbench .tools > button,  .modern-workbench .tools > .panel-tool-wrap,  .modern-workbench .tools > .select-all-wrap {flex-shrink: 0;}
+.modern-workbench .tools button {font-size: 14px; min-height: 38px; gap: 8px; padding: 8px 14px;}
+.modern-workbench .tools button.active,  .modern-workbench #panel-tool-toggle.active {border-color: rgb(74, 128, 172); background: rgb(34, 61, 85); color: rgb(158, 214, 255);}
+.panel-tool-wrap {position: relative;}
+.panel-tool-wrap > .ui-popover {top: 46px; left: 0px;}
+.modern-workbench .toolbar-right {flex: 0 0 auto; flex-wrap: wrap; max-width: 100%; gap: 8px;}
+.modern-workbench .toolbar-right button {padding: 6px 9px; min-height: 36px;}
+.modern-workbench .toolbar-right select {width: 142px; padding: 8px 12px; font-size: 13px; background: rgb(19, 32, 43);}
+.canvas-wrap {position: relative; flex: 1 1 0%; min-height: 0px; overflow: hidden;}
+.modern-workbench .canvas-scroll {height: 100%; min-height: 0px; background-color: rgb(14, 24, 34); background-image: radial-gradient(rgba(64, 85, 105, 0.333) 0.8px, transparent 0.8px); background-size: 15px 15px;}
+.modern-workbench #stage.viewport-stage {box-shadow: rgba(0, 0, 0, 0.267) 0px 4px 20px;}
+.image-context {position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: rgba(27, 43, 60, 0.925); border: 1px solid rgb(75, 98, 121); border-radius: 8px; white-space: nowrap; box-shadow: rgba(0, 0, 0, 0.333) 0px 4px 18px;}
+.image-context span {color: rgb(181, 200, 220); font-size: 12px;}
+.image-context button {font-size: 12px; min-height: 30px; padding: 5px 9px;}
+.modern-workbench .inspector {background: rgb(23, 34, 45); border-color: rgb(50, 67, 86);}
+.modern-workbench .inspector-title {position: relative; align-items: flex-start; gap: 6px; padding: 24px 22px 16px; border: 0px; background: transparent;}
+.inspector-heading {flex: 1 1 0%; min-width: 0px;}
+.inspector-heading strong {display: block; font-size: 20px; font-weight: 600; margin: 0px 0px 18px;}
+.inspector-heading small {display: block; font-size: 13px; font-weight: 400; line-height: 1.65; color: rgb(211, 223, 236); overflow-wrap: anywhere;}
+.modern-workbench .inspector-title #delete-layer {opacity: 0.55; margin-top: 1px; min-width: 24px;}
+.modern-workbench .inspector-title #delete-layer:hover {opacity: 1;}
+.modern-workbench #inspector-close {display: inline-flex; margin-top: 0px; font-size: inherit;}
+.modern-workbench #inspector-body {padding: 0px 22px 22px;}
+.common-inspector {border-top: 1px solid var(--line); padding-top: 5px;}
+.common-inspector > label {margin-top: 20px;}
+.common-inspector select {width: 100%; height: 43px; font-size: 14px;}
+.stroke-controls {display: flex; align-items: center; gap: 12px;}
+.stroke-controls > label:first-child {flex: 1 1 0%; margin: 0px; font-size: 0px;}
+.stroke-controls input[type="number"] {height: 43px; width: 100%; margin: 0px; font-size: 14px;}
+.stroke-controls > span {color: var(--muted); font-size: 13px;}
+.stroke-controls .color-swatch {flex: 1 1 0%; margin: 0px;}
+.stroke-controls input[type="color"] {display: block; width: 100%; height: 43px; padding: 5px; margin: 0px;}
+.common-inspector textarea {height: 145px; min-height: 110px; max-height: 360px; line-height: 1.75; font-size: 13px; padding: 12px; resize: vertical;}
+.modern-workbench .settings-link {justify-content: flex-start; padding: 12px 0px; color: rgb(148, 207, 255); min-height: 44px; border: 0px; background: transparent;}
+.settings-link .ui-icon {width: 15px; height: 15px;}
+.modern-workbench .common-inspector .primary {font-size: 15px; min-height: 44px; margin: 6px 0px 8px;}
+.modern-workbench .common-inspector > button.wide:not(.primary) {min-height: 42px; background: rgb(27, 42, 57); font-weight: 500;}
+.modern-workbench .inspector-section {margin: 18px 0px 0px; padding-top: 18px; border-top: 1px solid rgb(51, 66, 83);}
+.modern-workbench .inspector-section summary {font-size: 14px; color: rgb(227, 237, 246); padding: 1px 0px 9px; line-height: 1.8; cursor: pointer;}
+.modern-workbench .inspector-section details {margin: 12px 0px 18px;}
+.modern-workbench .inspector-section details > summary {font-size: 13px; color: rgb(179, 199, 220);}
+.modern-workbench .inspector-section label {font-size: 12px;}
+.modern-workbench .inspector .row button {font-size: 12px; padding: 6px; min-height: 33px;}
+.modern-workbench .field-grid {gap: 5px 12px;}
+.modern-workbench .field-grid label {font-size: 12px;}
+.modern-workbench .field-grid input {font-size: 13px;}
+.modern-workbench .candidates {grid-template-columns: repeat(3, minmax(0px, 1fr));}
+.modern-workbench .candidate {padding: 0px; min-height: 0px;}
+.modern-workbench .candidate img {height: 65px;}
+.modern-workbench .job-tray {grid-row: 3; max-height: 300px; padding: 0px; overflow: auto; background: rgb(25, 35, 46); border-top: 1px solid rgb(47, 64, 81); z-index: 18;}
+.modern-workbench .job-heading {height: 52px; min-height: 52px; flex-wrap: nowrap; padding: 0px 24px; gap: 18px; margin: 0px !important;}
+.task-caption {display: flex; gap: 13px; align-items: center; color: rgb(159, 200, 239); white-space: nowrap;}
+.task-caption .ui-icon {width: 22px; height: 22px;}
+.modern-workbench #job-count {flex: 0 1 auto; color: rgb(181, 195, 210); font-size: 12px; white-space: nowrap;}
+.modern-workbench #jobs-toggle {display: inline-flex; min-height: 30px; color: rgb(161, 204, 244); gap: 7px; padding: 3px 0px; white-space: nowrap; font-size: 12px;}
+#jobs-toggle .ui-icon {width: 16px; height: 16px;}
+.job-tray:not(.collapsed) #jobs-toggle .ui-icon {transform: rotate(90deg);}
+.footer-spacer {flex: 1 1 0%;}
+.zoom-help {display: flex; gap: 8px; align-items: center; color: rgb(180, 197, 216); white-space: nowrap; font-size: 12px;}
+.zoom-help .ui-icon {width: 18px; height: 18px;}
+.modern-workbench .page-marker {min-height: 32px; padding: 6px 12px; white-space: nowrap; font-size: 12px; background: rgb(20, 33, 45);}
+.modern-workbench #job-list {max-height: 200px; overflow: auto; padding: 0px 24px;}
+.job-batch-actions {display: flex; justify-content: flex-end; gap: 8px; padding: 12px 24px; border-top: 1px solid var(--line);}
+.job-tray.collapsed .job-batch-actions {display: none;}
+.job-history {margin: 10px 0px;}
+.job-history summary {padding: 10px 0px; color: rgb(147, 173, 199); font-size: 12px; cursor: pointer;}
+.modern-workbench .job-row {padding: 12px 0px; gap: 12px; font-size: 12px;}
+.modern-workbench .job-row button {min-height: 28px; font-size: 11px; padding: 4px 8px;}
+.sr-only {width: 1px; height: 1px; padding: 0px; overflow: hidden; clip: rect(0px, 0px, 0px, 0px); white-space: nowrap; border: 0px; position: absolute !important;}
+.modern-workbench .settings-dialog {width: min(470px, 100% - 24px); padding: 24px;}
+.settings-dialog .generation-options {display: block; padding: 0px; border: 0px; background: transparent;}
+.settings-dialog .generation-options label {display: block; margin: 18px 0px;}
+.settings-dialog .generation-options select,  .settings-dialog .generation-options input {display: block; width: 100%; margin: 6px 0px 0px; font-size: 14px; padding: 10px; max-width: none !important;}
+.settings-dialog #generation-model {min-width: 0px;}
+.settings-dialog #generation-status {display: block; white-space: normal; line-height: 1.7; margin: 10px 0px;}
+.modern-workbench .sidebar {background: rgb(24, 36, 47);}
+.modern-workbench .side-tabs button {padding: 7px 5px; font-size: 12px;}
+.modern-workbench .panel-close-heading {padding: 16px;}
+.modern-workbench #modal-close {display: inline-flex; min-height: 28px;}
+.modern-workbench .modal-heading h2 {font-size: 18px;}
+.modern-workbench dialog {background: rgb(24, 37, 48);}
+.modern-workbench .project-manager-row button {min-height: 33px; font-size: 12px;}
+.modern-workbench #project-menu #save-project {display: flex;}
+.modern-workbench .sidebar-foot {display: flex; justify-content: center;}
+@media (max-width: 1450px) {
+.modern-workbench .topbar {gap: 15px;}
+.modern-workbench .canvas-toolbar {gap: 9px; padding: 0px 12px;}
+.modern-workbench .workspace-controls {gap: 6px;}
+.modern-workbench .tools {gap: 2px;}
+.modern-workbench .tools button {padding: 7px 8px; font-size: 13px;}
+.modern-workbench .toolbar-right select {width: 112px;}
+.modern-workbench .app-shell {grid-template-columns: 64px 240px minmax(0px, 1fr) 306px;}
+.modern-workbench .app-shell.sidebar-collapsed {grid-template-columns: 64px 0px minmax(0px, 1fr) 306px;}
+.modern-workbench .app-shell.inspector-collapsed {grid-template-columns: 64px 240px minmax(0px, 1fr) 0px;}
+.modern-workbench .app-shell.sidebar-collapsed.inspector-collapsed {grid-template-columns: 64px 0px minmax(0px, 1fr) 0px;}
+.modern-workbench .inspector-title {padding: 18px 18px 14px;}
+.modern-workbench #inspector-body {padding: 0px 18px 18px;}
+}
+@media (max-width: 1100px) {
+.modern-workbench .canvas-toolbar .toolbar-separator {display: none;}
+.modern-workbench .tools button {font-size: 12px; gap: 5px;}
+.modern-workbench .canvas-toolbar .ui-icon {width: 17px; height: 17px;}
+.modern-workbench .workspace-controls {gap: 3px;}
+.modern-workbench .tools {gap: 0px;}
+.modern-workbench .toolbar-right {gap: 3px;}
+.modern-workbench .toolbar-right select {width: 86px;}
+.modern-workbench .project-trigger {width: 230px;}
+}
+@media (max-width: 1000px) {
+.modern-workbench .app-shell,  .modern-workbench .app-shell.sidebar-collapsed,  .modern-workbench .app-shell.inspector-collapsed,  .modern-workbench .app-shell.sidebar-collapsed.inspector-collapsed {grid-template-columns: 60px 0px minmax(0px, 1fr) 0px;}
+.modern-workbench .sidebar {left: 60px; top: 0px; bottom: 0px; max-width: calc(-68px + 100vw); z-index: 25;}
+.modern-workbench .inspector {top: 0px; bottom: 0px; right: 0px; width: min(344px, -60px + 100vw); z-index: 25;}
+.modern-workbench .topbar {gap: 12px;}
+.modern-workbench .save-indicator {display: none;}
+.modern-workbench .project-trigger {width: min(260px, 32vw);}
+}
+@media (max-width: 650px) {
+.modern-workbench {grid-template-rows: 54px minmax(0px, 1fr) auto;}
+.modern-workbench .topbar {height: 54px; min-height: 54px; flex-wrap: nowrap; padding: 0px 8px; gap: 7px;}
+.modern-workbench .brand {display: none;}
+.modern-workbench .project-trigger {width: calc(-205px + 100vw); min-width: 105px; font-size: 12px; padding: 7px;}
+.modern-workbench .connection {font-size: 11px; padding: 6px 8px; max-width: 105px !important;}
+.modern-workbench .export-wrap > .primary {min-width: 66px; padding: 7px 9px; font-size: 12px;}
+.modern-workbench .app-shell,  .modern-workbench .app-shell.sidebar-collapsed,  .modern-workbench .app-shell.inspector-collapsed,  .modern-workbench .app-shell.sidebar-collapsed.inspector-collapsed {grid-template-columns: 48px 0px minmax(0px, 1fr) 0px;}
+.modern-workbench .rail-button {height: 68px; min-height: 68px; font-size: 11px;}
+.rail-button .ui-icon {width: 21px; height: 21px;}
+.modern-workbench .sidebar {left: 48px; width: calc(-56px + 100vw); max-width: none;}
+.modern-workbench .inspector {width: calc(-48px + 100vw);}
+.modern-workbench .canvas-toolbar {height: auto; min-height: 86px; flex-wrap: wrap; padding: 7px; gap: 4px;}
+.modern-workbench .workspace-controls {order: 1;}
+.modern-workbench .toolbar-right {order: 2; margin-left: auto;}
+.modern-workbench .tools {order: 3; flex-basis: 100%; justify-content: flex-start;}
+.modern-workbench .tools button {min-height: 30px; padding: 5px 7px; font-size: 12px;}
+.modern-workbench .toolbar-right select {width: 82px; padding: 6px;}
+.modern-workbench .job-heading {height: 42px; min-height: 42px; padding: 0px 8px; gap: 8px;}
+.modern-workbench .task-caption {font-size: 11px; gap: 4px;}
+.task-caption .ui-icon {width: 16px; height: 16px;}
+.modern-workbench #job-count {font-size: 10px; overflow: hidden; text-overflow: ellipsis; max-width: 150px;}
+.modern-workbench #jobs-toggle {font-size: 10px;}
+.zoom-help {display: none;}
+.modern-workbench .page-marker {font-size: 10px; padding: 4px 6px; min-height: 28px;}
+.modern-workbench #job-list {padding: 0px 10px;}
+.image-context {gap: 4px; padding: 6px; max-width: calc(100% - 12px);}
+.image-context span {display: none;}
+.image-context button {font-size: 10px; padding: 5px;}
+.modern-workbench .job-row {flex-wrap: wrap;}
+.modern-workbench .project-menu {left: -3px; width: min(360px, -16px + 100vw);}
+}
+.modern-workbench {grid-template-rows: auto auto minmax(0px, 1fr) auto;}
+.modern-workbench > .canvas-toolbar {grid-row: 2; position: relative; z-index: 28;}
+.modern-workbench > .app-shell {grid-row: 3;}
+.modern-workbench > .job-tray {grid-row: 4;}
+.modern-workbench .inspector-title {padding-top: 20px; padding-bottom: 12px;}
+.modern-workbench .inspector-heading strong {margin-bottom: 14px;}
+.modern-workbench .common-inspector textarea {height: 128px;}
+.modern-workbench .inspector-section summary {list-style-position: inside;}
+@media (max-width: 650px) {
+.modern-workbench {grid-template-rows: auto auto minmax(0px, 1fr) auto;}
+}
+.modern-workbench .layer-action .ui-icon {width: 16px; height: 16px;}
+.modern-workbench .checkbox-field {display: flex; align-items: center; gap: 8px;}
+.modern-workbench .checkbox-field input {width: 16px; height: 16px; margin: 0px;}
+.modern-workbench #stage[data-paint-mode="mask"],  .modern-workbench #stage[data-paint-mode="gradient"] {cursor: crosshair;}
+.modern-workbench input[type="color"] {height: 38px; min-height: 38px; padding: 5px;}
+.modern-workbench .advanced-inspector,  .modern-workbench details[data-inspector-section="effects"] {margin-top: 12px; padding-top: 12px;}
+.modern-workbench details[data-inspector-section="effects"] > summary,  .modern-workbench .advanced-inspector > summary {line-height: 1.6; padding-bottom: 4px;}
+.modern-workbench .app-shell {--layer-sidebar: 292px;}
+.modern-workbench .side-tabs {flex-wrap: nowrap; gap: 1px;}
+.modern-workbench .side-tabs button {min-width: 0px; padding: 7px 3px; white-space: nowrap;}
+.feather-slider-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 12px;}
+.modern-workbench .feather-slider {display: grid; grid-template-columns: 1fr; gap: 6px; margin: 10px 0px;}
+.feather-slider span {display: flex; justify-content: space-between;}
+.feather-slider small {color: var(--muted);}
+.modern-workbench .feather-slider input[type="number"] {height: 34px; min-height: 34px; padding: 5px 8px; margin: 0px;}
+.modern-workbench .feather-slider input[type="range"] {width: 100%; height: 24px; min-height: 24px; padding: 0px; accent-color: var(--blue); border: 0px; cursor: ew-resize; margin: 0px; background: transparent;}
+.modern-workbench #layers-tab {padding: 12px 10px;}
+.layer-filters {display: grid; grid-template-columns: minmax(0px, 1fr) 94px; gap: 6px;}
+.modern-workbench .layer-filters input,  .modern-workbench .layer-filters select {min-width: 0px; padding: 7px 6px; font-size: 11px;}
+.modern-workbench .locate-setting {font-size: 11px; margin: 6px 0px 12px;}
+.layer-create,  .layer-actions {display: flex; gap: 4px; margin: 10px 0px;}
+.modern-workbench .layer-create button,  .modern-workbench .layer-actions button {flex: 1 1 0%; min-width: 0px; min-height: 28px; padding: 5px 3px; font-size: 11px;}
+.stack-layer {display: flex; align-items: center; gap: 3px; border: 1px solid transparent; border-radius: 5px; margin: 4px 0px; padding: 5px 2px; background: rgb(20, 32, 43);}
+.stack-layer.active {border-color: rgb(90, 144, 188); background: rgb(37, 60, 81);}
+.stack-layer.muted-layer .layer-copy {opacity: 0.5;}
+.modern-workbench .drag-grip {width: 11px; height: 19px; opacity: 0.5; cursor: grab;}
+.modern-workbench .layer-select {display: flex; flex: 1 1 0%; min-width: 0px; gap: 7px; min-height: 44px; border: 0px; background: transparent; justify-content: flex-start; text-align: left; padding: 0px !important;}
+.layer-thumbnail {width: 28px; height: 38px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 3px; background: rgb(38, 53, 65); flex: 0 0 auto;}
+.layer-thumbnail > img:not(.ui-icon) {width: 100%; height: 100%; object-fit: cover;}
+.layer-copy {display: block; min-width: 0px; flex: 1 1 0%;}
+.layer-copy strong {display: block; font-size: 11px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.layer-copy small {display: block; margin-top: 5px; font-size: 10px; color: var(--muted);}
+.layer-switches {display: grid; grid-template-columns: 20px 20px; gap: 1px;}
+.modern-workbench .layer-switches button {min-width: 20px; min-height: 20px; padding: 2px; border: 0px; background: transparent;}
+.modern-workbench .layer-switches .ui-icon {width: 14px; height: 14px;}
+.stack-layer.drop-above {border-top: 3px solid rgb(145, 200, 251);}
+.stack-layer.drop-below {border-bottom: 3px solid rgb(145, 200, 251);}
+@media (max-width: 650px) {
+.modern-workbench .tools {flex-wrap: wrap; gap: 4px;}
+.modern-workbench .tools button {font-size: 11px; padding: 4px; gap: 3px; min-height: 30px;}
+.modern-workbench .tools .ui-icon {width: 14px; height: 14px;}
+.modern-workbench .tools #page-settings {font-size: 10px;}
+.modern-workbench .tools #page-settings .ui-icon {display: none;}
+}
+.shot-layer-group {border-radius: 6px; margin-bottom: 6px;}
+.shot-layer-group.contains-selection {background: rgb(24, 44, 62);}
+.group-children {margin-left: 10px; padding-left: 4px; border-left: 1px solid rgb(75, 106, 132);}
+.modern-workbench .layer-expand {min-width: 13px; width: 13px; min-height: 22px; padding: 0px; border: 0px; background: transparent; flex: 0 0 auto; color: rgb(181, 205, 224); font-size: 14px;}
+.layer-expand-spacer {width: 5px; flex: 0 0 auto;}
+.modern-workbench .child-layer .layer-thumbnail {width: 24px; height: 30px;}
+.modern-workbench .child-layer .layer-select {min-height: 36px;}
+.modern-workbench .child-layer .layer-copy small {margin-top: 3px;}
+.panel-edit-actions {margin: 10px 0px;}
+.panel-edit-actions button {flex: 1 1 0%; white-space: normal;}
+.panel-shot-info {user-select: none;}
+.common-inspector > .field-grid {margin-bottom: 8px;}
+#preview-import-json {margin: 8px 0px;}
+.modern-workbench {grid-template-columns: minmax(0px, 1fr);}
+.modern-workbench .project-switcher {flex: 0 1 310px; min-width: 80px;}
+.modern-workbench .project-trigger {max-width: 100%;}
+.modern-workbench .integration-actions {flex-wrap: wrap; max-width: 100%; min-width: 0px;}
+.modern-workbench .topbar > button,  .modern-workbench .topbar > .export-wrap {flex-shrink: 0;}
+@media (max-width: 1000px) {
+.modern-workbench .app-shell > .sidebar,  .modern-workbench .app-shell > .inspector {grid-column: 1 / -1;}
+}
+@media (max-width: 1450px) {
+.modern-workbench .canvas-toolbar {padding: 8px 12px;}
+}
+@media (max-width: 650px) {
+.modern-workbench .topbar {height: auto; flex-wrap: wrap; padding: 8px; gap: 7px;}
+.modern-workbench .canvas-toolbar {padding: 7px;}
+.modern-workbench .view-menu {left: 0px; top: calc(100% + 8px);}
+}
+#sidebar-empty-note {margin: 10px 12px 0px; flex: 0 0 auto;}
+.integration-actions button {font-size: 12px; padding: 6px 7px;}
+.panel-info-layer {position: absolute; inset: 0px; z-index: 5; pointer-events: none; overflow: hidden; transform: none;}
+.panel-info-cards {position: absolute; inset: 0px; pointer-events: none;}
+.modern-workbench .panel-shot-info.panel-placeholder-info {display: flex; flex-direction: column; background: transparent; color: rgb(40, 60, 77); border: 0px; border-radius: 0px; box-shadow: none; padding: 4px; overflow: hidden; text-align: center;}
+.panel-placeholder-info .panel-info-heading {flex: 0 0 auto; justify-content: center; min-height: 20px; margin-bottom: 6px;}
+.panel-placeholder-info .panel-info-heading strong {white-space: normal; font-size: 14px; line-height: 18px;}
+.modern-workbench .panel-placeholder-info .panel-info-heading button {flex: 0 0 auto; min-height: 20px; padding: 0px 4px; background: transparent; color: rgb(69, 103, 127);}
+.panel-info-sections {display: grid; grid-template-rows: minmax(0px, 1fr) minmax(0px, 1fr); gap: 8px; flex: 1 1 0%; min-height: 0px;}
+.panel-info-section {display: flex; flex-direction: column; min-height: 0px; gap: 4px;}
+.panel-info-section > strong {flex: 0 0 auto; font-size: 11px; line-height: 14px; color: rgb(100, 123, 141);}
+.panel-info-section-content {min-height: 0px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 19px; user-select: text; scrollbar-width: thin; scrollbar-color: rgb(135, 157, 171) transparent;}
+.modern-workbench .panel-placeholder-info.panel-placeholder-compact {padding: 2px;}
+.panel-placeholder-compact .panel-info-heading {min-height: 16px; margin-bottom: 2px;}
+.panel-placeholder-compact .panel-info-heading strong {font-size: 12px; line-height: 14px;}
+.panel-info-compact-title {display: none;}
+.panel-placeholder-compact .panel-info-full-title {display: none;}
+.panel-placeholder-compact .panel-info-compact-title {display: inline;}
+.modern-workbench .panel-placeholder-compact .panel-info-heading button {min-height: 16px; line-height: 14px;}
+.panel-placeholder-compact .panel-info-sections,  .panel-placeholder-compact .panel-info-section {gap: 2px;}
+.panel-placeholder-compact .panel-info-section > strong {font-size: 10px; line-height: 11px;}
+.panel-placeholder-compact .panel-info-section-content {font-size: 12px; line-height: 16px;}
+.modern-workbench .panel-shot-info {position: absolute; box-sizing: border-box; background: rgba(19, 33, 48, 0.93); color: rgb(237, 246, 255); border: 1px solid rgb(88, 113, 136); border-radius: 6px; padding: 8px; pointer-events: auto; font-size: 13px; line-height: 18px; box-shadow: rgba(0, 0, 0, 0.267) 0px 2px 8px; user-select: none; cursor: text; transform: none;}
+.panel-info-heading {display: flex; align-items: center; gap: 6px; margin-bottom: 3px;}
+.panel-info-heading strong {flex: 1 1 0%; min-width: 0px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600;}
+.modern-workbench .panel-info-heading button {min-height: 22px; padding: 0px 5px; font-size: 12px; border: 0px; background: rgb(51, 77, 100); color: rgb(220, 237, 252);}
+.panel-info-prompt {font-size: 13px; line-height: 18px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;}
+.panel-shot-info > small {display: block; margin-top: 3px; font-size: 11px; line-height: 15px; color: rgb(167, 195, 221);}
+.modern-workbench #panel-info-toggle {font-size: 12px; white-space: nowrap; border-color: rgb(82, 113, 141); color: rgb(194, 226, 253);}
+.modern-workbench #panel-info-toggle[aria-pressed="true"] {background: rgb(37, 69, 95);}
+.batch-style-editor {border-bottom: 1px solid rgb(60, 81, 101); padding-bottom: 16px; margin-bottom: 15px;}
+.batch-style-editor > p {font-size: 12px; color: rgb(167, 195, 220); line-height: 1.6;}
+.batch-style-editor h3 {font-size: 14px; margin: 18px 0px 10px; color: rgb(216, 237, 255);}
+.batch-color {display: flex; align-items: center; gap: 5px;}
+.modern-workbench .batch-color input[type="color"] {width: 35px; flex: 0 0 auto; padding: 3px; min-height: 36px; height: 36px; margin: 5px 0px 0px;}
+.modern-workbench .batch-color input[type="text"] {width: 0px; flex: 1 1 0%; min-width: 0px; font-size: 12px; padding: 6px; margin: 5px 0px 0px;}
+.modern-workbench .batch-style-editor label {font-size: 12px; margin: 8px 0px;}
+.modern-workbench .batch-style-editor select,  .modern-workbench .batch-style-editor input[type="number"] {font-size: 13px;}
+.modern-workbench .app-version {font-size: 12px; font-weight: 400; color: rgb(155, 178, 200); margin-left: -6px; white-space: nowrap;}
+.select-all-wrap {position: relative;}
+.panel-composition-status {display: grid; gap: 7px; padding: 12px; margin: 10px 0px 18px; border: 1px solid rgb(66, 99, 125); border-radius: 8px; background: rgb(27, 48, 65);}
+.panel-composition-status strong {color: rgb(189, 225, 255); font-size: 14px;}
+.panel-composition-status span,  .panel-composition-status small {color: rgb(170, 192, 210); font-size: 12px;}
+.panel-composition-status p {margin: 0px; font-size: 12px; line-height: 1.7;}
+.modern-workbench #sfx-library {width: min(520px, -104px + 100vw); max-height: calc(-170px + 100vh);}
+.comic-word-tabs,  .comic-word-toolbar {display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0px;}
+.comic-word-tabs button.active {border-color: rgb(37, 128, 156) !important; background: rgb(229, 242, 247) !important;}
+.comic-word-grid {display: grid; grid-template-columns: repeat(3, minmax(0px, 1fr)); gap: 9px; margin: 12px 0px;}
+.comic-word-grid button {display: flex; flex-direction: column; gap: 4px; min-width: 0px; white-space: normal; padding: 8px !important; background: rgb(240, 244, 247) !important;}
+.comic-word-grid img {width: 100%; height: 90px; object-fit: contain;}
+.comic-word-grid strong {font-size: 16px; color: rgb(33, 60, 75);}
+.comic-word-grid small {font-size: 10px; color: rgb(100, 129, 142);}
+@media (max-width: 650px) {
+.modern-workbench #sfx-library {left: 8px; top: 90px; width: calc(-16px + 100vw); max-height: calc(-110px + 100vh);}
+.comic-word-grid img {height: 72px;}
+}
+.select-all-wrap > .ui-popover {left: 0px; top: 46px; min-width: 220px;}
+.select-all-wrap .ui-popover button {justify-content: space-between;}
+.select-all-wrap kbd {font-size: 11px; color: rgb(168, 194, 217);}
+.selection-scope-actions {display: flex; gap: 6px; margin: 12px 0px;}
+.modern-workbench #cancel-all-jobs {flex: 0 0 auto; white-space: nowrap; font-size: 12px; min-height: 30px; padding: 5px 9px; border-color: rgb(146, 89, 96); color: rgb(241, 185, 189);}
+.modern-workbench #cancel-all-jobs:disabled {opacity: 0.4;}
+@media (max-width: 650px) {
+.modern-workbench .job-heading {height: auto; min-height: 42px; flex-wrap: wrap; gap: 6px; padding: 6px 8px;}
+.modern-workbench #cancel-all-jobs {font-size: 10px; padding: 4px 6px; min-height: 28px;}
+.modern-workbench .job-heading .footer-spacer {display: none;}
+.modern-workbench .job-heading .page-marker {margin-left: auto;}
+}
+.modern-workbench .selection-scope-actions button {flex: 1 1 0%; min-width: 0px; font-size: 12px; padding: 7px 4px;}
+.dialogue-archive-list {max-height: 55vh; overflow: auto;}
+.dialogue-archive-list article {padding: 10px 0px; border-bottom: 1px solid rgb(57, 81, 103);}
+.dialogue-archive-list p {white-space: pre-wrap;}
+.dialogue-archive-list small {color: rgb(169, 193, 213);}
+.dialogue-archive-list button {float: right;}
+.page-generation-dialog {width: min(480px, 92vw); max-height: 90vh; overflow: auto; padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text);}
+.page-generation-dialog label {display: grid; gap: 8px; margin: 18px 0px; font-weight: 600;}
+.page-generation-dialog select {width: 100%; min-height: 40px;}
+.page-generation-dialog .sub-note {line-height: 1.7;}
+.page-generation-actions {display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;}
+[data-batch-status] {line-height: 1.6; min-height: 24px;}
+.storyboard-data-import .layout-file-actions {display: flex; align-items: center; gap: 10px; flex-wrap: wrap;}
+.storyboard-data-import [data-layout-file-summary] {font-size: 13px; margin: 10px 0px;}
+.storyboard-data-import [data-layout-file-list] {max-height: 320px; overflow: auto; padding: 0px; list-style: none; overflow-wrap: anywhere;}
+.storyboard-data-import [data-layout-file-list] > li {display: grid; grid-template-columns: minmax(0px, 1fr) 32px; align-items: center; gap: 12px; padding: 8px 0px; border-bottom: 1px solid rgb(212, 224, 226);}
+.storyboard-data-import [data-layout-file-list] small {display: block; color: rgb(96, 121, 129); font-size: 12px; line-height: 1.6; margin-top: 3px;}
+.storyboard-data-import [data-layout-file-issue] small {color: rgb(173, 57, 47);}
+.storyboard-data-import [data-layout-file-list] .icon-button {width: 32px; height: 32px; padding: 5px;}
+.modern-workbench .storyboard-data-import .ui-icon {filter: brightness(0); opacity: 0.7; width: 18px; height: 18px;}
+.storyboard-data-import [data-import-status] {min-height: 22px; line-height: 1.6; overflow-wrap: anywhere;}
+.storyboard-data-import [data-import-result] li {line-height: 1.7; overflow-wrap: anywhere;}
+.modern-workbench .episode-workspace {padding: 12px 14px; border-bottom: 1px solid rgb(46, 64, 80); flex-shrink: 0;}
+.modern-workbench .episode-workspace label {display: flex; align-items: center; gap: 12px; margin: 0px; white-space: nowrap; font-size: 12px;}
+.modern-workbench .episode-workspace select {min-width: 0px; flex: 1 1 0%; width: 100%; margin: 0px; font-size: 13px; min-height: 36px;}
+.modern-workbench #episode-status {display: block; margin-top: 7px; color: rgb(158, 180, 198); font-size: 11px;}
+.modern-workbench .saved-layout-row {display: flex; align-items: center; gap: 8px; padding: 10px 0px; border-bottom: 1px solid rgb(46, 64, 80);}
+.modern-workbench .saved-layout-row > span {min-width: 0px; flex: 1 1 0%; overflow-wrap: anywhere;}
+.modern-workbench .saved-layout-row small {display: block; margin-top: 4px; color: rgb(158, 180, 198); font-size: 11px;}

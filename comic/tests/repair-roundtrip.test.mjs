@@ -1,0 +1,58 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {spawn,execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import net from 'node:net';
+import {createStudio} from '../server.mjs';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),python=process.env.CODEX_PRIMARY_RUNTIME_PYTHON||process.env.IMAGE_REPAIR_PYTHON||'python3';
+const repairSource=process.env.COMIC_TEST_REPAIR_SOURCE||path.join(root,'repair');
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const request=async(url,route,method='GET',data,headers={})=>{const response=await fetch(url+route,{method,headers:{...(data?{'Content-Type':'application/json'}:{}),...headers},body:data?JSON.stringify(data):undefined});return{status:response.status,data:await response.json()};};
+async function freePort(){const server=net.createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const port=server.address().port;await new Promise(resolve=>server.close(resolve));return port;}
+test('真实 PNG 在两套本地服务往返：完整源图修图、图层合成、同格候选及采用保留原取景',async t=>{
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'comic-repair-roundtrip-')),repair=path.join(directory,'repair');fs.mkdirSync(repair,{recursive:true});
+  const repairPort=await freePort(),repairUrl=`http://127.0.0.1:${repairPort}`,studio=createStudio({dataDir:path.join(directory,'data'),repairOrigin:repairUrl,seedReference:false,bridge:{status:async()=>({connected:false,imageFeature:false}),close(){}},storyboardGenerator:{close(){}}});
+  await new Promise(resolve=>studio.server.listen(0,'127.0.0.1',resolve));const url=`http://127.0.0.1:${studio.server.address().port}`;
+  let output='';const child=spawn(process.execPath,[path.join(repairSource,'server.mjs')],{cwd:repair,env:{...process.env,IMAGE_REPAIR_DATA_DIR:repair,IMAGE_REPAIR_PORT:String(repairPort),IMAGE_REPAIR_PYTHON:python,COMIC_STUDIO_ORIGIN:url,COMIC_SLOT_DIR:path.join(directory,'slots')},stdio:['ignore','pipe','pipe']});child.stdout.on('data',data=>output+=data);child.stderr.on('data',data=>output+=data);
+  t.after(async()=>{child.kill('SIGTERM');if(child.exitCode===null)await new Promise(resolve=>{child.once('exit',resolve);setTimeout(resolve,2000);});studio.close();await new Promise(resolve=>studio.server.close(resolve));fs.rmSync(directory,{recursive:true,force:true});});
+  let ready=false;for(let attempt=0;attempt<80;attempt++){try{if((await request(repairUrl,'/api/health')).status===200){ready=true;break;}}catch{}await delay(50);}assert.ok(ready,output);
+  const images=JSON.parse(execFileSync(python,['-c',"from PIL import Image,ImageDraw;import io,json,base64; a=Image.new('RGBA',(64,64),(0,0,255,255)); b=Image.new('RGBA',(512,512),(0,0,0,0)); ImageDraw.Draw(b).rectangle((16,16,31,31),fill=(255,0,0,255)); out=[]\nfor im in [a,b]:\n s=io.BytesIO();im.save(s,'PNG');out.append(base64.b64encode(s.getvalue()).decode())\nprint(json.dumps(out))"],{encoding:'utf8'}));
+  const project=(await request(url,'/api/projects','POST',{title:'返修往返'})).data,panel=project.pages[0].panels[0],originalFile=path.join(directory,'中文 蓝色原图.png');fs.writeFileSync(originalFile,Buffer.from(images[0],'base64'));const original=(await request(url,'/api/assets','POST',{name:'合成蓝色原图',filePath:originalFile})).data;
+  let saved=(await request(url,`/api/projects/${project.id}/panels/${panel.id}/image`,'POST',{assetId:original.id})).data;saved.pages[0].panels[0].imageTransform={x:-81.75,y:21.5,scale:4.125};saved.pages[0].panels[0].points=[{x:0,y:0},{x:.91,y:.08},{x:1,y:1},{x:.05,y:.94}];saved=(await request(url,'/api/projects/'+project.id,'PUT',saved)).data;
+  const before=structuredClone(saved),opened=await request(url,'/api/repair-links','POST',{projectId:saved.id,panelId:panel.id,expectedRevision:saved.revision});assert.equal(opened.status,201);assert.equal(opened.data.link.returnToken,undefined);
+  const session=new URL(opened.data.launchUrl).searchParams.get('studio'),binding=(await request(repairUrl,'/api/studio/'+session)).data;assert.equal(binding.returnToken,undefined);const source=(await request(repairUrl,'/api/sources/'+binding.sourceId)).data;assert.equal(source.width,64);assert.equal(source.height,64);assert.equal(source.storage,'path');assert.equal(source.filePath,originalFile);assert.equal(fs.existsSync(path.join(repair,'sources',source.id,'original.png')),false);
+  assert.equal((await request(repairUrl,'/api/sources/'+binding.sourceId+'/project','POST',{layers:[{id:'manual-red',type:'image',visible:true,opacity:1}],regions:[],renderedLayers:[{layerId:'manual-red',x:0,y:0,width:512,height:512,image:'data:image/png;base64,'+images[1]}],sourceRevision:0})).status,200);
+  assert.equal((await request(repairUrl,`/api/studio/${session}/return`,'POST',{sourceId:binding.sourceId,sourceRevision:0},{Origin:'https://evil.invalid'})).status,403);
+  const returned=await request(repairUrl,`/api/studio/${session}/return`,'POST',{sourceId:binding.sourceId,sourceRevision:0});assert.equal(returned.status,200,JSON.stringify(returned.data));
+  let current=(await request(url,'/api/projects/'+project.id)).data;assert.equal(current.pages[0].panels[0].imageAssetId,original.id);const candidate=returned.data.link.resultAssetId;assert.ok(current.pages[0].panels[0].candidates.includes(candidate));
+  // Adoption through the existing image route must also preserve the old crop.
+  const applied=await request(url,`/api/projects/${project.id}/panels/${panel.id}/image`,'POST',{assetId:candidate,expectedRevision:current.revision});assert.equal(applied.status,200);current=applied.data;
+  assert.deepEqual(current.pages[0].panels[0].imageTransform,before.pages[0].panels[0].imageTransform);assert.deepEqual(current.pages[0].panels[0].points,before.pages[0].panels[0].points);assert.deepEqual(current.pages[0].bubbles,before.pages[0].bubbles);assert.deepEqual(current.layerOrder,before.layerOrder);
+  const outputFile=studio.store.assetPath(candidate);execFileSync(python,['-c',"from PIL import Image;import sys;im=Image.open(sys.argv[1]).convert('RGBA');assert im.size==(64,64);assert im.getpixel((0,0))==(0,0,255,255);assert im.getpixel((20,20))==(255,0,0,255)",outputFile]);
+});
+
+
+test('补图编辑器未打开也会自动将完成图层送回漫画结果，原图与非修复区域保留',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'comic-repair-auto-')),repair=path.join(directory,'repair');fs.mkdirSync(repair,{recursive:true});
+ for(const file of fs.readdirSync(repairSource))if(file.endsWith('.mjs'))fs.copyFileSync(path.join(repairSource,file),path.join(repair,file));
+ fs.mkdirSync(path.join(repair,'public'));for(const file of fs.readdirSync(path.join(repairSource,'public')))if(file.endsWith('.mjs'))fs.copyFileSync(path.join(repairSource,'public',file),path.join(repair,'public',file));
+ fs.cpSync(path.join(repairSource,'python'),path.join(repair,'python'),{recursive:true});fs.mkdirSync(path.join(directory,'lib'));for(const file of ['generation-slots.mjs','concurrency.mjs'])fs.copyFileSync(path.join(root,'lib',file),path.join(directory,'lib',file));
+ const repairPort=await freePort(),repairUrl='http://127.0.0.1:'+repairPort,studio=createStudio({dataDir:path.join(directory,'data'),repairOrigin:repairUrl,seedReference:false,bridge:{status:async()=>({connected:false,imageFeature:false}),close(){}},jimengBridge:{close(){}},storyboardGenerator:{close(){}}});await new Promise(resolve=>studio.server.listen(0,'127.0.0.1',resolve));const url='http://127.0.0.1:'+studio.server.address().port;
+ let output='';const child=spawn(process.execPath,[path.join(repairSource,'server.mjs')],{cwd:repair,env:{...process.env,IMAGE_REPAIR_DATA_DIR:repair,IMAGE_REPAIR_PORT:String(repairPort),IMAGE_REPAIR_PYTHON:python,COMIC_STUDIO_ORIGIN:url,COMIC_SLOT_DIR:path.join(directory,'slots')},windowsHide:true,stdio:['ignore','pipe','pipe']});child.stdout.on('data',data=>output+=data);child.stderr.on('data',data=>output+=data);
+ t.after(async()=>{child.kill('SIGTERM');if(child.exitCode===null)await new Promise(resolve=>{child.once('exit',resolve);setTimeout(resolve,2000);});studio.close();await new Promise(resolve=>studio.server.close(resolve));assert.ok(path.resolve(directory).startsWith(path.resolve(os.tmpdir())+path.sep));fs.rmSync(directory,{recursive:true,force:true});});
+ let ready=false;for(let i=0;i<80;i++){try{if((await request(repairUrl,'/api/health')).status===200){ready=true;break;}}catch{}await delay(50);}assert.ok(ready,output);
+ const blue=JSON.parse(execFileSync(python,['-c',"from PIL import Image;import io,json,base64;b=io.BytesIO();Image.new('RGBA',(64,64),(0,0,255,255)).save(b,'PNG');print(json.dumps(base64.b64encode(b.getvalue()).decode()))"],{encoding:'utf8'}));
+ const p=(await request(url,'/api/projects','POST',{title:'自动回传合成测试'})).data,f=p.pages[0].panels[0],originalFile=path.join(directory,'自动回传 原图.png');fs.writeFileSync(originalFile,Buffer.from(blue,'base64'));const asset=(await request(url,'/api/assets','POST',{name:'自动回传测试原图',filePath:originalFile})).data;
+ const saved=(await request(url,'/api/projects/'+p.id+'/panels/'+f.id+'/image','POST',{assetId:asset.id})).data,before=structuredClone(saved),opened=await request(url,'/api/repair-links','POST',{projectId:p.id,panelId:f.id,expectedRevision:saved.revision});assert.equal(opened.status,201);
+ const binding=(await request(repairUrl,'/api/studio/'+new URL(opened.data.launchUrl).searchParams.get('studio'))).data,id='20261010-120000-eeeeeeee',jobDir=path.join(repair,'jobs',id);fs.mkdirSync(jobDir,{recursive:true});
+ const repairProject=(await request(repairUrl,'/api/sources/'+binding.sourceId+'/project')).data;repairProject.regions=[{id:'r-auto',name:'中心修复',frame:{x:16,y:16,width:16,height:16},jobId:id}];assert.equal((await request(repairUrl,'/api/sources/'+binding.sourceId+'/project','POST',repairProject)).status,200);
+ fs.writeFileSync(path.join(jobDir,'request.json'),JSON.stringify({id,sourceId:binding.sourceId,sourceRevision:0,sourceName:'自动回传原图',regionId:'r-auto',region:{id:'r-auto',name:'中心修复',frame:{x:16,y:16,width:16,height:16}},mode:'codex',createdAt:new Date().toISOString(),crop:{x:8,y:8,width:32,height:32},feather:0,featherMode:'gaussian'}));
+ execFileSync(python,['-c',"from PIL import Image;from pathlib import Path;import sys,os,time;d=Path(sys.argv[1]);Image.new('RGBA',(32,32),(255,0,0,255)).save(d/'repaired.png');m=Image.new('RGBA',(32,32),(255,255,255,255));m.paste((255,255,255,0),(8,8,24,24));m.save(d/'mask.png');os.utime(d/'repaired.png',(time.time()-2,time.time()-2))",jobDir]);
+ fs.writeFileSync(path.join(jobDir,'automation.json'),JSON.stringify({status:'completed',phase:'completed'}));
+ let returned;for(let i=0;i<180;i++){returned=(await request(url,'/api/repair-links?projectId='+p.id)).data.links[0];if(returned.resultAssetId)break;await delay(50);}assert.ok(returned.resultAssetId,output);assert.equal(returned.status,'ready');
+ const current=(await request(url,'/api/projects/'+p.id)).data;assert.equal(current.pages[0].panels[0].imageAssetId,asset.id);assert.deepEqual(current.pages[0].panels[0].imageTransform,before.pages[0].panels[0].imageTransform);assert.deepEqual(current.pages[0].panels[0].points,before.pages[0].panels[0].points);assert.equal(current.pages[0].panels[0].candidates.length,before.pages[0].panels[0].candidates.length+1);assert.ok(current.pages[0].panels[0].candidates.includes(returned.resultAssetId));
+ execFileSync(python,['-c',"from PIL import Image;import sys;im=Image.open(sys.argv[1]).convert('RGBA');assert im.size==(64,64);assert im.getpixel((0,0))==(0,0,255,255);assert im.getpixel((20,20))==(255,0,0,255)",studio.store.assetPath(returned.resultAssetId)]);
+});

@@ -1,0 +1,30 @@
+import {withRemovedReference} from './asset-workspace-removal.js';
+import {withTextAssetReference} from './asset-text-references.js';
+import {confirmedSliceReference} from './production-slice-source.js';
+import {inspectAssetBindings} from './asset-auto-bind.js';
+import {projectLibraryAssets} from './project-asset-library.js';
+import {panelReferenceIds,WORKSPACE_REFERENCE_LIMIT} from './panel-references.js';
+import {stateReferenceMetadata,stateReferenceMatches,manualStateReferenceConfirmed} from './character-state-references.js';
+import {stateKey,unknownState} from './character-states.js';
+import {processedReferenceRequirements,deriveReferenceRequirements} from './reference-requirements.js';
+import {deriveSceneReference} from './reference-scene-source.js';
+import {auditProductionReferences} from './production-reference-audit.js';
+
+/** Metadata only: never opens image files, changes selections, or calls generation. */
+export function auditPanelReferences(project,panel,assets,{ids=panelReferenceIds(project,panel),sourceOverride,referenceContext}={}){
+  if(panel.productionSegment||panel.productionBackground)return auditProductionReferences(project,panel,assets,{referenceContext});
+ const stored=!sourceOverride&&(processedReferenceRequirements(project,panel)||deriveReferenceRequirements(project,panel,assets).requirements),base=project.shots.find(s=>s.id===panel.shotId)||panel.generation?.sourceSnapshot?.original,scene=deriveSceneReference(project,panel),rawSource=sourceOverride||(stored?{...base,...stored}:base),source=sourceOverride?rawSource:{...rawSource,location:rawSource?.location||scene.location},target=stored?{...panel,generation:{...panel.generation,characterStates:stored.characterStates}}:panel;
+ const scoped={...project,shots:source?[source]:[],pages:[{panels:[target]}]},library=projectLibraryAssets(project,assets),preview=inspectAssetBindings(scoped,library),wanted=preview.panelNeeds.get(panel.id)||new Set(),byId=new Map(assets.map(a=>[a.id,a]));
+ const metadata=asset=>{const meta=stateReferenceMetadata(project,asset),ref=panel.generation?.referenceRoles?.find(r=>r.assetId===asset.id)||project.references.find(r=>r.assetId===asset.id);return {...meta,role:meta.role==='other'&&ref?.role?ref.role:meta.role,keys:[...meta.keys,...(ref?.name?[ref.name]:[])]};};
+ const selected=ids.map(id=>byId.get(id)).filter(Boolean),needs=preview.needs.filter(n=>wanted.has(n.id)).map(need=>{
+  const keys=[need.baseAssetId,need.name,...need.aliases].map(stateKey),sameIdentity=a=>{const m=metadata(a);return (m.role==='other'||m.role===need.role)&&[m.name,...m.aliases,...m.keys].some(v=>keys.includes(stateKey(v)));};
+  const compatible=a=>{const meta=metadata(a);if(manualStateReferenceConfirmed(panel,need,a,meta))return true;if(need.hasState&&!unknownState(need.state)&&sameIdentity(a)&&meta.stateLabels.length&&!meta.identityOnly&&!stateReferenceMatches(need.state,meta))return false;const b=panel.referenceNeedBindings?.[need.id];if(b?.assetId===a.id&&b.role===need.role&&stateKey(b.name)===stateKey(need.name)&&(need.role!=='character'||stateKey(b.state)===stateKey(need.state))&&(!b.revisionId||b.revisionId===a.library?.revisionId)&&(!b.sha256||b.sha256===a.library?.sha256)&&!['candidate','stale'].includes(a.productionStatus))return true;if(confirmedSliceReference(project,panel,need,a))return true;if(!sameIdentity(a)||['candidate','stale'].includes(a.productionStatus))return false;if(!need.hasState||unknownState(need.state))return true;const binding=project.assetBindings?.[need.id];return stateReferenceMatches(need.state,meta)||binding?.assetId===a.id&&binding.source==='manual'&&!meta.identityOnly&&!meta.stateLabels.length&&stateKey(binding.state)===stateKey(need.state);};
+  const matched=selected.filter(compatible),conflicts=need.hasState&&!unknownState(need.state)?selected.filter(a=>!confirmedSliceReference(project,panel,need,a)&&sameIdentity(a)&&!metadata(a).identityOnly&&metadata(a).stateLabels.length&&!compatible(a)):[],recommended=need.assetId&&byId.get(need.assetId),available=recommended&&compatible(recommended)?recommended.id:null;
+  return {...need,selectedIds:matched.map(a=>a.id),conflictingIds:conflicts.map(a=>a.id),recommendedId:available,status:conflicts.length?'conflict':matched.length?'ready':available?'available':'missing',blocking:conflicts.length>0||matched.length===0};
+ }).map(need=>withTextAssetReference(panel,withRemovedReference(project,panel,need)));
+ const unknown=ids.filter(id=>!byId.has(id)),additions=[...new Set(needs.filter(n=>n.status==='available').map(n=>n.recommendedId))].filter(id=>!ids.includes(id)),missing=needs.filter(n=>n.blocking),coverageEnforced=!!project.assetLibrary||Object.keys(project.assetBindings||{}).length>0;
+ return {panelId:panel.id,needs,ids:[...ids],additions,missing,unknown,sceneEvidence:scene,coverageEnforced,ready:missing.length===0&&!unknown.length,summary:needs.length?`本格需要 ${needs.filter(n=>n.role==='character').length} 位人物、${needs.filter(n=>n.role==='scene').length} 处场景、${needs.filter(n=>n.role==='prop').length} 项道具；已匹配 ${needs.filter(n=>['ready','text'].includes(n.status)).length}/${needs.length} 项`:'分镜尚未填写本格人物、场景和道具'};
+}
+/** Explicit append only: keep manual order, old choices, source snapshots and image transforms. */
+export function appendRequiredReferences(project,panel,assets){const audit=auditPanelReferences(project,panel,assets),ids=[...audit.ids,...audit.additions];if(ids.length>WORKSPACE_REFERENCE_LIMIT)throw Error('补齐后超过工作台60张参考上限，请先调整选择');return {audit,ids,added:audit.additions.length};}
+export function assertPanelReferenceCoverage(project,panel,assets){const audit=auditPanelReferences(project,panel,assets);if(!audit.coverageEnforced||audit.ready)return audit;const issues=[...audit.missing.map(n=>n.name+(n.state?'（'+n.state+'）':'')+'：'+(n.status==='conflict'?'已选参考状态冲突':n.recommendedId?'资产库已有，尚未选入本格':'缺少已确认的对应参考')), ...audit.unknown.map(id=>'参考资产已失效：'+id)];throw Object.assign(Error('本格参考不完整：'+issues.join('；')+'。请在“选择参考资产”中补齐后再生成。'),{status:409,code:'panel_reference_incomplete',problems:issues});}

@@ -1,0 +1,73 @@
+import {id,panel,clone} from '../public/model.js';
+import {packageDigest} from './production-package.mjs';
+import {splitProductionScreenBoards} from '../public/production-screen-boards.js';
+export function productionProject(source,title,{legacy=false}={}){
+ const now=new Date().toISOString(),project={id:id('project'),title:String(title||source.title).slice(0,180),revision:0,style:'',references:[],shots:[],pages:[],layerSchema:1,layerOrder:[],gradients:[],created:now,updated:now};
+ const pkg=clone(source);pkg.documents=source.documents.map(d=>({path:d.path}));pkg.importedAt=now;pkg.history=[];
+ project.productionPackage=pkg;project.storyboardImport={version:2,fileName:source.title,fileKey:source.hash,episodes:[]};
+ for(const episode of pkg.episodes){
+  const page={id:id('page'),name:`第${episode.episode}话`,width:1280,height:episode.segments.length*3840,background:'#ffffff',panels:[],bubbles:[],storyboard:{episode:episode.episode,projection:'production-segments'}};
+  let screenTop=0;
+  for(const segment of episode.segments){
+   const screenHeight=segment.imagePlan?1280*segment.imagePlan.height/segment.imagePlan.width:3840;segment.documentY=screenTop;
+   const shot={id:id('shot'),episode:episode.episode,code:segment.id,title:segment.localId+' · '+segment.scene,description:segment.scene||segment.localId,dialogue:'',referenceIds:[],sourceFields:{'生图提示词':segment.prompts['空泡'],'生图提示词（后期嵌字）':segment.prompts['无泡']},productionPrompt:segment.prompts['空泡'],sourceLocation:segment.source.file,productionSegment:segment.id};
+   const frame=panel(shot.id,0,screenTop,1280,screenHeight);Object.assign(frame,{name:segment.localId+' · '+segment.scene,border:0,feather:0,productionSegment:segment.id,referenceIds:[]});frame.generation={version:1,promptSource:segment.prompts['无泡']?.trim()?'post-lettering':'imported',referenceRoles:[]};
+   segment.panelId=frame.id;segment.shotId=shot.id;delete segment.prompts;project.shots.push(shot);page.panels.push(frame);screenTop+=screenHeight;page.height=screenTop;
+  }
+  for(const segment of episode.segments.filter(s=>s.background['方式']==='本段出图')){
+   const covered=episode.segments.filter(s=>s.id===segment.id||s.background['方式']==='共用'&&s.background['段ID']===segment.localId),y=Math.min(...covered.map(s=>s.documentY)),bottom=Math.max(...covered.map(s=>s.documentY+(s.imagePlan?1280*s.imagePlan.height/s.imagePlan.width:3840)));
+   const key=segment.id+'-BG',shot={id:id('shot'),episode:episode.episode,code:key,title:'底图 · '+segment.localId,description:segment.background['提示词'],productionPrompt:segment.background['提示词'],sourceFields:{'生图提示词':segment.background['提示词']},dialogue:'',referenceIds:[],productionBackground:key};
+   const frame=panel(shot.id,0,y,1280,bottom-y,'background');Object.assign(frame,{name:'共用底图 · '+covered.map(s=>s.localId).join('、'),border:0,feather:0,productionBackground:key,backgroundSegments:covered.map(s=>s.id),referenceIds:[]});
+   segment.backgroundPanelId=frame.id;segment.backgroundShotId=shot.id;project.shots.push(shot);page.panels.unshift(frame);
+  }
+  project.pages.push(page);project.layerOrder.push(...page.panels.map(f=>f.id));project.storyboardImport.episodes.push({episode:episode.episode,title:episode.title,shotIds:project.shots.filter(s=>s.episode===episode.episode).map(s=>s.id),status:'imported'});
+ }
+ return legacy?project:splitProductionScreenBoards(project).project;
+}
+export function productionDiff(old,source){
+ if(!old?.productionPackage)return {newProject:true,added:source.count.segments,changed:0,removed:0,unchanged:0};
+ const prior=new Map(old.productionPackage.episodes.flatMap(e=>e.segments.map(s=>[s.id,{s,shot:old.shots.find(v=>v.id===s.shotId)}]))),incoming=productionProject(source);let added=0,changed=0,unchanged=0;
+ for(const e of incoming.productionPackage.episodes)for(const s of e.segments){const previous=prior.get(s.id),shot=incoming.shots.find(v=>v.id===s.shotId);if(!previous)added++;else if(JSON.stringify(previous.shot?.sourceFields)!==JSON.stringify(shot.sourceFields)||JSON.stringify(previous.s.panelIds)!==JSON.stringify(s.panelIds)||JSON.stringify(previous.s.references.map(r=>{const {binding,skipped,...raw}=r;return raw;}))!==JSON.stringify(s.references.map(r=>{const {binding,skipped,...raw}=r;return raw;})))changed++;else unchanged++;prior.delete(s.id);}
+ return {added,changed,unchanged,removed:prior.size,layoutChanges:source.episodes.filter(e=>JSON.stringify(e.layoutDesign)!==JSON.stringify(old.productionPackage.episodes.find(p=>p.episode===e.episode)?.layoutDesign)).map(e=>e.episode),identical:old.productionPackage.hash===source.hash};
+}
+export function mergeProductionProject(old,source,{replaceChanged=false}={}){
+ if(old.productionScreenBoards===1)return mergeScreenProject(old,source,{replaceChanged});
+ if(old.productionPackage?.id!==source.id)throw Object.assign(Error('资料属于其他作品，不能覆盖当前工程'),{status:409});if(old.productionPackage.hash===source.hash)return clone(old);
+ const next=clone(old),fresh=productionProject(source,old.title,{legacy:true}),removed=[],changes=[],prior=new Map(old.productionPackage.episodes.flatMap(e=>e.segments.map(s=>[s.id,s])));
+ const oldFrames=new Map(old.pages.flatMap(p=>p.panels.map(f=>[f.productionSegment||f.productionBackground,f])));
+ const oldSegments=prior;
+ for(const episode of fresh.productionPackage.episodes){
+  let page=next.pages.find(p=>p.storyboard?.episode===episode.episode&&!p.designEpisodeRole);const freshPage=fresh.pages.find(p=>p.storyboard.episode===episode.episode);if(!page){next.pages.push(freshPage);next.shots.push(...fresh.shots.filter(s=>s.episode===episode.episode));continue;}
+  for(const segment of episode.segments){const previous=oldSegments.get(segment.id);if(previous){const newShot=fresh.shots.find(s=>s.id===segment.shotId),oldShot=next.shots.find(s=>s.id===previous.shotId),changed=JSON.stringify(newShot.sourceFields)!==JSON.stringify(oldShot?.sourceFields);segment.panelId=previous.panelId;segment.shotId=previous.shotId;segment.regions=clone(previous.regions||{});segment.positions=clone(previous.positions||{});segment.layoutAssetId=previous.layoutAssetId;for(const key of ['generationUnit','panelPromptSources'])if(previous[key]!==undefined)segment[key]=clone(previous[key]);
+    segment.references=segment.references.map(ref=>{const match=previous.references.find(r=>JSON.stringify([r['类型'],r['人物'],r['服装'],r['段ID']])===JSON.stringify([ref['类型'],ref['人物'],ref['服装'],ref['段ID']]));return match?{...ref,binding:clone(match.binding),skipped:match.skipped}:ref;});
+    if(changed){changes.push(segment.id);if(replaceChanged)Object.assign(oldShot,{sourceFields:newShot.sourceFields,productionPrompt:newShot.productionPrompt});else segment.pendingSourceFields=newShot.sourceFields;}
+   }else{const frame=freshPage.panels.find(f=>f.id===segment.panelId);frame.y=Math.max(0,...page.panels.map(f=>f.y+f.h));page.panels.push(frame);next.shots.push(fresh.shots.find(s=>s.id===segment.shotId));}
+   const previousBg=oldFrames.get(segment.id+'-BG');if(previousBg){segment.backgroundPanelId=previousBg.id;segment.backgroundShotId=previousBg.shotId;}else if(segment.backgroundPanelId){const f=freshPage.panels.find(f=>f.id===segment.backgroundPanelId);page.panels.unshift(f);next.shots.push(fresh.shots.find(s=>s.id===segment.backgroundShotId));}
+  }page.height=Math.max(page.height,...page.panels.map(f=>f.y+f.h));
+ }
+ const incomingIds=new Set(fresh.productionPackage.episodes.flatMap(e=>e.segments.map(s=>s.id)));for(const episode of next.productionPackage.episodes){const missing=episode.segments.filter(s=>!incomingIds.has(s.id));if(missing.length){removed.push(...missing.map(s=>s.id));const target=fresh.productionPackage.episodes.find(e=>e.episode===episode.episode);if(target){target.segments.push(...missing.map(s=>({...s,removedFromSource:true})));const missingIds=new Set(missing.map(s=>s.id)),gridIds=new Set(missing.flatMap(s=>s.panelIds));target.panelRecords.push(...episode.panelRecords.filter(p=>missingIds.has(p.segmentId)));target.texts.push(...episode.texts.filter(t=>gridIds.has(t['格ID'])));}else fresh.productionPackage.episodes.push({...episode,segments:missing.map(s=>({...s,removedFromSource:true}))});}}
+ fresh.productionPackage.history=[...(next.productionPackage.history||[]),{hash:next.productionPackage.hash,importedAt:next.productionPackage.importedAt}].slice(-20);fresh.productionPackage.updateReview={changed:changes,removed,preservedManualContent:true};if(old.productionPackage.generationUnit)fresh.productionPackage.generationUnit=old.productionPackage.generationUnit;preserveAppliedLayouts(old,fresh);next.productionPackage=fresh.productionPackage;next.storyboardImport.fileKey=source.hash;next.storyboardImport.episodes=next.pages.filter(p=>p.storyboard?.episode&&!p.designEpisodeRole).map(p=>({episode:p.storyboard.episode,title:p.name,shotIds:p.panels.map(f=>f.shotId),status:'imported'}));return next;
+}
+function mergeScreenProject(old,source,{replaceChanged=false}={}){
+ if(old.productionPackage.id!==source.id)throw Object.assign(Error('资料属于其他作品，不能覆盖当前工程'),{status:409});if(old.productionPackage.hash===source.hash)return clone(old);
+ const next=clone(old),fresh=productionProject(source,old.title),previous=new Map(old.productionPackage.episodes.flatMap(e=>e.segments.map(s=>[s.id,s]))),changed=[],removed=[],oldBG=new Map(next.pages.flatMap(p=>p.panels).filter(f=>f.productionBackground).map(f=>[f.productionBackground,f])),bgMap=new Map(),shotMap=new Map();
+ for(const f of fresh.pages.flatMap(p=>p.panels).filter(f=>f.productionBackground)){const prior=oldBG.get(f.productionBackground);if(prior){bgMap.set(f.id,prior.id);shotMap.set(f.shotId,prior.shotId);}}
+ for(const episode of fresh.productionPackage.episodes)for(const segment of episode.segments){const prior=previous.get(segment.id),board=fresh.pages.find(p=>p.storyboard.segmentId===segment.id);if(!prior){next.pages.push(board);for(const sid of new Set(board.panels.map(f=>f.shotId)))if(sid&&!shotMap.has(sid)&&!next.shots.some(s=>s.id===sid))next.shots.push(fresh.shots.find(s=>s.id===sid));continue;}
+  const incoming=fresh.shots.find(s=>s.id===segment.shotId),existing=next.shots.find(s=>s.id===prior.shotId);segment.panelId=prior.panelId;segment.shotId=prior.shotId;for(const key of ['regions','positions','layoutAssetId','layoutConfirmedAt','materialBindings','generationUnit','panelPromptSources'])if(prior[key]!==undefined)segment[key]=clone(prior[key]);segment.references=segment.references.map(ref=>{const r=prior.references.find(r=>JSON.stringify([r['类型'],r['人物'],r['服装'],r['段ID']])===JSON.stringify([ref['类型'],ref['人物'],ref['服装'],ref['段ID']]));return r?{...ref,binding:clone(r.binding),skipped:r.skipped}:ref;});if(JSON.stringify(incoming.sourceFields)!==JSON.stringify(existing.sourceFields)){changed.push(segment.id);if(replaceChanged)Object.assign(existing,{sourceFields:incoming.sourceFields,productionPrompt:incoming.productionPrompt});else segment.pendingSourceFields=incoming.sourceFields;}
+  const bg=oldBG.get(segment.id+'-BG');if(bg){segment.backgroundPanelId=bg.id;segment.backgroundShotId=bg.shotId;}else if(segment.backgroundPanelId){const target=next.pages.find(p=>p.panels.some(f=>f.id===prior.panelId)),resource=board.panels.find(f=>f.id===segment.backgroundPanelId);target.panels.push(resource,...board.panels.filter(f=>f.productionBackgroundInstance));next.shots.push(fresh.shots.find(s=>s.id===resource.shotId));}
+ }
+ for(const page of next.pages)for(const f of page.panels){if(f.productionBackgroundInstance&&bgMap.has(f.productionBackgroundInstance.sourcePanelId))f.productionBackgroundInstance.sourcePanelId=bgMap.get(f.productionBackgroundInstance.sourcePanelId);if(shotMap.has(f.shotId))f.shotId=shotMap.get(f.shotId);}
+ const incoming=new Set(fresh.productionPackage.episodes.flatMap(e=>e.segments.map(s=>s.id)));for(const episode of old.productionPackage.episodes){const missing=episode.segments.filter(s=>!incoming.has(s.id));if(!missing.length)continue;removed.push(...missing.map(s=>s.id));let target=fresh.productionPackage.episodes.find(e=>e.episode===episode.episode);if(!target){target={...clone(episode),segments:[],panelRecords:[],texts:[]};fresh.productionPackage.episodes.push(target);}target.segments.push(...missing.map(s=>({...clone(s),removedFromSource:true})));const ids=new Set(missing.map(s=>s.id)),grids=new Set(missing.flatMap(s=>s.panelIds));target.panelRecords.push(...episode.panelRecords.filter(r=>ids.has(r.segmentId)));target.texts.push(...episode.texts.filter(t=>grids.has(t['格ID'])));}
+ const rank=new Map(fresh.productionPackage.episodes.flatMap(e=>e.segments).map((s,i)=>[s.id,i]));next.pages.sort((a,b)=>(rank.get(a.storyboard?.segmentId)??1e6)-(rank.get(b.storyboard?.segmentId)??1e6));fresh.productionPackage.history=[...(old.productionPackage.history||[]),{hash:old.productionPackage.hash,importedAt:old.productionPackage.importedAt}].slice(-20);fresh.productionPackage.updateReview={changed,removed,preservedManualContent:true};if(old.productionPackage.generationUnit)fresh.productionPackage.generationUnit=old.productionPackage.generationUnit;preserveAppliedLayouts(old,fresh);next.productionPackage=fresh.productionPackage;next.storyboardImport.fileKey=source.hash;next.storyboardImport.episodes=fresh.productionPackage.episodes.map(e=>({episode:e.episode,title:e.title,shotIds:next.shots.filter(s=>s.episode===e.episode).map(s=>s.id),status:'imported'}));return next;
+}
+
+function preserveAppliedLayouts(old,fresh){
+ for(const episode of fresh.productionPackage.episodes){
+  const prior=old.productionPackage.episodes.find(e=>e.episode===episode.episode);if(!prior)continue;
+  if(JSON.stringify(prior.layoutDesign)!==JSON.stringify(episode.layoutDesign)){
+   episode.pendingLayoutDesign=episode.layoutDesign||null;episode.layoutDesign=clone(prior.layoutDesign||null);episode.layoutDesignReview='preserved-manual-layout';
+   for(const record of episode.panelRecords){const previous=prior.panelRecords.find(p=>p.id===record.id);if(previous?.designRect)record.designRect=clone(previous.designRect);else delete record.designRect;}
+   for(const s of episode.segments){const previous=prior.segments.find(p=>p.id===s.id);if(previous)for(const key of ['plannedRegions','imagePlan','layoutDesignVersion']){if(previous[key]!==undefined)s[key]=clone(previous[key]);else delete s[key];}}
+  }else if(prior.layoutDesignReview){episode.pendingLayoutDesign=clone(prior.pendingLayoutDesign);episode.layoutDesignReview=prior.layoutDesignReview;}
+ }
+}

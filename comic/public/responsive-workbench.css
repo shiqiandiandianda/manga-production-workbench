@@ -1,0 +1,274 @@
+body.modern-workbench {grid-template-rows: max-content max-content max-content minmax(0px, 1fr) max-content; min-width: 0px;}
+.responsive-more-wrap {display: none; position: relative;}
+.compact-import-label {display: none;}
+.responsive-rule-actions {display: contents;}
+@media (max-width: 1400px) {
+.modern-workbench .responsive-more-wrap {display: block;}
+.modern-workbench .responsive-more-menu {right: 0px; top: calc(100% + 6px); width: min(310px, -16px + 100vw); min-width: 0px; max-height: calc(100dvh - 80px); overflow: auto; padding: 10px;}
+.modern-workbench .responsive-more-menu .integration-actions {display: grid; gap: 6px; width: 100%; margin-bottom: 10px;}
+.modern-workbench .responsive-more-menu .connection {width: 100%; margin: 6px 0px; max-width: none !important;}
+.modern-workbench .responsive-more-menu .export-wrap {width: 100%; margin: 6px 0px;}
+.modern-workbench .responsive-more-menu .export-wrap > button {width: 100%;}
+.modern-workbench .responsive-more-menu .dropdown {position: static; width: 100%; min-width: 0px; margin-top: 6px; box-shadow: none;}
+.modern-workbench .responsive-more-menu .toolbar-right {display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; margin: 12px 0px 0px;}
+.modern-workbench .responsive-more-menu .toolbar-right select {width: 100%; margin: 0px;}
+.modern-workbench .responsive-more-menu .toolbar-separator {display: none;}
+.modern-workbench .topbar {height: auto; min-height: 0px; gap: 6px 10px;}
+}
+@media (max-width: 650px) {
+.modern-workbench .topbar {display: grid; grid-template-columns: minmax(0px, 1fr) minmax(0px, 1fr) auto; gap: 6px; padding: 6px 8px; align-items: center;}
+.modern-workbench .topbar .brand,  .modern-workbench .topbar .top-spacer,  .modern-workbench .topbar .save-indicator {display: none;}
+.modern-workbench .project-switcher {grid-area: 1 / 1 / auto / 3; min-width: 0px;}
+.modern-workbench .project-trigger {width: 100%; min-width: 0px; min-height: 30px; padding: 5px 8px; font-size: 12px; gap: 6px;}
+.modern-workbench .responsive-more-wrap {grid-area: 1 / 3;}
+.modern-workbench #workbench-more {min-height: 30px; padding: 5px 8px; font-size: 12px;}
+.wide-import-label {display: none;}
+.compact-import-label {display: inline;}
+.modern-workbench .canvas-toolbar {display: grid; grid-template-columns: minmax(0px, 1fr); height: auto; min-height: 0px; gap: 3px; padding: 5px 8px;}
+.modern-workbench .workspace-controls {display: flex; min-width: 0px; width: 100%; gap: 6px;}
+.modern-workbench .workspace-controls .toolbar-separator {display: none;}
+.modern-workbench #view-more {min-height: 28px; min-width: 28px; padding: 4px;}
+.modern-workbench .canvas-toolbar > .tools {width: 100%; min-width: 0px; flex-wrap: nowrap; overflow: auto hidden; gap: 3px; padding-bottom: 2px; scrollbar-width: thin;}
+.modern-workbench .tools .ui-popover {position: fixed; left: 8px; right: 8px; top: var(--responsive-tools-bottom,132px); width: calc(-16px + 100vw); min-width: 0px; max-height: calc(100dvh - var(--responsive-tools-bottom,132px) - 8px); overflow: auto;}
+.modern-workbench .tools button {font-size: 11px; min-height: 28px; padding: 4px 6px;}
+.responsive-rule-actions {display: flex; gap: 5px; min-width: 0px; width: 100%; overflow: auto hidden; padding-bottom: 2px; scrollbar-width: thin;}
+.modern-workbench .responsive-rule-actions button {flex: 0 0 auto; min-height: 26px; font-size: 11px; padding: 4px 6px;}
+.modern-workbench .workspace-rail {padding: 5px 2px; overflow-y: auto;}
+.modern-workbench .rail-button {height: 48px; min-height: 48px; gap: 3px; font-size: 10px; padding: 5px 0px;}
+.modern-workbench .job-heading {height: auto; min-height: 30px; padding: 4px 6px; gap: 4px; flex-wrap: wrap;}
+.modern-workbench .task-caption {font-size: 10px; gap: 3px;}
+.modern-workbench .job-heading .page-marker {display: none;}
+.modern-workbench #cancel-all-jobs:disabled {display: none;}
+.modern-workbench #job-count {max-width: 110px; font-size: 10px;}
+.modern-workbench .project-menu {left: 0px; max-width: calc(-16px + 100vw);}
+.modern-workbench .settings-dialog,  .modern-workbench .page-generation-dialog {width: calc(-16px + 100vw); max-width: calc(-16px + 100vw); max-height: calc(100dvh - 16px); padding: 12px; overflow: auto;}
+.modern-workbench .page-generation-actions {flex-wrap: wrap; gap: 6px;}
+.modern-workbench .page-generation-actions button {flex: 1 1 0%; min-width: 0px; white-space: normal; font-size: 12px; padding: 6px;}
+}
+.modern-workbench .frequent-tools {display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid rgb(58, 82, 103); border-radius: 8px; background: rgb(19, 33, 46); flex: 0 0 auto;}
+.modern-workbench .frequent-tools button {min-height: 36px; padding: 7px 11px; font-weight: 500; border: 1px solid transparent; border-radius: 5px; white-space: nowrap;}
+.modern-workbench .frequent-tools button.active {background: rgb(40, 78, 107); border-color: rgb(123, 182, 229); color: rgb(197, 230, 255);}
+.modern-workbench .secondary-tools {display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-width: 0px;}
+.modern-workbench .tools .secondary-tools button {font-size: 12px; padding: 6px 8px;}
+.unified-typography {margin: 18px 0px; padding: 16px; border: 1px solid rgb(61, 89, 111); border-radius: 10px; background: rgb(20, 39, 54);}
+.typography-heading {display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px;}
+.typography-heading strong {font-size: 15px;}
+.typography-heading small {color: rgb(159, 184, 206); font-size: 11px;}
+.typography-fields {display: grid; grid-template-columns: minmax(0px, 1.5fr) minmax(76px, 1fr); gap: 12px;}
+.modern-workbench .unified-typography label {margin: 0px 0px 10px; font-size: 12px;}
+.unified-typography input,  .unified-typography select {width: 100%; min-width: 0px; margin-top: 6px;}
+.typography-preview {display: flex; align-items: center; justify-content: center; min-height: 68px; padding: 12px; border-radius: 7px; background: rgb(237, 243, 247); color: rgb(37, 59, 74); text-align: center; overflow-wrap: anywhere;}
+.typography-note {font-size: 12px; line-height: 1.7; color: rgb(171, 195, 214); margin: 10px 0px;}
+.typography-actions {display: flex; flex-wrap: wrap; gap: 8px;}
+.typography-actions button {flex: 1 1 0%; min-width: 150px;}
+.typography-heading > div {display: flex; flex-direction: column; gap: 3px; min-width: 0px;}
+.modern-workbench .typography-heading [data-typography-reset] {min-height: 26px; padding: 3px 7px; font-size: 11px; white-space: nowrap;}
+.typography-color {display: flex; align-items: center; gap: 5px;}
+.typography-color input[type="color"] {flex: 0 0 34px; width: 34px; height: 35px; padding: 3px;}
+.typography-color input[type="text"] {flex: 1 1 0%; width: 0px; font-size: 11px; padding: 7px 4px;}
+.typography-preview {display: block; min-height: 100px; max-height: 180px; overflow: auto; padding: 8px 12px;}
+.typography-preview > svg {display: block; margin: 0px auto; max-width: 100%;}
+.typography-advanced {margin: 12px 0px; font-size: 12px; color: rgb(173, 200, 221);}
+.typography-advanced summary {cursor: pointer; padding: 4px 0px;}
+.typography-advanced[open] .typography-fields {margin-top: 12px;}
+.modern-workbench .frequent-tools .tool-drag-handle {padding: 3px; width: 24px; min-width: 24px; flex: 0 0 auto; cursor: grab; touch-action: none; color: rgb(164, 191, 211); font-size: 21px;}
+.modern-workbench .frequent-tools .tool-drag-handle.dragging {cursor: grabbing;}
+.modern-workbench .frequent-tools .tool-dock-button {padding: 3px 6px; min-width: 26px; flex: 0 0 auto; color: rgb(188, 224, 250);}
+.modern-workbench .frequent-tools.floating-tools {position: fixed; z-index: 28; width: max-content; max-width: calc(-16px + 100vw); box-shadow: rgba(0, 0, 0, 0.533) 0px 7px 24px; display: flex; flex-wrap: nowrap;}
+.modern-workbench .floating-tools-anchor {font-size: 11px; color: rgb(140, 184, 216); min-height: 34px; padding: 5px 9px; border: 1px dashed rgb(73, 107, 134);}
+.bubble-speaker-info {display: flex; align-items: center; gap: 8px; padding: 9px; border: 1px solid rgb(73, 112, 141); border-radius: 8px; background: rgb(32, 56, 75); color: rgb(225, 239, 250); margin: 10px 0px;}
+.bubble-speaker-info > img, .bubble-speaker-info > svg, .speaker-initial {width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; object-fit: cover; object-position: center 18%; background: rgb(56, 92, 120); border: 1px solid rgb(139, 182, 211);}
+.speaker-initial {display: grid; place-items: center; font-size: 16px; color: rgb(230, 242, 251);}
+.bubble-speaker-info > div {display: flex; flex-direction: column; gap: 3px; min-width: 0px; flex: 1 1 0%;}
+.bubble-speaker-info small {font-size: 10px; color: rgb(171, 201, 223);}
+.bubble-speaker-info strong {font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.bubble-speaker-info button {font-size: 11px; padding: 5px 6px; flex: 0 0 auto;}
+.bubble-speaker-chip {position: fixed; z-index: 24; pointer-events: none; max-width: min(260px, -24px + 100vw); filter: drop-shadow(rgba(0, 0, 0, 0.4) 0px 3px 7px);}
+.bubble-speaker-chip .bubble-speaker-info {margin: 0px; padding: 6px 9px; background: rgb(24, 51, 70);}
+.bubble-speaker-chip img,  .bubble-speaker-chip .speaker-initial {width: 28px; height: 28px;}
+@media (max-width: 650px) {
+.modern-workbench .frequent-tools {display: flex;}
+.modern-workbench .frequent-tools > [data-tool] {flex: 1 1 0%;}
+.modern-workbench .frequent-tools .tool-drag-handle {flex: 0 0 auto; flex-direction: row;}
+.modern-workbench .frequent-tools .tool-dock-button {flex: 0 0 auto; flex-direction: row;}
+}
+@media (max-width: 650px) {
+.modern-workbench .canvas-toolbar > .tools {display: flex; flex-wrap: wrap; overflow: visible; gap: 4px;}
+.modern-workbench .frequent-tools {display: grid; grid-template-columns: repeat(4, minmax(0px, 1fr)); width: 100%; gap: 2px; padding: 3px;}
+.modern-workbench .frequent-tools button {display: flex; flex-direction: column; gap: 2px; padding: 4px 1px; font-size: 10px; min-height: 37px; min-width: 0px;}
+.modern-workbench .frequent-tools .ui-icon {width: 14px; height: 14px;}
+.modern-workbench .secondary-tools {flex-wrap: nowrap; width: 100%; overflow: auto hidden; scrollbar-width: thin; gap: 3px; padding-bottom: 2px;}
+.modern-workbench .secondary-tools > * {flex: 0 0 auto;}
+.modern-workbench .tools .secondary-tools button {font-size: 10px; min-height: 27px; padding: 4px 5px;}
+.unified-typography {padding: 12px;}
+.typography-fields {gap: 8px;}
+.typography-heading {flex-wrap: wrap;}
+.typography-actions button {min-width: 0px; white-space: normal;}
+}
+.modern-workbench .frequent-tools:has(.frame-shortcuts:not([hidden])) {flex-wrap: wrap; width: min(410px, -16px + 100vw); gap: 3px;}
+.modern-workbench .frequent-tools.floating-tools {max-height: calc(100dvh - 32px); overflow: auto;}
+.frame-shortcuts {flex: 0 0 100%; min-width: 0px; border-top: 1px solid rgb(58, 82, 103); padding: 6px 5px 3px; order: 20; color: rgb(197, 218, 234);}
+.frame-shape-row {display: flex; align-items: center; gap: 8px;}
+.frame-shape-row > strong {font-size: 12px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.frame-shapes {display: flex; align-items: center; gap: 4px; flex-wrap: wrap;}
+.modern-workbench .frame-shapes button {display: grid; place-items: center; min-height: 29px; padding: 2px; width: 32px; color: rgb(169, 201, 223); background: rgb(27, 42, 57); border-color: rgb(57, 81, 103);}
+.frame-shapes svg {width: 26px; height: 22px;}
+.modern-workbench .frame-shapes button.active {border-color: rgb(140, 198, 245); background: rgb(44, 79, 111); color: rgb(229, 243, 255);}
+.frame-gap-row,  .frame-image-sliders {display: grid; grid-template-columns: minmax(0px, 1fr) minmax(0px, 1fr); gap: 8px; margin-top: 6px;}
+.frame-shortcuts label {font-size: 11px; margin: 0px; display: block; min-width: 0px; color: rgb(182, 204, 221);}
+.frame-shortcuts output {float: right; color: rgb(242, 248, 253); font-size: 11px; font-variant-numeric: tabular-nums;}
+.frame-shortcuts input[type="range"] {display: block; width: 100%; padding: 0px; height: 18px; min-height: 18px; margin: 3px 0px 0px; accent-color: rgb(141, 202, 255); cursor: ew-resize; background: transparent; border: 0px; touch-action: none;}
+.frame-image-tools {margin-top: 6px; padding-top: 6px; border-top: 1px solid rgb(48, 75, 96);}
+.frame-image-actions {display: flex; gap: 4px; flex-wrap: wrap;}
+.modern-workbench .frame-image-actions button {font-size: 11px; min-height: 27px; padding: 4px 7px; display: block; border-color: rgb(60, 84, 105); background: rgb(30, 51, 69); color: rgb(214, 232, 245);}
+.modern-workbench .frame-image-actions button[aria-pressed="true"] {background: rgb(45, 98, 136); border-color: rgb(148, 203, 239); color: white;}
+.modern-workbench .frame-shortcuts button:disabled {opacity: 0.5;}
+.frame-shortcut-note {font-size: 11px; color: rgb(146, 173, 193); margin: 6px 0px 0px;}
+.frame-adjustments {margin-top: 5px;}
+.frame-adjustments > summary {cursor: pointer; font-size: 11px; color: rgb(183, 213, 236); padding: 2px 0px;}
+.frame-adjustments[open] > summary {margin-bottom: 4px;}
+@media (max-width: 650px) {
+.modern-workbench .frequent-tools {display: flex; flex-wrap: wrap; width: 100%; gap: 2px;}
+.modern-workbench .frequent-tools > [data-tool] {flex: 1 1 0%; min-width: 0px;}
+.modern-workbench .frequent-tools.floating-tools {width: min(410px, -16px + 100vw);}
+.frame-shortcuts {padding: 5px 3px 2px;}
+.frame-shape-row {gap: 4px;}
+.frame-shape-row > strong {max-width: 48px; font-size: 10px;}
+.frame-shapes {gap: 3px;}
+.modern-workbench .frame-shapes button {width: 28px; min-height: 27px; padding: 1px; flex: 0 0 auto;}
+.modern-workbench .frame-image-actions button {font-size: 10px; padding: 4px 6px; flex: 0 0 auto;}
+}
+body.modern-workbench.compact-workbench {grid-template-rows: max-content max-content minmax(0px, 1fr) max-content;}
+.compact-workbench .app-shell {grid-row: 3; min-height: 0px;}
+.compact-workbench .job-tray {grid-row: 4;}
+.compact-workbench .canvas-toolbar {padding: 5px 12px; min-height: 44px; gap: 8px; flex-wrap: nowrap;}
+.compact-workbench .canvas-toolbar > .tools {display: flex; align-items: center; flex: 1 1 0%; flex-wrap: nowrap; min-width: 0px; gap: 6px; overflow: visible;}
+.compact-workbench .workspace-controls {gap: 6px; min-width: 0px;}
+.compact-workbench .workspace-controls select {min-height: 30px !important; padding: 5px 7px !important; font-size: 11px !important; width: 100px !important;}
+.compact-workbench .toolbar-separator {margin: 0px 2px;}
+.compact-workbench #view-more {min-height: 30px; padding: 3px 5px;}
+.modern-workbench #panel-notes-toggle {flex: 0 0 auto; min-height: 30px; width: 130px; padding: 5px 7px; gap: 5px; font-size: 12px; white-space: nowrap;}
+.modern-workbench #panel-notes-toggle[aria-pressed="false"] {border-color: rgb(145, 198, 237); background: rgb(32, 53, 72);}
+@media (max-width: 1250px) {
+.modern-workbench #panel-notes-toggle {width: 32px; min-width: 32px; padding: 5px;}
+.modern-workbench #panel-notes-toggle > span {display: none;}
+}
+.compact-workbench .frequent-tools {padding: 2px; gap: 2px;}
+.compact-workbench .frequent-tools > [data-tool] {min-height: 30px; padding: 5px 8px; font-size: 12px;}
+.compact-workbench .frequent-tools .tool-drag-handle {min-height: 30px; width: 20px; min-width: 20px;}
+.compact-tool-wrap {position: relative; flex: 0 0 auto;}
+.compact-workbench .compact-tool-wrap > button {font-size: 11px; min-height: 30px; padding: 5px 7px; white-space: nowrap;}
+.compact-workbench .compact-tool-menu {position: absolute; left: 0px; top: calc(100% + 7px); width: 300px; min-width: 0px; max-height: calc(100dvh - 140px); padding: 10px; overflow: auto; z-index: 45; box-shadow: rgba(0, 0, 0, 0.533) 0px 7px 25px;}
+.compact-workbench .compact-edit-menu .secondary-tools,  .compact-workbench #compact-edit-menu .secondary-tools {display: grid; grid-template-columns: 1fr 1fr; width: 100%; gap: 6px; overflow: visible; flex-wrap: wrap;}
+.compact-workbench .compact-tool-menu .secondary-tools > * {min-width: 0px;}
+.compact-workbench .compact-tool-menu .secondary-tools button {width: 100%; font-size: 12px; min-height: 32px; padding: 6px; white-space: normal;}
+.compact-workbench .compact-tool-menu [data-rule-summary] {display: block; font-size: 12px; line-height: 1.7; margin-bottom: 10px; white-space: normal; color: rgb(192, 213, 229);}
+.compact-workbench .compact-tool-menu .responsive-rule-actions {display: grid; grid-template-columns: 1fr 1fr; gap: 6px; overflow: visible; width: 100%;}
+.compact-workbench .compact-tool-menu .responsive-rule-actions button {min-height: 33px; font-size: 12px; white-space: normal; background: rgb(33, 57, 77); border-color: rgb(69, 98, 123); color: rgb(216, 235, 250); padding: 5px;}
+.compact-workbench .compact-tool-menu .responsive-rule-actions button.primary {background: rgb(157, 206, 245); color: rgb(16, 45, 67);}
+.compact-episode-status {font-size: 10px; color: rgb(157, 201, 232);}
+.compact-workbench .toolbar-right {gap: 5px; flex: 0 0 auto;}
+.compact-workbench .toolbar-right > button {min-height: 30px; padding: 5px;}
+.compact-workbench .toolbar-right > select {min-height: 30px; width: 84px; font-size: 11px; padding: 5px;}
+@media (min-width: 651px) {
+.compact-workbench .frequent-tools:not(.floating-tools) .frame-shortcuts {display: none;}
+.compact-workbench .frequent-tools:not(.floating-tools) {width: auto !important; flex-wrap: nowrap !important;}
+}
+@media (max-width: 1250px) and (min-width: 651px) {
+.compact-workbench .workspace-controls .toolbar-separator {display: none;}
+.compact-workbench .frequent-tools > [data-tool] {padding: 5px 6px; font-size: 11px;}
+}
+@media (max-width: 1000px) and (min-width: 651px) {
+.compact-workbench .compact-tool-menu {left: auto; right: 0px;}
+}
+@media (max-width: 650px) {
+.compact-workbench .canvas-toolbar {gap: 4px; padding: 4px 8px;}
+.compact-workbench .canvas-toolbar > .tools {display: flex; flex-wrap: wrap; gap: 4px; overflow: visible;}
+.compact-workbench .frequent-tools {width: 100%; flex: 0 0 auto;}
+.compact-workbench .frequent-tools > [data-tool] {flex: 1 1 0%; display: flex; flex-direction: row; font-size: 11px; min-height: 30px; padding: 4px 3px;}
+.compact-workbench .compact-tool-wrap > button {min-height: 26px; font-size: 10px; padding: 4px 7px;}
+.compact-workbench .compact-tool-menu {position: fixed; left: 8px; right: 8px; top: var(--responsive-tools-bottom,145px); width: calc(-16px + 100vw); max-height: calc(100dvh - var(--responsive-tools-bottom,145px) - 8px);}
+.compact-workbench .compact-tool-menu .secondary-tools {overflow: visible; width: 100%; display: grid; grid-template-columns: 1fr 1fr;}
+.compact-workbench .tools .compact-tool-menu .ui-popover {top: calc(var(--responsive-tools-bottom,145px) + 15px);}
+}
+.generation-actionbar {display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 0 0 auto; padding: 7px 12px; border-bottom: 1px solid rgb(54, 83, 106); background: rgb(22, 44, 62); min-width: 0px;}
+.modern-workbench .generation-actionbar > button {min-height: 32px; padding: 6px 12px; font-size: 12px; white-space: nowrap;}
+.generation-actionbar > span {font-size: 11px; color: rgb(179, 204, 223); overflow-wrap: anywhere;}
+.frame-generate-row {display: flex; justify-content: flex-end; margin-top: 6px; padding-top: 5px; border-top: 1px solid rgb(58, 82, 103);}
+.modern-workbench .frame-generate-row > button {display: inline-flex; flex-direction: row; align-items: center; justify-content: center; min-height: 30px; padding: 5px 12px; font-size: 12px; width: auto;}
+@media (max-width: 650px) {
+.generation-actionbar {gap: 5px; padding: 5px 7px;}
+.modern-workbench .generation-actionbar > button {padding: 5px 8px; font-size: 11px; min-height: 30px;}
+.generation-actionbar > span {flex: 1 0 100%; font-size: 10px;}
+}
+.modern-workbench .properties-shortcut {display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; white-space: nowrap; min-height: 30px; padding: 5px 7px; font-size: 11px; border-color: rgb(84, 114, 138); color: rgb(216, 235, 250); background: rgb(32, 53, 72); border-radius: 5px;}
+.modern-workbench .properties-shortcut.active {background: rgb(44, 89, 118); border-color: rgb(145, 198, 237);}
+.modern-workbench .properties-shortcut:disabled {opacity: 0.45;}
+.modern-workbench .properties-short-label {display: none;}
+.modern-workbench .canvas-toolbar > .properties-shortcut {margin-left: 2px;}
+.modern-workbench .frequent-tools > .properties-shortcut {margin-left: auto; flex-direction: row; gap: 0px; padding: 5px 6px; font-size: 11px; min-height: 30px;}
+.modern-workbench .frequent-tools.floating-tools > [data-tool] {font-size: 11px; padding: 4px 5px; min-height: 28px; gap: 4px;}
+.modern-workbench .frequent-tools.floating-tools > [data-tool] .ui-icon {width: 15px; height: 15px;}
+.modern-workbench .frequent-tools.floating-tools > .properties-shortcut .properties-wide-label {display: none;}
+.modern-workbench .frequent-tools.floating-tools > .properties-shortcut .properties-short-label {display: inline;}
+@media (max-width: 1250px) {
+.modern-workbench .properties-wide-label {display: none;}
+.modern-workbench .properties-short-label {display: inline;}
+}
+@media (max-width: 650px) {
+.modern-workbench .workspace-controls > .properties-shortcut {margin-left: auto; min-height: 28px; padding: 4px 6px;}
+.modern-workbench .frequent-tools > .properties-shortcut {min-height: 28px; padding: 4px 5px;}
+}
+.compact-workbench .canvas-toolbar {flex-wrap: wrap;}
+.canvas-toolbar > .generation-actionbar {order: 100; flex: 1 0 100%; width: 100%; border: 1px solid rgb(54, 83, 106); border-radius: 5px; box-sizing: border-box;}
+.frame-shape-row > strong {white-space: normal; overflow-wrap: anywhere; flex: 0 0 auto;}
+.modern-workbench .generation-actionbar > select {min-height: 32px; max-width: 220px; width: auto; padding: 5px 8px; font-size: 12px;}
+.frame-generate-row {gap: 8px; align-items: center; flex-wrap: wrap;}
+.modern-workbench .frame-generate-row > select {flex: 1 1 0%; min-width: 120px; max-width: 235px; padding: 5px; font-size: 11px; min-height: 30px;}
+.prompt-source-dialog {width: min(1100px, 96vw);}
+.prompt-source-editor > p {font-size: 12px;}
+.prompt-source-bulk {display: flex; gap: 8px; flex-wrap: wrap; align-items: center;}
+.prompt-source-bulk select {width: auto; max-width: 100%; font-size: 12px;}
+.prompt-source-rows {max-height: 55vh; overflow: auto; margin-top: 12px;}
+.prompt-source-row {display: grid; grid-template-columns: minmax(120px, 1fr) minmax(180px, 260px); gap: 8px; padding: 10px 2px; border-top: 1px solid rgb(59, 83, 103); align-items: start;}
+.prompt-source-row > label {display: flex; align-items: center; gap: 8px; margin: 4px 0px; font-size: 12px; flex-wrap: wrap;}
+.prompt-source-row input {width: auto; display: inline-block;}
+.prompt-source-row small {color: rgb(158, 182, 201);}
+.prompt-source-row > select {font-size: 12px; min-width: 0px; width: 100%;}
+.prompt-source-row > details {grid-column: 1 / -1; font-size: 12px; min-width: 0px;}
+.prompt-source-row summary {cursor: pointer; color: rgb(169, 212, 239);}
+.prompt-source-row pre {white-space: pre-wrap; overflow-wrap: anywhere; padding: 8px; background: rgb(16, 36, 50); border-radius: 4px; margin: 6px 0px 12px;}
+@media (max-width: 650px) {
+.modern-workbench .generation-actionbar > select {max-width: calc(100% - 112px); font-size: 11px; min-height: 30px;}
+.prompt-source-row {grid-template-columns: minmax(0px, 1fr);}
+.prompt-source-bulk > * {font-size: 11px; min-height: 30px;}
+.prompt-source-row > details {grid-column: 1;}
+.prompt-source-bulk select {width: 100%;}
+}
+.modern-workbench #panel-display-mode {flex: 0 0 auto; width: 150px; min-height: 30px; padding: 4px 6px; font-size: 12px;}
+.panel-info-layer .panel-shot-info.panel-mode-info {box-sizing: border-box; display: flex; flex-direction: column; gap: 5px; padding: 7px 9px; min-width: 0px; max-width: none; max-height: none; overflow: hidden; contain: layout paint; transform: none; background: #f4f9fc; color: rgb(36, 59, 76); border: 1px solid rgb(178, 196, 209); border-radius: 5px; font-size: 13px; line-height: 1.6; box-shadow: rgba(23, 44, 59, 0.125) 0px 1px 4px; pointer-events: auto;}
+#panel-info-layer .panel-mode-heading {flex: 0 0 auto; font-size: 12px; font-weight: 600; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+#panel-info-layer .panel-mode-content {flex: 1 1 auto; min-height: 0px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; font-size: 13px; line-height: 1.65; overscroll-behavior: contain; text-align: left;}
+#panel-info-layer .panel-mode-info[data-panel-display-mode="technical"] {justify-content: center; gap: 1px; padding: 2px 3px; background: transparent; border: 0px; box-shadow: none; text-align: center; font-size: 12px; pointer-events: none;}
+#panel-info-layer .panel-info-dimensions {font-size: 12px; line-height: 1.4; overflow-wrap: anywhere;}
+@media (max-width: 760px) {
+.modern-workbench #panel-display-mode {width: 115px; font-size: 11px;}
+.panel-info-layer .panel-shot-info.panel-mode-info {padding: 5px 6px;}
+}
+.modern-workbench .floating-tools-anchor {box-sizing: border-box; width: var(--docked-tools-width,260px); height: var(--docked-tools-height,36px); min-height: var(--docked-tools-height,36px); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 0 auto;}
+@media (min-width: 651px) and (max-width: 1100px) {
+.compact-workbench .canvas-toolbar > .tools {flex: 1 1 100%; min-width: 0px; max-width: 100%; flex-wrap: wrap;}
+.compact-workbench .workspace-controls {max-width: 100%;}
+}
+@media (max-width: 650px) {
+.compact-workbench .workspace-controls {flex-wrap: wrap; gap: 4px;}
+.compact-workbench #panel-display-mode {width: 100px !important;}
+}
+@media (min-width: 651px) {
+.compact-workbench #panel-tool-menu {left: auto; right: 0px; max-width: calc(-20px + 100vw);}
+}
+.coordinate-segment-grid {display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 20px;}
+.coordinate-segment-grid article {min-width: 0px; display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--border,#405469); border-radius: 8px;}
+.coordinate-segment-grid small {color: var(--muted,#9bb3c7);}
+.coordinate-segment-grid svg {width: 100%; height: auto; background: white; max-height: 580px;}
+.coordinate-segment-grid pre {white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; font: 13px / 1.6 sans-serif;}

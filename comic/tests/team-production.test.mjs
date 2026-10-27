@@ -1,0 +1,55 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {createHubServer} from '../../协作/lib/hub-server.mjs';
+import {createNodeAgent} from '../../协作/lib/node-core.mjs';
+import {createTeamProduction} from '../lib/team-production.mjs';
+import {createComicFixture,seedProject,waitFor,sha256Hex} from './helpers/collab-fixture.mjs';
+
+test('新中心真实 HTTP 派单：指定同事、自动接单、原参考与结果接回、冲突留候选、取消与所有权',{timeout:60000},async t=>{
+ const hub=createHubServer({dataDir:fs.mkdtempSync(path.join(os.tmpdir(),'team-hub-')),config:{host:'127.0.0.1',port:0},logger:{info(){},warn(){},error(){}},startTimers:false});
+ await hub.listen({host:'127.0.0.1',port:0});t.after(()=>hub.close());const origin='http://127.0.0.1:'+hub.server.address().port;
+ const a=await createComicFixture(t),b=await createComicFixture(t),seed=await seedProject(a,{panelCount:3,referenceCount:1});
+ const paired=await a.api('/api/collab/pair','POST',{hubUrl:origin,pairingCode:hub.hub.state.pairingCode,clientName:'测试发起人'});assert.equal(paired.status,200);a.studio.collabClient.stop();
+ const pair=async name=>(await (await fetch(origin+'/api/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairingCode:hub.hub.state.pairingCode,role:'node',name})})).json());
+ const helper=await pair('测试乙'),other=await pair('测试丙');
+ const agent=createNodeAgent({config:{hubUrl:origin,token:helper.token,dataDir:path.join(b.directory,'node-data'),nodeName:'测试乙',localComic:{origin:b.origin,provider:'codex'},heartbeatMs:50,pollMs:15,maxConcurrency:1,autoHeartbeat:true},logger:()=>{}});t.after(()=>agent.stop());
+ const input={projectId:seed.project.id,expectedRevision:seed.project.revision,panelIds:[seed.panels[0].id],preferredNodeId:helper.nodeId};
+ assert.equal((await a.api('/api/production-center/dispatch','POST',{...input,expectedRevision:999})).status,409);
+ const [r1,r2]=await Promise.all([a.api('/api/production-center/dispatch','POST',input),a.api('/api/production-center/dispatch','POST',input)]);
+ assert.equal(r1.status,202,JSON.stringify(r1.value));assert.deepEqual(r1.value.errors,[]);assert.equal(r2.value.tasks[0].taskId,r1.value.tasks[0].taskId);
+ assert.equal((await a.api('/api/jobs','POST',{projectId:seed.project.id,panelIds:input.panelIds})).status,409);
+ const taskId=r1.value.tasks[0].taskId;
+ const beat=await fetch(origin+'/api/node/heartbeat',{method:'POST',headers:{'Content-Type':'application/json','x-collab-token':other.token},body:JSON.stringify({freeSlots:1,running:[]})});assert.deepEqual((await beat.json()).assignments,[]);
+ await agent.start();
+ await waitFor(()=>hub.queue.getTaskOrThrow(taskId).status==='done','指定同事未完成请求',{timeout:20000});
+ const task=hub.queue.getTaskOrThrow(taskId);assert.equal(task.assignedNodeId,helper.nodeId);assert.equal(b.calls.length,1);assert.equal(a.calls.length,0);
+ assert.equal(sha256Hex(fs.readFileSync(b.calls[0].refs[0])),sha256Hex(fs.readFileSync(seed.assets[0].filePath)));assert.equal(b.calls[0].input.prompt,task.generationInput.prompt);
+ await a.studio.collabClient.pollOnce();assert.equal(hub.queue.getTaskOrThrow(taskId).apply.status,'applied');assert.ok(seed.panels[0].imageAssetId);
+ const safe=await a.api('/api/collab/tasks/'+taskId+'/apply-choice','POST',{choice:'safe'});assert.equal(safe.value.status,'applied');
+ const autoInput={projectId:seed.project.id,expectedRevision:seed.project.revision,panelIds:[seed.panels[1].id]};
+ const release=b.holdNext();const automatic=await a.api('/api/production-center/dispatch','POST',autoInput);assert.equal(automatic.status,202,JSON.stringify(automatic.value));const task2=automatic.value.tasks[0].taskId;
+ await b.waitForCalls(2);seed.panels[1].name='用户修改过画格';seed.project.revision++;release();
+ await waitFor(()=>hub.queue.getTaskOrThrow(task2).status==='done','自动接单未完成',{timeout:20000});
+ await a.studio.collabClient.pollOnce();assert.equal(hub.queue.getTaskOrThrow(task2).apply.status,'conflict');assert.equal(seed.panels[1].imageAssetId,null);
+ const candidate=await a.api('/api/collab/tasks/'+task2+'/apply-choice','POST',{choice:'safe'});assert.equal(candidate.value.status,'conflict');assert.equal(seed.panels[1].imageAssetId,null);
+ await agent.stop();
+ const third=await a.api('/api/production-center/dispatch','POST',{projectId:seed.project.id,expectedRevision:seed.project.revision,panelIds:[seed.panels[2].id],preferredNodeId:other.nodeId});assert.equal(third.status,202);const id3=third.value.tasks[0].taskId;
+ const outsider=await b.api('/api/collab/pair','POST',{hubUrl:origin,pairingCode:hub.hub.state.pairingCode,clientName:'其他发起人'});assert.equal(outsider.status,200);b.studio.collabClient.stop();
+ assert.equal((await b.api('/api/collab/tasks/'+id3+'/cancel','POST',{})).status,403);
+ assert.equal((await b.api('/api/collab/tasks/'+task2+'/apply-choice','POST',{choice:'safe'})).status,403);
+ assert.equal((await a.api('/api/collab/tasks/'+id3+'/cancel','POST',{})).status,200);
+ const snapshot=await a.api('/api/production-center/status');assert.equal(snapshot.status,200);assert.equal(snapshot.value.connection.reachable,true);assert.ok(snapshot.value.tasks.find(i=>i.id===id3&&i.status==='cancelled'));assert.doesNotMatch(JSON.stringify(snapshot.value),new RegExp(helper.token));
+ const settings=await fetch(origin+'/api/node/settings',{method:'POST',headers:{'Content-Type':'application/json','x-collab-token':helper.token},body:JSON.stringify({paused:true,maxConcurrency:3})});assert.equal(settings.status,200);assert.equal(hub.hub.allNodes().find(n=>n.id===helper.nodeId).settings.paused,true);assert.notEqual(hub.hub.allNodes().find(n=>n.id===other.nodeId).settings.maxConcurrency,3);
+});
+
+test('提交结果不明时保留画格占用；后台记录重启可核对，断线不谎报正常',async t=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'team-journal-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+ let calls=0,offline=false,tasks=[];const store={db:{projects:[{id:'p',title:'测试',revision:1,pages:[{id:'b',panels:[{id:'f'}]}]}],jobs:[]},project:()=>store.db.projects[0]},client={config:{clientId:'c'},prepare:()=>({panels:[{panelId:'f',target:{expected:{revision:1}}}]}),distribute:async()=>{calls++;throw Error('提交回执丢失');},status:async()=>({configured:true,hubReachable:true}),overview:async()=>{if(offline)throw Error('断线');return{tasks,nodes:[]};}};
+ const options={root:path.join(dir,'comic'),dataDir:path.join(dir,'data'),store,collabClient:client,fetcher:async()=>({ok:true,json:async()=>({members:[],items:[]})})};
+ const p=createTeamProduction(options);await assert.rejects(p.dispatch({projectId:'p',expectedRevision:1,panelIds:['f']}),/回执/);assert.equal(calls,1);assert.throws(()=>p.assertAvailable('p',['f']),/帮忙/);p.close();
+ const next=createTeamProduction(options);t.after(()=>next.close());assert.throws(()=>next.assertAvailable('p',['f']),/帮忙/);offline=true;assert.equal((await next.snapshot(true)).connection.reachable,false);
+ offline=false;const request=JSON.parse(fs.readFileSync(path.join(dir,'data/team-production/requests.local.json'))).items[0];tasks=[{id:'t',submittedBy:'c',idempotencyKey:request.idempotencyKey,status:'cancelled'}];await next.snapshot(true);assert.doesNotThrow(()=>next.assertAvailable('p',['f']));
+});

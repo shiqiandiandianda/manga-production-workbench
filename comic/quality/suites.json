@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "coreFunctions": [
+    "comic/tests/model.test.mjs",
+    "comic/tests/layers.test.mjs",
+    "comic/tests/panel-references.test.mjs",
+    "comic/tests/asset-bindings.test.mjs",
+    "comic/tests/asset-availability.test.mjs",
+    "comic/tests/manual-outfit-confirmation.test.mjs",
+    "comic/tests/bubble-editor.test.mjs",
+    "comic/tests/panel-effects.test.mjs",
+    "comic/tests/image-layer-clipboard.test.mjs",
+    "comic/tests/project-episode-classification.test.mjs",
+    "comic/tests/project-assets-reuse.test.mjs",
+    "comic/tests/project-management.test.mjs",
+    "comic/tests/queue.test.mjs",
+    "comic/tests/jobs-cancel-all.test.mjs",
+    "comic/tests/project-sync.test.mjs",
+    "comic/tests/moku-classified-reader.test.mjs",
+    "comic/tests/moku-character-groups.test.mjs",
+    "comic/tests/moku-project-library.test.mjs",
+    "comic/tests/state-sync.test.mjs",
+    "comic/tests/save-byte-budget.test.mjs",
+    "comic/tests/project-snapshot-size.test.mjs",
+    "comic/tests/platform-concurrency.test.mjs",
+    "comic/tests/layer-merge.test.mjs",
+    "comic/tests/integrated-workspace.test.mjs",
+    "comic/tests/unified-typography.test.mjs",
+    "comic/tests/layout-history.test.mjs",
+    "comic/tests/project-purge.test.mjs",
+    "comic/tests/path-assets.test.mjs",
+    "comic/quality/cases/episode-versions.test.mjs",
+    "comic/quality/cases/tag-append.test.mjs",
+    "comic/quality/cases/tag-character.test.mjs",
+    "comic/quality/cases/episode-catalog.test.mjs",
+    "comic/tests/test_codex_worker_reference_mode.py",
+    "comic/tests/test_reference_pack.py",
+    "comic/tests/upscale-child-layer.test.mjs"
+  ],
+  "coreFlows": [
+    "comic/tests/server.test.mjs",
+    "comic/tests/production-workflow-api.test.mjs",
+    "comic/tests/production-package.test.mjs",
+    "comic/tests/moku-live-classified.test.mjs",
+    "comic/tests/moku-live-bubble-styles.test.mjs",
+    "comic/tests/team-projects.test.mjs",
+    "comic/tests/asset-text-references.test.mjs",
+    "comic/tests/asset-moku-session.test.mjs",
+    "comic/tests/complete-strip-export.test.mjs",
+    "comic/tests/repair-auto-return.test.mjs",
+    "comic/quality/cases/core-user-flow.test.mjs",
+    "auto-layout/learning-workbench/test_reference_scope.py",
+    "comic/tests/test_storyboard_worker.py",
+    "comic/tests/test_codex_worker.py"
+  ],
+  "flowPatterns": [
+    "(?:^|/)(?:browser-|.*(?:integration|workflow|roundtrip|return|live-classified|live-bubble|team-projects|project-sync|production-package|server|core-user-flow)).*\\.test\\.mjs$",
+    "test_(codex_worker|storyboard_worker|image_pipeline|reference_scope).*\\.py$"
+  ],
+  "limits": [
+    "不连接生产服务，不复用现有账号或凭据，不进行真实付费生图",
+    "全量表示运行所有已发现自动化文件，不等于261项用户功能均已覆盖",
+    "缺少模型、服务、脚本失效及跳过都必须显示，任何一项不会自动算作通过",
+    "真实生图质量、真实团队跨机发布、墨库正式V版本统一需独立验收"
+  ],
+  "compatibilityMigrations": [
+    {
+      "old": "standalone repair studio-link-service tests",
+      "replacement": "same-origin embedded repair session, duplicate receipt, stale version, deleted target and path guards",
+      "original": "outputs/v41-core-repair-20261027/original-tests/repair-auto-return.test.mjs"
+    },
+    {
+      "old": "removed standalone storyboard_worker fake transport tests",
+      "replacement": "current storyboard_xlsx import validation plus current codex_worker transport tests",
+      "original": "outputs/v41-core-repair-20261027/original-tests/test_storyboard_worker.py"
+    }
+  ],
+  "externalFixtureTests": [
+    {
+      "file": "comic/tests/production-original-fixture.test.mjs",
+      "requirement": "Original production fixture D:/漫画/万虫11-21话/我方制作分镜表_011-021_V1",
+      "status": "Not included in synthetic core gate; remains discovered by all-functions. Missing fixture is not a pass."
+    }
+  ]
+}

@@ -1,0 +1,2257 @@
+{
+  "schemaVersion": "1",
+  "ok": true,
+  "data": {
+    "schemaVersion": "1",
+    "edition": "public",
+    "distribution": "cn",
+    "globalFlags": [
+      {
+        "name": "format",
+        "type": "string",
+        "required": false,
+        "default": "auto",
+        "description": "输出格式：json 或 table",
+        "constraints": "json|table"
+      },
+      {
+        "name": "non-interactive",
+        "type": "boolean",
+        "required": false,
+        "default": "false",
+        "description": "禁用交互提示"
+      },
+      {
+        "name": "yes",
+        "type": "boolean",
+        "required": false,
+        "default": "false",
+        "description": "确认策略允许由参数确认的操作"
+      },
+      {
+        "name": "profile",
+        "type": "string",
+        "required": false,
+        "default": "default",
+        "description": "本地登录态隔离名称"
+      },
+      {
+        "name": "region",
+        "type": "string",
+        "required": false,
+        "default": "cn",
+        "description": "产品区域：cn；缺省 cn",
+        "constraints": "cn"
+      }
+    ],
+    "subcommands": [
+      {
+        "name": "model",
+        "arguments": [
+          {
+            "name": "name",
+            "required": false,
+            "repeatable": true,
+            "constraints": "model id/name; required for full spec lookup"
+          }
+        ],
+        "flags": [
+          {
+            "name": "type",
+            "type": "string",
+            "required": false,
+            "description": "资源类型：image、video 或 audio；省略时搜索全部生成类型",
+            "constraints": "image|video|audio"
+          }
+        ],
+        "subcommands": [
+          {
+            "name": "list",
+            "flags": [
+              {
+                "name": "type",
+                "type": "string",
+                "required": true,
+                "description": "资源类型：image、video 或 audio",
+                "constraints": "image|video|audio"
+              }
+            ]
+          },
+          {
+            "name": "find",
+            "arguments": [
+              {
+                "name": "name",
+                "required": true,
+                "repeatable": true,
+                "constraints": "model id/name or alias keyword; resolved to canonical model"
+              }
+            ],
+            "flags": [
+              {
+                "name": "type",
+                "type": "string",
+                "required": false,
+                "description": "资源类型：image、video 或 audio；省略时搜索全部生成类型",
+                "constraints": "image|video|audio"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "voice",
+        "flags": [],
+        "subcommands": [
+          {
+            "name": "list",
+            "flags": [
+              {
+                "name": "offset",
+                "type": "integer",
+                "required": false,
+                "default": "0",
+                "description": "分页起点",
+                "constraints": ">=0; use the previous page's nextOffset"
+              },
+              {
+                "name": "count",
+                "type": "integer",
+                "required": false,
+                "default": "50",
+                "description": "单页条数，范围 1 到 100",
+                "constraints": "1..100"
+              },
+              {
+                "name": "model",
+                "type": "string",
+                "required": false,
+                "description": "可选 canonical model；省略按模型返回当地已接入的全部 TTS 音色，翻页保持同一模型",
+                "constraints": "optional canonical model; omit for all supported regional catalogs grouped by model; explicit selection returns one map entry; same model and region across pages; unsupported routes fail"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "node",
+        "flags": [],
+        "subcommands": [
+          {
+            "name": "create",
+            "flags": [],
+            "subcommands": [
+              {
+                "name": "image",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时使用当前项目",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定 node_id；省略时生成",
+                    "constraints": "canonical Node ID; generated when omitted"
+                  },
+                  {
+                    "name": "update-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定更新 UUID；省略时生成",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只做本地校验并输出计划；不连接服务端、不写草稿、不报价或扣分",
+                    "constraints": "local validation only; no runtime, network, draft write, credit estimate, approval, journal, dispatch, or credit side effects"
+                  },
+                  {
+                    "name": "resource-source",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "跨项目资源来源：<资源 UUID>@<来源项目 UUID>；可重复，仅声明本次保存使用的资源",
+                    "constraints": "repeatable ResourceUUID@SourceProjectUUID; resource must be assigned by this save; conflicting sources rejected"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "节点标题；按 flag 出现更新",
+                    "constraints": "at most 512 UTF-16 code units"
+                  },
+                  {
+                    "name": "tag",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "颜色标签 ID，可重复传入；取值 default-tag-1..default-tag-5，除非用户明确指定标签否则不要默认传",
+                    "constraints": "default-tag-1|default-tag-2|default-tag-3|default-tag-4|default-tag-5; max 5; omit unless the user explicitly asks for color labels"
+                  },
+                  {
+                    "name": "clear-tags",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "把节点标签完整集合清空"
+                  },
+                  {
+                    "name": "mode",
+                    "type": "string",
+                    "required": false,
+                    "description": "图片生成模式：t2i（text-to-image，文生图）或 i2i（image-to-image，图生图）；提供生成参数时必须显式指定，纯元信息更新或清空生成配置无需传入",
+                    "constraints": "t2i|i2i (t2i=text-to-image, i2i=image-to-image); explicitly required when any generation parameter is supplied; metadata-only saves and clear-generation do not require mode"
+                  },
+                  {
+                    "name": "prompt",
+                    "type": "string",
+                    "required": false,
+                    "description": "完整图片生成提示词；引用写成 {{node:node_xxx}}、{{res:resourceId}}、{{uri:value}} 或 {{vid:value}}，写字面 {{ 用 \\{{ 转义；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "may be empty at save time if the model spec permits; Core validates effective text before run; create --run needs explicit title when prompt is empty"
+                  },
+                  {
+                    "name": "model",
+                    "type": "string",
+                    "required": false,
+                    "description": "服务端登记的图片模型标识"
+                  },
+                  {
+                    "name": "ratio",
+                    "type": "string",
+                    "required": false,
+                    "description": "图片宽高比，例如 1:1"
+                  },
+                  {
+                    "name": "resolution",
+                    "type": "string",
+                    "required": false,
+                    "description": "图片分辨率，例如 1K"
+                  },
+                  {
+                    "name": "count",
+                    "type": "integer",
+                    "required": false,
+                    "default": "1",
+                    "description": "生成数量；上限以 model list 返回的 --count max 为准",
+                    "constraints": ">0 and int32; dynamic maximum is the --count max from model list"
+                  },
+                  {
+                    "name": "ref",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "完整类型化引用集合：node:value、res:value、uri:value 或 vid:value，可重复传入；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "ordered type:value references; type is node|res|uri|vid; node value requires node_ prefix; res value requires canonical lowercase UUID"
+                  },
+                  {
+                    "name": "resource-id",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "本节点已有产物的资源 UUID，可重复传入；需同时提供 --import-kind local_upload 或 external_generated。多个视为同一批次内的候选，顺序即候选顺序，首个为主选。资源须已登记、状态成功且类型为图片",
+                    "constraints": "Resource IDs; create only; requires import-kind=local_upload|external_generated; first is primary"
+                  },
+                  {
+                    "name": "import-kind",
+                    "type": "string",
+                    "required": false,
+                    "description": "节点导入类别：local_upload（挂本地上传登记的资源）或 external_generated（外部平台生成产物导入）；与 resource upload 的登记意图同一套词汇",
+                    "constraints": "local_upload | external_generated; may stand alone; required by resource-id; custom position requires external_generated"
+                  },
+                  {
+                    "name": "x",
+                    "type": "number",
+                    "required": false,
+                    "description": "external_generated 导入节点在根画布中的 X 坐标；必须与 --y 成组提供",
+                    "constraints": "requires import-kind=external_generated and y"
+                  },
+                  {
+                    "name": "y",
+                    "type": "number",
+                    "required": false,
+                    "description": "external_generated 导入节点在根画布中的 Y 坐标；必须与 --x 成组提供",
+                    "constraints": "requires import-kind=external_generated and x"
+                  },
+                  {
+                    "name": "run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "保存后依次报价、批准并运行该节点",
+                    "constraints": "when false, only save the draft; when true, save → estimate → approve → run"
+                  },
+                  {
+                    "name": "submit-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定提交 UUID；--run 或 --resource-id 时省略则生成，停顿后续跑或重试导入须复用它",
+                    "constraints": "UUID; with run, or with resource-id as the imported resource batch identity; generated when omitted; non-empty when supplied"
+                  },
+                  {
+                    "name": "credit-token",
+                    "type": "string",
+                    "required": false,
+                    "description": "已批准的 creditConfirmationToken；--run 时使用",
+                    "constraints": "only with run; creditConfirmationToken issued by node confirm; mutually exclusive with credit-ceiling"
+                  },
+                  {
+                    "name": "credit-ceiling",
+                    "type": "integer",
+                    "required": false,
+                    "description": "批准的积分消费上限；--run 时报价超过它会在运行前停止",
+                    "constraints": ">=0; only with run; mutually exclusive with credit-token; stops before run when the estimate exceeds it"
+                  },
+                  {
+                    "name": "wait",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "--run 后等待该节点生成进入终态",
+                    "constraints": "only with run; wait for the submitted node to become terminal"
+                  },
+                  {
+                    "name": "timeout",
+                    "type": "duration",
+                    "required": false,
+                    "default": "10m",
+                    "description": "--wait 的最长等待时间；默认 10m，0 表示只查询一次",
+                    "constraints": "only with wait; 0 means query once"
+                  },
+                  {
+                    "name": "interval",
+                    "type": "duration",
+                    "required": false,
+                    "default": "5s",
+                    "description": "--wait 的轮询间隔；默认 5s",
+                    "constraints": "only with wait; >0"
+                  }
+                ]
+              },
+              {
+                "name": "video",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时使用当前项目",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定 node_id；省略时生成",
+                    "constraints": "canonical Node ID; generated when omitted"
+                  },
+                  {
+                    "name": "update-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定更新 UUID；省略时生成",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只做本地校验并输出计划；不连接服务端、不写草稿、不报价或扣分",
+                    "constraints": "local validation only; no runtime, network, draft write, credit estimate, approval, journal, dispatch, or credit side effects"
+                  },
+                  {
+                    "name": "resource-source",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "跨项目资源来源：<资源 UUID>@<来源项目 UUID>；可重复，仅声明本次保存使用的资源",
+                    "constraints": "repeatable ResourceUUID@SourceProjectUUID; resource must be assigned by this save; conflicting sources rejected"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "节点标题；按 flag 出现更新",
+                    "constraints": "at most 512 UTF-16 code units"
+                  },
+                  {
+                    "name": "tag",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "颜色标签 ID，可重复传入；取值 default-tag-1..default-tag-5，除非用户明确指定标签否则不要默认传",
+                    "constraints": "default-tag-1|default-tag-2|default-tag-3|default-tag-4|default-tag-5; max 5; omit unless the user explicitly asks for color labels"
+                  },
+                  {
+                    "name": "clear-tags",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "把节点标签完整集合清空"
+                  },
+                  {
+                    "name": "mode",
+                    "type": "string",
+                    "required": false,
+                    "description": "视频生成模式：t2v（text-to-video，文生视频）、first_last_frame（首尾帧）或 m2v（multimodal-to-video，多模态生视频）；提供生成参数时必须显式指定，纯元信息更新或清空生成配置无需传入",
+                    "constraints": "t2v|first_last_frame|m2v (t2v=text-to-video, first_last_frame=first and last frames, m2v=multimodal-to-video); first_last_frame accepts one first-frame image or two ordered first- and last-frame images; explicitly required when any generation parameter is supplied; metadata-only saves and clear-generation do not require mode"
+                  },
+                  {
+                    "name": "prompt",
+                    "type": "string",
+                    "required": false,
+                    "description": "完整视频生成提示词；引用写成 {{node:node_xxx}}、{{res:resourceId}}、{{uri:value}} 或 {{vid:value}}，写字面 {{ 用 \\{{ 转义；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "may be empty at save time if the model spec permits; Core validates effective text before run; create --run needs explicit title when prompt is empty"
+                  },
+                  {
+                    "name": "model",
+                    "type": "string",
+                    "required": false,
+                    "description": "服务端登记的视频模型标识"
+                  },
+                  {
+                    "name": "ratio",
+                    "type": "string",
+                    "required": false,
+                    "description": "视频宽高比，例如 16:9"
+                  },
+                  {
+                    "name": "resolution",
+                    "type": "string",
+                    "required": false,
+                    "description": "视频分辨率，例如 720P"
+                  },
+                  {
+                    "name": "duration",
+                    "type": "number",
+                    "required": false,
+                    "default": "5",
+                    "description": "视频时长（秒）",
+                    "constraints": ">0"
+                  },
+                  {
+                    "name": "count",
+                    "type": "integer",
+                    "required": false,
+                    "default": "1",
+                    "description": "生成数量；上限以 model list 返回的 --count max 为准",
+                    "constraints": ">0 and int32; dynamic maximum is the --count max from model list"
+                  },
+                  {
+                    "name": "ref",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "完整类型化引用集合（node/res/uri/vid）；first_last_frame 传一个首帧引用，或按顺序传首帧、尾帧两个引用；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "ordered type:value references; type is node|res|uri|vid; node value requires node_ prefix; res value requires canonical lowercase UUID"
+                  },
+                  {
+                    "name": "resource-id",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "本节点已有产物的资源 UUID，可重复传入；需同时提供 --import-kind local_upload 或 external_generated。多个视为同一批次内的候选，顺序即候选顺序，首个为主选。资源须已登记、状态成功且类型为视频",
+                    "constraints": "Resource IDs; create only; requires import-kind=local_upload|external_generated; first is primary"
+                  },
+                  {
+                    "name": "import-kind",
+                    "type": "string",
+                    "required": false,
+                    "description": "节点导入类别：local_upload（挂本地上传登记的资源）或 external_generated（外部平台生成产物导入）；与 resource upload 的登记意图同一套词汇",
+                    "constraints": "local_upload | external_generated; may stand alone; required by resource-id; custom position requires external_generated"
+                  },
+                  {
+                    "name": "x",
+                    "type": "number",
+                    "required": false,
+                    "description": "external_generated 导入节点在根画布中的 X 坐标；必须与 --y 成组提供",
+                    "constraints": "requires import-kind=external_generated and y"
+                  },
+                  {
+                    "name": "y",
+                    "type": "number",
+                    "required": false,
+                    "description": "external_generated 导入节点在根画布中的 Y 坐标；必须与 --x 成组提供",
+                    "constraints": "requires import-kind=external_generated and x"
+                  },
+                  {
+                    "name": "run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "保存后依次报价、批准并运行该节点",
+                    "constraints": "when false, only save the draft; when true, save → estimate → approve → run"
+                  },
+                  {
+                    "name": "submit-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定提交 UUID；--run 或 --resource-id 时省略则生成，停顿后续跑或重试导入须复用它",
+                    "constraints": "UUID; with run, or with resource-id as the imported resource batch identity; generated when omitted; non-empty when supplied"
+                  },
+                  {
+                    "name": "credit-token",
+                    "type": "string",
+                    "required": false,
+                    "description": "已批准的 creditConfirmationToken；--run 时使用",
+                    "constraints": "only with run; creditConfirmationToken issued by node confirm; mutually exclusive with credit-ceiling"
+                  },
+                  {
+                    "name": "credit-ceiling",
+                    "type": "integer",
+                    "required": false,
+                    "description": "批准的积分消费上限；--run 时报价超过它会在运行前停止",
+                    "constraints": ">=0; only with run; mutually exclusive with credit-token; stops before run when the estimate exceeds it"
+                  },
+                  {
+                    "name": "wait",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "--run 后等待该节点生成进入终态",
+                    "constraints": "only with run; wait for the submitted node to become terminal"
+                  },
+                  {
+                    "name": "timeout",
+                    "type": "duration",
+                    "required": false,
+                    "default": "10m",
+                    "description": "--wait 的最长等待时间；默认 10m，0 表示只查询一次",
+                    "constraints": "only with wait; 0 means query once"
+                  },
+                  {
+                    "name": "interval",
+                    "type": "duration",
+                    "required": false,
+                    "default": "5s",
+                    "description": "--wait 的轮询间隔；默认 5s",
+                    "constraints": "only with wait; >0"
+                  }
+                ]
+              },
+              {
+                "name": "audio",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时使用当前项目",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定 node_id；省略时生成",
+                    "constraints": "canonical Node ID; generated when omitted"
+                  },
+                  {
+                    "name": "update-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定更新 UUID；省略时生成",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只做本地校验并输出计划；不连接服务端、不写草稿、不报价或扣分",
+                    "constraints": "local validation only; no runtime, network, draft write, credit estimate, approval, journal, dispatch, or credit side effects"
+                  },
+                  {
+                    "name": "resource-source",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "跨项目资源来源：<资源 UUID>@<来源项目 UUID>；可重复，仅声明本次保存使用的资源",
+                    "constraints": "repeatable ResourceUUID@SourceProjectUUID; resource must be assigned by this save; conflicting sources rejected"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "节点标题；按 flag 出现更新",
+                    "constraints": "at most 512 UTF-16 code units"
+                  },
+                  {
+                    "name": "tag",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "颜色标签 ID，可重复传入；取值 default-tag-1..default-tag-5，除非用户明确指定标签否则不要默认传",
+                    "constraints": "default-tag-1|default-tag-2|default-tag-3|default-tag-4|default-tag-5; max 5; omit unless the user explicitly asks for color labels"
+                  },
+                  {
+                    "name": "clear-tags",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "把节点标签完整集合清空"
+                  },
+                  {
+                    "name": "mode",
+                    "type": "string",
+                    "required": false,
+                    "default": "tts",
+                    "description": "音频生成模式：tts（text-to-speech，文本转语音）或 music（音乐生成）",
+                    "constraints": "tts|music (tts=text-to-speech, music=music generation)"
+                  },
+                  {
+                    "name": "prompt",
+                    "type": "string",
+                    "required": false,
+                    "description": "TTS 文本或音乐描述"
+                  },
+                  {
+                    "name": "model",
+                    "type": "string",
+                    "required": false,
+                    "description": "music 模式必填；从当前环境 model list --type audio 返回的 mode=music 结果选择",
+                    "constraints": "required for music; select a mode=music result from current-environment `model list --type audio`; forbidden for tts; availability validated by Core"
+                  },
+                  {
+                    "name": "duration",
+                    "type": "number",
+                    "required": false,
+                    "default": "30",
+                    "description": "music 模式时长（秒）",
+                    "constraints": ">0 for music"
+                  },
+                  {
+                    "name": "voice-name",
+                    "type": "string",
+                    "required": false,
+                    "description": "tts 音色名称；从 voice list 选择，由服务端解析成权威身份",
+                    "constraints": "required for tts; choose from `voice list`; resolved server-side"
+                  },
+                  {
+                    "name": "resource-id",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "本节点已有产物的资源 UUID，可重复传入；需同时提供 --import-kind local_upload 或 external_generated。多个视为同一批次内的候选，顺序即候选顺序，首个为主选。资源须已登记、状态成功且类型为音频",
+                    "constraints": "Resource IDs; create only; requires import-kind=local_upload|external_generated; first is primary"
+                  },
+                  {
+                    "name": "import-kind",
+                    "type": "string",
+                    "required": false,
+                    "description": "节点导入类别：local_upload（挂本地上传登记的资源）或 external_generated（外部平台生成产物导入）；与 resource upload 的登记意图同一套词汇",
+                    "constraints": "local_upload | external_generated; may stand alone; required by resource-id; custom position requires external_generated"
+                  },
+                  {
+                    "name": "x",
+                    "type": "number",
+                    "required": false,
+                    "description": "external_generated 导入节点在根画布中的 X 坐标；必须与 --y 成组提供",
+                    "constraints": "requires import-kind=external_generated and y"
+                  },
+                  {
+                    "name": "y",
+                    "type": "number",
+                    "required": false,
+                    "description": "external_generated 导入节点在根画布中的 Y 坐标；必须与 --x 成组提供",
+                    "constraints": "requires import-kind=external_generated and x"
+                  },
+                  {
+                    "name": "run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "保存后依次报价、批准并运行该节点",
+                    "constraints": "when false, only save the draft; when true, save → estimate → approve → run"
+                  },
+                  {
+                    "name": "submit-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定提交 UUID；--run 或 --resource-id 时省略则生成，停顿后续跑或重试导入须复用它",
+                    "constraints": "UUID; with run, or with resource-id as the imported resource batch identity; generated when omitted; non-empty when supplied"
+                  },
+                  {
+                    "name": "credit-token",
+                    "type": "string",
+                    "required": false,
+                    "description": "已批准的 creditConfirmationToken；--run 时使用",
+                    "constraints": "only with run; creditConfirmationToken issued by node confirm; mutually exclusive with credit-ceiling"
+                  },
+                  {
+                    "name": "credit-ceiling",
+                    "type": "integer",
+                    "required": false,
+                    "description": "批准的积分消费上限；--run 时报价超过它会在运行前停止",
+                    "constraints": ">=0; only with run; mutually exclusive with credit-token; stops before run when the estimate exceeds it"
+                  },
+                  {
+                    "name": "wait",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "--run 后等待该节点生成进入终态",
+                    "constraints": "only with run; wait for the submitted node to become terminal"
+                  },
+                  {
+                    "name": "timeout",
+                    "type": "duration",
+                    "required": false,
+                    "default": "10m",
+                    "description": "--wait 的最长等待时间；默认 10m，0 表示只查询一次",
+                    "constraints": "only with wait; 0 means query once"
+                  },
+                  {
+                    "name": "interval",
+                    "type": "duration",
+                    "required": false,
+                    "default": "5s",
+                    "description": "--wait 的轮询间隔；默认 5s",
+                    "constraints": "only with wait; >0"
+                  }
+                ]
+              },
+              {
+                "name": "element",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时使用当前项目",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定 node_id；省略时生成",
+                    "constraints": "canonical Node ID; generated when omitted"
+                  },
+                  {
+                    "name": "update-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定更新 UUID；省略时生成",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只做本地校验并输出计划；不连接服务端、不写草稿、不报价或扣分",
+                    "constraints": "local validation only; no runtime, network, draft write, credit estimate, approval, journal, dispatch, or credit side effects"
+                  },
+                  {
+                    "name": "resource-source",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "跨项目资源来源：<资源 UUID>@<来源项目 UUID>；可重复，仅声明本次保存使用的资源",
+                    "constraints": "repeatable ResourceUUID@SourceProjectUUID; resource must be assigned by this save; conflicting sources rejected"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "Element 标题；未给出则保持",
+                    "constraints": "at most 512 UTF-16 code units"
+                  },
+                  {
+                    "name": "description",
+                    "type": "string",
+                    "required": false,
+                    "description": "Element 描述"
+                  },
+                  {
+                    "name": "tag",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "颜色标签 ID：default-tag-1..default-tag-5；仅用户明确指定时传入",
+                    "constraints": "default-tag-1|default-tag-2|default-tag-3|default-tag-4|default-tag-5; max 5; omit unless the user explicitly asks for color labels"
+                  },
+                  {
+                    "name": "clear-tags",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "清空全部颜色标签",
+                    "constraints": "clear all tags; mutually exclusive with tag"
+                  },
+                  {
+                    "name": "main",
+                    "type": "string",
+                    "required": true,
+                    "description": "主素材：已产出可用素材的画布节点 ID（node_ 前缀，跟随）或可用资源 UUID（冻结）；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "required on create; canvas Node ID (node_ prefix; must resolve to a usable generated resource and follows that node) or Resource ID (frozen; must be usable and type-matched)"
+                  },
+                  {
+                    "name": "voice",
+                    "type": "string",
+                    "required": false,
+                    "description": "音色素材：已产出可用 audio 的节点 ID 或可用 audio 资源 UUID；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "canvas Node ID (must resolve to a usable generated audio resource) or Resource ID (must be usable audio)"
+                  },
+                  {
+                    "name": "auxiliary",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "辅助素材，可重复传入：已产出可用 image 的节点 ID 或可用 image 资源 UUID；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "replace entire list; omitted preserves existing bindings on edit; usable image Node IDs or Resource IDs; node sources precede resource sources"
+                  },
+                  {
+                    "name": "import-kind",
+                    "type": "string",
+                    "required": false,
+                    "description": "节点导入类别：local_upload（挂本地上传登记的资源）或 external_generated（外部平台生成产物导入）；与 resource upload 的登记意图同一套词汇",
+                    "constraints": "local_upload | external_generated; may stand alone; required by resource-id; custom position requires external_generated"
+                  },
+                  {
+                    "name": "x",
+                    "type": "number",
+                    "required": false,
+                    "description": "external_generated 导入节点在根画布中的 X 坐标；必须与 --y 成组提供",
+                    "constraints": "requires import-kind=external_generated and y"
+                  },
+                  {
+                    "name": "y",
+                    "type": "number",
+                    "required": false,
+                    "description": "external_generated 导入节点在根画布中的 Y 坐标；必须与 --x 成组提供",
+                    "constraints": "requires import-kind=external_generated and x"
+                  }
+                ]
+              },
+              {
+                "name": "text",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时使用当前项目",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定 node_id；省略时生成",
+                    "constraints": "canonical Node ID; generated when omitted"
+                  },
+                  {
+                    "name": "update-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定更新 UUID；省略时生成",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只做本地校验并输出计划；不连接服务端、不写草稿、不报价或扣分",
+                    "constraints": "local validation only; no runtime, network, draft write, credit estimate, approval, journal, dispatch, or credit side effects"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "文本节点标题；必填",
+                    "constraints": "at most 512 UTF-16 code units"
+                  },
+                  {
+                    "name": "text",
+                    "type": "string",
+                    "required": false,
+                    "description": "Markdown 正文；必填"
+                  },
+                  {
+                    "name": "import-kind",
+                    "type": "string",
+                    "required": false,
+                    "description": "节点导入类别：local_upload（挂本地上传登记的资源）或 external_generated（外部平台生成产物导入）；与 resource upload 的登记意图同一套词汇",
+                    "constraints": "local_upload | external_generated; may stand alone; required by resource-id; custom position requires external_generated"
+                  },
+                  {
+                    "name": "x",
+                    "type": "number",
+                    "required": false,
+                    "description": "external_generated 导入节点在根画布中的 X 坐标；必须与 --y 成组提供",
+                    "constraints": "requires import-kind=external_generated and y"
+                  },
+                  {
+                    "name": "y",
+                    "type": "number",
+                    "required": false,
+                    "description": "external_generated 导入节点在根画布中的 Y 坐标；必须与 --x 成组提供",
+                    "constraints": "requires import-kind=external_generated and x"
+                  }
+                ]
+              },
+              {
+                "name": "timeline",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时使用当前项目",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定 node_id；省略时生成",
+                    "constraints": "canonical Node ID; generated when omitted"
+                  },
+                  {
+                    "name": "update-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定更新 UUID；省略时生成",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只做本地校验并输出计划；不连接服务端、不写草稿、不报价或扣分",
+                    "constraints": "local validation only; no runtime, network, draft write, credit estimate, approval, journal, dispatch, or credit side effects"
+                  },
+                  {
+                    "name": "resource-source",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "跨项目资源来源：<资源 UUID>@<来源项目 UUID>；可重复，仅声明本次保存使用的资源",
+                    "constraints": "repeatable ResourceUUID@SourceProjectUUID; resource must be assigned by this save; conflicting sources rejected"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "时间轴标题；必填",
+                    "constraints": "at most 512 UTF-16 code units"
+                  },
+                  {
+                    "name": "clip",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "一个视觉片段，按出现顺序拼接；sourceId 只接受画布节点 ID 或 Resource ID；完整格式与选项见 --help；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "visual track item: <sourceId>[,options]; image allows duration=<positive-integer-milliseconds>; video allows trim=<start-milliseconds>-<positive-duration-milliseconds>, speed=<positive finite number>, volume=<0-1>, muted; start is forbidden; both allow kind=canvas_node|resource; sourceId must be a canvas Node ID (node_ prefix) or Resource ID (canonical lowercase UUID); order defines visual sequence"
+                  },
+                  {
+                    "name": "audio-clip",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "一个音轨片段，按出现顺序排列；来源身份与 --clip 相同，但可用选项不同，详见 --help；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "audio track item: <sourceId>[,options]; allows start=<non-negative-milliseconds>, trim=<start-milliseconds>-<positive-duration-milliseconds>, speed=<positive finite number>, volume=<0-1>, muted, kind=canvas_node|resource; duration is forbidden; source identity rules match clip; order defines audio sequence"
+                  },
+                  {
+                    "name": "import-kind",
+                    "type": "string",
+                    "required": false,
+                    "description": "节点导入类别：local_upload（挂本地上传登记的资源）或 external_generated（外部平台生成产物导入）；与 resource upload 的登记意图同一套词汇",
+                    "constraints": "local_upload | external_generated; may stand alone; required by resource-id; custom position requires external_generated"
+                  },
+                  {
+                    "name": "x",
+                    "type": "number",
+                    "required": false,
+                    "description": "external_generated 导入节点在根画布中的 X 坐标；必须与 --y 成组提供",
+                    "constraints": "requires import-kind=external_generated and y"
+                  },
+                  {
+                    "name": "y",
+                    "type": "number",
+                    "required": false,
+                    "description": "external_generated 导入节点在根画布中的 Y 坐标；必须与 --x 成组提供",
+                    "constraints": "requires import-kind=external_generated and x"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "edit",
+            "flags": [],
+            "subcommands": [
+              {
+                "name": "image",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时使用当前项目",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string",
+                    "required": true,
+                    "description": "要编辑的节点 node_id；必填",
+                    "constraints": "canonical Node ID of the node to edit; required"
+                  },
+                  {
+                    "name": "update-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定更新 UUID；省略时生成",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只做本地校验并输出计划；不连接服务端、不写草稿、不报价或扣分",
+                    "constraints": "local validation only; no runtime, network, draft write, credit estimate, approval, journal, dispatch, or credit side effects"
+                  },
+                  {
+                    "name": "resource-source",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "跨项目资源来源：<资源 UUID>@<来源项目 UUID>；可重复，仅声明本次保存使用的资源",
+                    "constraints": "repeatable ResourceUUID@SourceProjectUUID; resource must be assigned by this save; conflicting sources rejected"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "节点标题；按 flag 出现更新",
+                    "constraints": "at most 512 UTF-16 code units"
+                  },
+                  {
+                    "name": "tag",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "颜色标签 ID，可重复传入；取值 default-tag-1..default-tag-5，除非用户明确指定标签否则不要默认传",
+                    "constraints": "default-tag-1|default-tag-2|default-tag-3|default-tag-4|default-tag-5; max 5; omit unless the user explicitly asks for color labels"
+                  },
+                  {
+                    "name": "clear-tags",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "把节点标签完整集合清空"
+                  },
+                  {
+                    "name": "clear-generation",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "清空 generationDraft"
+                  },
+                  {
+                    "name": "mode",
+                    "type": "string",
+                    "required": false,
+                    "description": "图片生成模式：t2i（text-to-image，文生图）或 i2i（image-to-image，图生图）；提供生成参数时必须显式指定，纯元信息更新或清空生成配置无需传入",
+                    "constraints": "t2i|i2i (t2i=text-to-image, i2i=image-to-image); explicitly required when any generation parameter is supplied; metadata-only saves and clear-generation do not require mode"
+                  },
+                  {
+                    "name": "prompt",
+                    "type": "string",
+                    "required": false,
+                    "description": "完整图片生成提示词；引用写成 {{node:node_xxx}}、{{res:resourceId}}、{{uri:value}} 或 {{vid:value}}，写字面 {{ 用 \\{{ 转义；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "may be empty at save time if the model spec permits; Core validates effective text before run; create --run needs explicit title when prompt is empty"
+                  },
+                  {
+                    "name": "model",
+                    "type": "string",
+                    "required": false,
+                    "description": "服务端登记的图片模型标识"
+                  },
+                  {
+                    "name": "ratio",
+                    "type": "string",
+                    "required": false,
+                    "description": "图片宽高比，例如 1:1"
+                  },
+                  {
+                    "name": "resolution",
+                    "type": "string",
+                    "required": false,
+                    "description": "图片分辨率，例如 1K"
+                  },
+                  {
+                    "name": "count",
+                    "type": "integer",
+                    "required": false,
+                    "default": "1",
+                    "description": "生成数量；上限以 model list 返回的 --count max 为准",
+                    "constraints": ">0 and int32; dynamic maximum is the --count max from model list"
+                  },
+                  {
+                    "name": "ref",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "完整类型化引用集合：node:value、res:value、uri:value 或 vid:value，可重复传入；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "ordered type:value references; type is node|res|uri|vid; node value requires node_ prefix; res value requires canonical lowercase UUID"
+                  },
+                  {
+                    "name": "run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "保存后依次报价、批准并运行该节点",
+                    "constraints": "when false, only save the draft; when true, save → estimate → approve → run"
+                  },
+                  {
+                    "name": "submit-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定提交 UUID；--run 或 --resource-id 时省略则生成，停顿后续跑或重试导入须复用它",
+                    "constraints": "UUID; with run, or with resource-id as the imported resource batch identity; generated when omitted; non-empty when supplied"
+                  },
+                  {
+                    "name": "credit-token",
+                    "type": "string",
+                    "required": false,
+                    "description": "已批准的 creditConfirmationToken；--run 时使用",
+                    "constraints": "only with run; creditConfirmationToken issued by node confirm; mutually exclusive with credit-ceiling"
+                  },
+                  {
+                    "name": "credit-ceiling",
+                    "type": "integer",
+                    "required": false,
+                    "description": "批准的积分消费上限；--run 时报价超过它会在运行前停止",
+                    "constraints": ">=0; only with run; mutually exclusive with credit-token; stops before run when the estimate exceeds it"
+                  },
+                  {
+                    "name": "wait",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "--run 后等待该节点生成进入终态",
+                    "constraints": "only with run; wait for the submitted node to become terminal"
+                  },
+                  {
+                    "name": "timeout",
+                    "type": "duration",
+                    "required": false,
+                    "default": "10m",
+                    "description": "--wait 的最长等待时间；默认 10m，0 表示只查询一次",
+                    "constraints": "only with wait; 0 means query once"
+                  },
+                  {
+                    "name": "interval",
+                    "type": "duration",
+                    "required": false,
+                    "default": "5s",
+                    "description": "--wait 的轮询间隔；默认 5s",
+                    "constraints": "only with wait; >0"
+                  }
+                ]
+              },
+              {
+                "name": "video",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时使用当前项目",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string",
+                    "required": true,
+                    "description": "要编辑的节点 node_id；必填",
+                    "constraints": "canonical Node ID of the node to edit; required"
+                  },
+                  {
+                    "name": "update-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定更新 UUID；省略时生成",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只做本地校验并输出计划；不连接服务端、不写草稿、不报价或扣分",
+                    "constraints": "local validation only; no runtime, network, draft write, credit estimate, approval, journal, dispatch, or credit side effects"
+                  },
+                  {
+                    "name": "resource-source",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "跨项目资源来源：<资源 UUID>@<来源项目 UUID>；可重复，仅声明本次保存使用的资源",
+                    "constraints": "repeatable ResourceUUID@SourceProjectUUID; resource must be assigned by this save; conflicting sources rejected"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "节点标题；按 flag 出现更新",
+                    "constraints": "at most 512 UTF-16 code units"
+                  },
+                  {
+                    "name": "tag",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "颜色标签 ID，可重复传入；取值 default-tag-1..default-tag-5，除非用户明确指定标签否则不要默认传",
+                    "constraints": "default-tag-1|default-tag-2|default-tag-3|default-tag-4|default-tag-5; max 5; omit unless the user explicitly asks for color labels"
+                  },
+                  {
+                    "name": "clear-tags",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "把节点标签完整集合清空"
+                  },
+                  {
+                    "name": "clear-generation",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "清空 generationDraft"
+                  },
+                  {
+                    "name": "mode",
+                    "type": "string",
+                    "required": false,
+                    "description": "视频生成模式：t2v（text-to-video，文生视频）、first_last_frame（首尾帧）或 m2v（multimodal-to-video，多模态生视频）；提供生成参数时必须显式指定，纯元信息更新或清空生成配置无需传入",
+                    "constraints": "t2v|first_last_frame|m2v (t2v=text-to-video, first_last_frame=first and last frames, m2v=multimodal-to-video); first_last_frame accepts one first-frame image or two ordered first- and last-frame images; explicitly required when any generation parameter is supplied; metadata-only saves and clear-generation do not require mode"
+                  },
+                  {
+                    "name": "prompt",
+                    "type": "string",
+                    "required": false,
+                    "description": "完整视频生成提示词；引用写成 {{node:node_xxx}}、{{res:resourceId}}、{{uri:value}} 或 {{vid:value}}，写字面 {{ 用 \\{{ 转义；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "may be empty at save time if the model spec permits; Core validates effective text before run; create --run needs explicit title when prompt is empty"
+                  },
+                  {
+                    "name": "model",
+                    "type": "string",
+                    "required": false,
+                    "description": "服务端登记的视频模型标识"
+                  },
+                  {
+                    "name": "ratio",
+                    "type": "string",
+                    "required": false,
+                    "description": "视频宽高比，例如 16:9"
+                  },
+                  {
+                    "name": "resolution",
+                    "type": "string",
+                    "required": false,
+                    "description": "视频分辨率，例如 720P"
+                  },
+                  {
+                    "name": "duration",
+                    "type": "number",
+                    "required": false,
+                    "default": "5",
+                    "description": "视频时长（秒）",
+                    "constraints": ">0"
+                  },
+                  {
+                    "name": "count",
+                    "type": "integer",
+                    "required": false,
+                    "default": "1",
+                    "description": "生成数量；上限以 model list 返回的 --count max 为准",
+                    "constraints": ">0 and int32; dynamic maximum is the --count max from model list"
+                  },
+                  {
+                    "name": "ref",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "完整类型化引用集合（node/res/uri/vid）；first_last_frame 传一个首帧引用，或按顺序传首帧、尾帧两个引用；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "ordered type:value references; type is node|res|uri|vid; node value requires node_ prefix; res value requires canonical lowercase UUID"
+                  },
+                  {
+                    "name": "run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "保存后依次报价、批准并运行该节点",
+                    "constraints": "when false, only save the draft; when true, save → estimate → approve → run"
+                  },
+                  {
+                    "name": "submit-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定提交 UUID；--run 或 --resource-id 时省略则生成，停顿后续跑或重试导入须复用它",
+                    "constraints": "UUID; with run, or with resource-id as the imported resource batch identity; generated when omitted; non-empty when supplied"
+                  },
+                  {
+                    "name": "credit-token",
+                    "type": "string",
+                    "required": false,
+                    "description": "已批准的 creditConfirmationToken；--run 时使用",
+                    "constraints": "only with run; creditConfirmationToken issued by node confirm; mutually exclusive with credit-ceiling"
+                  },
+                  {
+                    "name": "credit-ceiling",
+                    "type": "integer",
+                    "required": false,
+                    "description": "批准的积分消费上限；--run 时报价超过它会在运行前停止",
+                    "constraints": ">=0; only with run; mutually exclusive with credit-token; stops before run when the estimate exceeds it"
+                  },
+                  {
+                    "name": "wait",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "--run 后等待该节点生成进入终态",
+                    "constraints": "only with run; wait for the submitted node to become terminal"
+                  },
+                  {
+                    "name": "timeout",
+                    "type": "duration",
+                    "required": false,
+                    "default": "10m",
+                    "description": "--wait 的最长等待时间；默认 10m，0 表示只查询一次",
+                    "constraints": "only with wait; 0 means query once"
+                  },
+                  {
+                    "name": "interval",
+                    "type": "duration",
+                    "required": false,
+                    "default": "5s",
+                    "description": "--wait 的轮询间隔；默认 5s",
+                    "constraints": "only with wait; >0"
+                  }
+                ]
+              },
+              {
+                "name": "audio",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时使用当前项目",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string",
+                    "required": true,
+                    "description": "要编辑的节点 node_id；必填",
+                    "constraints": "canonical Node ID of the node to edit; required"
+                  },
+                  {
+                    "name": "update-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定更新 UUID；省略时生成",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只做本地校验并输出计划；不连接服务端、不写草稿、不报价或扣分",
+                    "constraints": "local validation only; no runtime, network, draft write, credit estimate, approval, journal, dispatch, or credit side effects"
+                  },
+                  {
+                    "name": "resource-source",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "跨项目资源来源：<资源 UUID>@<来源项目 UUID>；可重复，仅声明本次保存使用的资源",
+                    "constraints": "repeatable ResourceUUID@SourceProjectUUID; resource must be assigned by this save; conflicting sources rejected"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "节点标题；按 flag 出现更新",
+                    "constraints": "at most 512 UTF-16 code units"
+                  },
+                  {
+                    "name": "tag",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "颜色标签 ID，可重复传入；取值 default-tag-1..default-tag-5，除非用户明确指定标签否则不要默认传",
+                    "constraints": "default-tag-1|default-tag-2|default-tag-3|default-tag-4|default-tag-5; max 5; omit unless the user explicitly asks for color labels"
+                  },
+                  {
+                    "name": "clear-tags",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "把节点标签完整集合清空"
+                  },
+                  {
+                    "name": "clear-generation",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "清空 generationDraft"
+                  },
+                  {
+                    "name": "mode",
+                    "type": "string",
+                    "required": false,
+                    "default": "tts",
+                    "description": "音频生成模式：tts（text-to-speech，文本转语音）或 music（音乐生成）",
+                    "constraints": "tts|music (tts=text-to-speech, music=music generation)"
+                  },
+                  {
+                    "name": "prompt",
+                    "type": "string",
+                    "required": false,
+                    "description": "TTS 文本或音乐描述"
+                  },
+                  {
+                    "name": "model",
+                    "type": "string",
+                    "required": false,
+                    "description": "music 模式必填；从当前环境 model list --type audio 返回的 mode=music 结果选择",
+                    "constraints": "required for music; select a mode=music result from current-environment `model list --type audio`; forbidden for tts; availability validated by Core"
+                  },
+                  {
+                    "name": "duration",
+                    "type": "number",
+                    "required": false,
+                    "default": "30",
+                    "description": "music 模式时长（秒）",
+                    "constraints": ">0 for music"
+                  },
+                  {
+                    "name": "voice-name",
+                    "type": "string",
+                    "required": false,
+                    "description": "tts 音色名称；从 voice list 选择，由服务端解析成权威身份",
+                    "constraints": "required for tts; choose from `voice list`; resolved server-side"
+                  },
+                  {
+                    "name": "run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "保存后依次报价、批准并运行该节点",
+                    "constraints": "when false, only save the draft; when true, save → estimate → approve → run"
+                  },
+                  {
+                    "name": "submit-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定提交 UUID；--run 或 --resource-id 时省略则生成，停顿后续跑或重试导入须复用它",
+                    "constraints": "UUID; with run, or with resource-id as the imported resource batch identity; generated when omitted; non-empty when supplied"
+                  },
+                  {
+                    "name": "credit-token",
+                    "type": "string",
+                    "required": false,
+                    "description": "已批准的 creditConfirmationToken；--run 时使用",
+                    "constraints": "only with run; creditConfirmationToken issued by node confirm; mutually exclusive with credit-ceiling"
+                  },
+                  {
+                    "name": "credit-ceiling",
+                    "type": "integer",
+                    "required": false,
+                    "description": "批准的积分消费上限；--run 时报价超过它会在运行前停止",
+                    "constraints": ">=0; only with run; mutually exclusive with credit-token; stops before run when the estimate exceeds it"
+                  },
+                  {
+                    "name": "wait",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "--run 后等待该节点生成进入终态",
+                    "constraints": "only with run; wait for the submitted node to become terminal"
+                  },
+                  {
+                    "name": "timeout",
+                    "type": "duration",
+                    "required": false,
+                    "default": "10m",
+                    "description": "--wait 的最长等待时间；默认 10m，0 表示只查询一次",
+                    "constraints": "only with wait; 0 means query once"
+                  },
+                  {
+                    "name": "interval",
+                    "type": "duration",
+                    "required": false,
+                    "default": "5s",
+                    "description": "--wait 的轮询间隔；默认 5s",
+                    "constraints": "only with wait; >0"
+                  }
+                ]
+              },
+              {
+                "name": "element",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时使用当前项目",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string",
+                    "required": true,
+                    "description": "要编辑的节点 node_id；必填",
+                    "constraints": "canonical Node ID of the node to edit; required"
+                  },
+                  {
+                    "name": "update-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定更新 UUID；省略时生成",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只做本地校验并输出计划；不连接服务端、不写草稿、不报价或扣分",
+                    "constraints": "local validation only; no runtime, network, draft write, credit estimate, approval, journal, dispatch, or credit side effects"
+                  },
+                  {
+                    "name": "resource-source",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "跨项目资源来源：<资源 UUID>@<来源项目 UUID>；可重复，仅声明本次保存使用的资源",
+                    "constraints": "repeatable ResourceUUID@SourceProjectUUID; resource must be assigned by this save; conflicting sources rejected"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "Element 标题；未给出则保持",
+                    "constraints": "at most 512 UTF-16 code units"
+                  },
+                  {
+                    "name": "description",
+                    "type": "string",
+                    "required": false,
+                    "description": "Element 描述"
+                  },
+                  {
+                    "name": "tag",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "颜色标签 ID：default-tag-1..default-tag-5；仅用户明确指定时传入",
+                    "constraints": "default-tag-1|default-tag-2|default-tag-3|default-tag-4|default-tag-5; max 5; omit unless the user explicitly asks for color labels"
+                  },
+                  {
+                    "name": "clear-tags",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "清空全部颜色标签",
+                    "constraints": "clear all tags; mutually exclusive with tag"
+                  },
+                  {
+                    "name": "main",
+                    "type": "string",
+                    "required": false,
+                    "description": "主素材：已产出可用素材的画布节点 ID（node_ 前缀，跟随）或可用资源 UUID（冻结）；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "required on create; canvas Node ID (node_ prefix; must resolve to a usable generated resource and follows that node) or Resource ID (frozen; must be usable and type-matched)"
+                  },
+                  {
+                    "name": "voice",
+                    "type": "string",
+                    "required": false,
+                    "description": "音色素材：已产出可用 audio 的节点 ID 或可用 audio 资源 UUID；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "canvas Node ID (must resolve to a usable generated audio resource) or Resource ID (must be usable audio)"
+                  },
+                  {
+                    "name": "auxiliary",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "辅助素材，可重复传入：已产出可用 image 的节点 ID 或可用 image 资源 UUID；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "replace entire list; omitted preserves existing bindings on edit; usable image Node IDs or Resource IDs; node sources precede resource sources"
+                  },
+                  {
+                    "name": "clear-description",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "清空 Element 描述",
+                    "constraints": "mutually exclusive with description"
+                  },
+                  {
+                    "name": "clear-main",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "清空主素材并级联清空音色及辅助素材；不可同时指定绑定",
+                    "constraints": "also clears voice and all auxiliaries; cannot combine with binding assignments"
+                  },
+                  {
+                    "name": "clear-voice",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "清空音色绑定",
+                    "constraints": "mutually exclusive with voice"
+                  },
+                  {
+                    "name": "clear-auxiliary",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "清空完整辅助素材列表",
+                    "constraints": "clear entire auxiliary list; mutually exclusive with auxiliary"
+                  }
+                ]
+              },
+              {
+                "name": "text",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时使用当前项目",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string",
+                    "required": true,
+                    "description": "要编辑的节点 node_id；必填",
+                    "constraints": "canonical Node ID of the node to edit; required"
+                  },
+                  {
+                    "name": "update-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定更新 UUID；省略时生成",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只做本地校验并输出计划；不连接服务端、不写草稿、不报价或扣分",
+                    "constraints": "local validation only; no runtime, network, draft write, credit estimate, approval, journal, dispatch, or credit side effects"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "文本节点标题；按 flag 出现更新",
+                    "constraints": "at most 512 UTF-16 code units"
+                  },
+                  {
+                    "name": "text",
+                    "type": "string",
+                    "required": false,
+                    "description": "Markdown 正文；按 flag 出现更新"
+                  }
+                ]
+              },
+              {
+                "name": "timeline",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时使用当前项目",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string",
+                    "required": true,
+                    "description": "要编辑的节点 node_id；必填",
+                    "constraints": "canonical Node ID of the node to edit; required"
+                  },
+                  {
+                    "name": "update-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "稳定更新 UUID；省略时生成",
+                    "constraints": "UUID"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只做本地校验并输出计划；不连接服务端、不写草稿、不报价或扣分",
+                    "constraints": "local validation only; no runtime, network, draft write, credit estimate, approval, journal, dispatch, or credit side effects"
+                  },
+                  {
+                    "name": "resource-source",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "跨项目资源来源：<资源 UUID>@<来源项目 UUID>；可重复，仅声明本次保存使用的资源",
+                    "constraints": "repeatable ResourceUUID@SourceProjectUUID; resource must be assigned by this save; conflicting sources rejected"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "时间轴标题；按 flag 出现更新",
+                    "constraints": "at most 512 UTF-16 code units"
+                  },
+                  {
+                    "name": "clip",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "一个视觉片段，按出现顺序拼接；sourceId 只接受画布节点 ID 或 Resource ID；完整格式与选项见 --help；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "visual track item: <sourceId>[,options]; image allows duration=<positive-integer-milliseconds>; video allows trim=<start-milliseconds>-<positive-duration-milliseconds>, speed=<positive finite number>, volume=<0-1>, muted; start is forbidden; both allow kind=canvas_node|resource; sourceId must be a canvas Node ID (node_ prefix) or Resource ID (canonical lowercase UUID); order defines visual sequence"
+                  },
+                  {
+                    "name": "audio-clip",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "一个音轨片段，按出现顺序排列；来源身份与 --clip 相同，但可用选项不同，详见 --help；画布已有来源节点时优先使用 Node ID，保留上游连线；Resource ID 用于资产库等无来源节点的素材或用户明确要求冻结，不自动从节点产物提取",
+                    "constraints": "audio track item: <sourceId>[,options]; allows start=<non-negative-milliseconds>, trim=<start-milliseconds>-<positive-duration-milliseconds>, speed=<positive finite number>, volume=<0-1>, muted, kind=canvas_node|resource; duration is forbidden; source identity rules match clip; order defines audio sequence"
+                  },
+                  {
+                    "name": "clear-tracks",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "清空全部片段；保留协议要求的空视觉轨",
+                    "constraints": "clears every clip by writing the canonical empty visual track; mutually exclusive with clip and audio-clip"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "upscale",
+            "flags": [],
+            "subcommands": [
+              {
+                "name": "image",
+                "flags": [
+                  {
+                    "name": "project-id",
+                    "type": "string",
+                    "required": false,
+                    "description": "项目 UUID；省略时读取当前项目",
+                    "constraints": "UUID; current project when omitted"
+                  },
+                  {
+                    "name": "node-id",
+                    "type": "string[]",
+                    "required": true,
+                    "description": "1..20 个唯一来源图片节点，可重复传入",
+                    "constraints": "1..20 unique canonical source Node IDs; each must resolve to one eligible successful image"
+                  },
+                  {
+                    "name": "submit-id",
+                    "type": "string[]",
+                    "required": false,
+                    "description": "逐节点提交 UUID，等长同序；省略时独立生成",
+                    "constraints": "unique UUIDs; optional, otherwise same count and order as node-id; never empty"
+                  },
+                  {
+                    "name": "mode",
+                    "type": "string",
+                    "required": false,
+                    "default": "pro",
+                    "description": "normal=超清；pro=智能超清",
+                    "constraints": "normal|pro"
+                  },
+                  {
+                    "name": "resolution",
+                    "type": "string",
+                    "required": false,
+                    "description": "pro 必填：目标分辨率 2K、4K 或 8K；normal 不接受",
+                    "constraints": "2K|4K|8K; required for pro and rejected for normal; target-vs-source eligibility remains server-authoritative"
+                  },
+                  {
+                    "name": "detail",
+                    "type": "integer",
+                    "required": false,
+                    "default": "50",
+                    "description": "仅 pro：细节强度 1..100，默认 50",
+                    "constraints": "1..100; pro only; omit for normal"
+                  },
+                  {
+                    "name": "title",
+                    "type": "string",
+                    "required": false,
+                    "description": "新产物节点标题；不修改来源节点",
+                    "constraints": "non-empty when provided; new output node title, source is unchanged"
+                  },
+                  {
+                    "name": "credit-token",
+                    "type": "string",
+                    "required": false,
+                    "description": "本操作专用短期凭证，不接受 node confirm 凭证",
+                    "constraints": "image-upscale scoped token only; mutually exclusive with credit-ceiling"
+                  },
+                  {
+                    "name": "credit-ceiling",
+                    "type": "integer",
+                    "required": false,
+                    "default": "0",
+                    "description": "批准的整批积分上限，不能与 --credit-token 同用",
+                    "constraints": ">=0; approval only when explicitly provided; entire batch ceiling"
+                  },
+                  {
+                    "name": "wait",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "提交后只读等待生成终态；默认只返回受理结果",
+                    "constraints": "wait for output resources, not source node state"
+                  },
+                  {
+                    "name": "timeout",
+                    "type": "duration",
+                    "required": false,
+                    "default": "10m0s",
+                    "description": "--wait 最长等待时间；0 表示只查一次",
+                    "constraints": ">=0; requires wait"
+                  },
+                  {
+                    "name": "interval",
+                    "type": "duration",
+                    "required": false,
+                    "default": "5s",
+                    "description": "--wait 轮询间隔",
+                    "constraints": ">0; requires wait"
+                  },
+                  {
+                    "name": "dry-run",
+                    "type": "boolean",
+                    "required": false,
+                    "default": "false",
+                    "description": "只校验本地参数，不联网、报价、生成或写 journal",
+                    "constraints": "local validation only; no runtime, network, credit estimate, approval, journal, or generation"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "show",
+            "flags": [
+              {
+                "name": "project-id",
+                "type": "string",
+                "required": false,
+                "description": "项目 UUID；同时用作 draft-id；省略时使用当前项目",
+                "constraints": "UUID"
+              },
+              {
+                "name": "node-id",
+                "type": "string[]",
+                "required": true,
+                "description": "需要读取的节点 node_id，可重复传入"
+              }
+            ]
+          },
+          {
+            "name": "find",
+            "flags": [
+              {
+                "name": "project-id",
+                "type": "string",
+                "required": false,
+                "description": "项目 UUID；同时用作 draft-id；省略时使用当前项目",
+                "constraints": "UUID"
+              },
+              {
+                "name": "name",
+                "type": "string",
+                "required": false,
+                "description": "文本匹配：标题、描述、文本正文与生成 prompt",
+                "constraints": "matches title, description, text body and generation prompt"
+              },
+              {
+                "name": "type",
+                "type": "string[]",
+                "required": false,
+                "description": "节点类型，可重复；同维度多值为 OR。取值：image、video、audio、element、timeline、text",
+                "constraints": "image|video|audio|element|timeline|text; repeatable, same-dimension values are OR"
+              },
+              {
+                "name": "status",
+                "type": "string[]",
+                "required": false,
+                "description": "运行状态，可重复；同维度多值为 OR。取值：empty、running、success、partial_success、failed、canceled、unknown",
+                "constraints": "empty|running|success|partial_success|failed|canceled|unknown; repeatable, same-dimension values are OR"
+              },
+              {
+                "name": "tag",
+                "type": "string[]",
+                "required": false,
+                "description": "颜色标签 ID，可重复；同维度多值为 AND（须同时具备）。取值：default-tag-1、default-tag-2、default-tag-3、default-tag-4、default-tag-5",
+                "constraints": "default-tag-1|default-tag-2|default-tag-3|default-tag-4|default-tag-5; max 5; omit unless the user explicitly asks for color labels; repeatable; same-dimension values are AND"
+              },
+              {
+                "name": "limit",
+                "type": "integer",
+                "required": false,
+                "default": "50",
+                "description": "单页条数，范围 1 到 50",
+                "constraints": "1..50"
+              },
+              {
+                "name": "offset",
+                "type": "integer",
+                "required": false,
+                "default": "0",
+                "description": "过滤后的偏移量，范围 0 到 1000；分页不绑定同一草稿快照",
+                "constraints": "0..1000; pages do not share a draft snapshot"
+              }
+            ]
+          },
+          {
+            "name": "quote",
+            "flags": [
+              {
+                "name": "project-id",
+                "type": "string",
+                "required": false,
+                "description": "项目 UUID；同时用作 draft-id；省略时使用当前项目",
+                "constraints": "UUID"
+              },
+              {
+                "name": "node-id",
+                "type": "string[]",
+                "required": true,
+                "description": "需要预估的节点 node_id，可重复传入"
+              }
+            ]
+          },
+          {
+            "name": "confirm",
+            "flags": [
+              {
+                "name": "project-id",
+                "type": "string",
+                "required": false,
+                "description": "项目 UUID；同时用作 draft-id；省略时使用当前项目",
+                "constraints": "UUID"
+              },
+              {
+                "name": "node-id",
+                "type": "string[]",
+                "required": true,
+                "description": "需要批准的节点 node_id，可重复传入"
+              },
+              {
+                "name": "credit-ceiling",
+                "type": "integer",
+                "required": true,
+                "description": "批准的积分消费上限；低于服务端最新报价总额时不签发",
+                "constraints": ">=0; must cover the latest service estimate"
+              }
+            ]
+          },
+          {
+            "name": "run",
+            "flags": [
+              {
+                "name": "project-id",
+                "type": "string",
+                "required": false,
+                "description": "项目 UUID；同时用作 draft-id；省略时使用当前项目",
+                "constraints": "UUID"
+              },
+              {
+                "name": "node-id",
+                "type": "string[]",
+                "required": true,
+                "description": "需要运行的节点 node_id，可重复传入"
+              },
+              {
+                "name": "submit-id",
+                "type": "string[]",
+                "required": false,
+                "description": "逐节点稳定提交 UUID，可重复传入并与 --node-id 按顺序对应；全部省略时自动生成",
+                "constraints": "UUID; optional; count must equal node-id count; each value is also the operation status/wait reference"
+              },
+              {
+                "name": "credit-token",
+                "type": "string",
+                "required": false,
+                "description": "确认扣费后返回的 creditConfirmationToken",
+                "constraints": "creditConfirmationToken issued by node confirm"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "operation",
+        "flags": [],
+        "subcommands": [
+          {
+            "name": "status",
+            "arguments": [
+              {
+                "name": "operation-ref",
+                "required": true,
+                "constraints": "UUID; same value as a node run submitId"
+              }
+            ],
+            "flags": [
+              {
+                "name": "project-id",
+                "type": "string",
+                "required": false,
+                "description": "项目 UUID；仅在本地恢复记录丢失时需要，用于直接向服务端只读查询",
+                "constraints": "UUID; only needed when the local recovery record is gone"
+              }
+            ]
+          },
+          {
+            "name": "wait",
+            "arguments": [
+              {
+                "name": "operation-ref",
+                "required": true,
+                "constraints": "UUID; same value as a node run submitId"
+              }
+            ],
+            "flags": [
+              {
+                "name": "project-id",
+                "type": "string",
+                "required": false,
+                "description": "项目 UUID；仅在本地恢复记录丢失时需要，用于直接向服务端只读查询",
+                "constraints": "UUID; only needed when the local recovery record is gone"
+              },
+              {
+                "name": "timeout",
+                "type": "duration",
+                "required": false,
+                "default": "10m",
+                "description": "最长等待时间；0 表示只查询一次"
+              },
+              {
+                "name": "interval",
+                "type": "duration",
+                "required": false,
+                "default": "5s",
+                "description": "轮询间隔"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "resource",
+        "flags": [],
+        "subcommands": [
+          {
+            "name": "download",
+            "arguments": [
+              {
+                "name": "resource-id",
+                "required": true
+              }
+            ],
+            "flags": [
+              {
+                "name": "project-id",
+                "type": "string",
+                "required": false,
+                "description": "项目 UUID；省略时使用当前项目",
+                "constraints": "UUID"
+              },
+              {
+                "name": "output",
+                "type": "string",
+                "required": false,
+                "default": ".",
+                "description": "输出文件（路径原样使用，不转码）或已存在目录（采用服务端文件名）"
+              }
+            ]
+          },
+          {
+            "name": "get",
+            "arguments": [
+              {
+                "name": "resource-id",
+                "required": true
+              }
+            ],
+            "flags": [
+              {
+                "name": "project-id",
+                "type": "string",
+                "required": false,
+                "description": "项目 UUID；省略时使用当前项目",
+                "constraints": "UUID"
+              }
+            ]
+          },
+          {
+            "name": "upload",
+            "flags": [
+              {
+                "name": "file",
+                "type": "string",
+                "required": false,
+                "description": "本地图片、视频或音频文件路径；与 --source-url 二选一",
+                "constraints": "mutually exclusive with source-url"
+              },
+              {
+                "name": "type",
+                "type": "string",
+                "required": false,
+                "description": "媒体类型覆盖：image、video 或 audio；省略时按扩展名判断",
+                "constraints": "image|video|audio; overrides file extension"
+              },
+              {
+                "name": "source-url",
+                "type": "string",
+                "required": false,
+                "description": "服务端可访问的图片 URL；与 --file 二选一（仅图片）",
+                "constraints": "image only; mutually exclusive with file"
+              },
+              {
+                "name": "project-id",
+                "type": "string",
+                "required": true,
+                "description": "目标项目 UUID；必填，即使已指定 resource-id",
+                "constraints": "UUID; explicit target project required"
+              },
+              {
+                "name": "resource-id",
+                "type": "string",
+                "required": false,
+                "description": "资源 UUID 幂等键；省略时自动生成，跨进程重试须复用同一值",
+                "constraints": "UUID idempotency key; generated when omitted; always echoed as resourceId"
+              },
+              {
+                "name": "name",
+                "type": "string",
+                "required": false,
+                "description": "素材展示名；省略时用文件名"
+              },
+              {
+                "name": "import-kind",
+                "type": "string",
+                "required": false,
+                "description": "登记意图：local_upload（默认）或 external_generated（外部平台生成产物导入）",
+                "constraints": "local_upload | external_generated"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "canvas",
+        "flags": [],
+        "subcommands": [
+          {
+            "name": "create",
+            "arguments": [
+              {
+                "name": "name",
+                "required": true
+              }
+            ],
+            "flags": [
+              {
+                "name": "project-id",
+                "type": "string",
+                "required": false,
+                "description": "客户端生成的画布 UUID；重试时复用同一值",
+                "constraints": "UUID"
+              },
+              {
+                "name": "use",
+                "type": "boolean",
+                "required": false,
+                "default": "false",
+                "description": "创建后设为当前画布"
+              }
+            ]
+          },
+          {
+            "name": "ls",
+            "flags": [
+              {
+                "name": "limit",
+                "type": "integer",
+                "required": false,
+                "default": "50",
+                "description": "单页条数，范围 1 到 100",
+                "constraints": "1..100"
+              },
+              {
+                "name": "cursor",
+                "type": "string",
+                "required": false,
+                "description": "上一页返回的 nextCursor；首页省略。服务端不透明字符串，不要构造或解析",
+                "constraints": "opaque nextCursor from the previous page; do not construct or parse"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "auth",
+        "flags": [],
+        "subcommands": [
+          {
+            "name": "account",
+            "flags": []
+          },
+          {
+            "name": "login",
+            "flags": [
+              {
+                "name": "force",
+                "type": "boolean",
+                "required": false,
+                "default": "false",
+                "description": "清除当前 profile 登录态后重新授权"
+              }
+            ]
+          },
+          {
+            "name": "logout",
+            "flags": []
+          },
+          {
+            "name": "status",
+            "flags": []
+          },
+          {
+            "name": "wait",
+            "flags": [
+              {
+                "name": "device-code",
+                "type": "string",
+                "required": true,
+                "description": "auth login 返回的设备授权引用"
+              },
+              {
+                "name": "timeout",
+                "type": "duration",
+                "required": false,
+                "default": "10m",
+                "description": "本次等待登录的最长时间"
+              }
+            ]
+          },
+          {
+            "name": "refresh",
+            "flags": []
+          }
+        ]
+      },
+      {
+        "name": "schema",
+        "flags": []
+      },
+      {
+        "name": "version",
+        "flags": []
+      }
+    ]
+  }
+}

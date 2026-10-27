@@ -1,0 +1,54 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import {createRequire} from 'node:module';
+import {createStudio} from '../server.mjs';
+import {writeXlsx} from '../lib/xlsx.mjs';
+import {productionHeaders,productionRows} from './helpers/storyboard-production.mjs';
+
+const require=createRequire(import.meta.url),modules=path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules');
+const {chromium}=require(path.join(modules,'playwright')),{createCanvas}=require(process.env.COMIC_TEST_CANVAS_MODULE);
+test('storyboard-only workbench: actual import, per-panel prompt, scene binding, fake image and manual review on desktop/mobile',{timeout:120000},async t=>{
+ const parent=path.resolve('.runtime/temp');fs.mkdirSync(parent,{recursive:true});const dir=fs.mkdtempSync(path.join(parent,'production-browser-')),evidence=path.resolve('merge-audit/storyboard-production');fs.mkdirSync(evidence,{recursive:true});let browser;
+ const calls=[],errors=[],requests=[],checks=[],canvas=createCanvas(320,200),ctx=canvas.getContext('2d');ctx.fillStyle='#47b09a';ctx.fillRect(0,0,320,200);ctx.fillStyle='#d44753';ctx.fillRect(70,40,100,100);const png=canvas.toBuffer('image/png');
+ const bridge={close(){},status:async()=>({connected:true,imageFeature:true}),generate:async(_dir,input,refs)=>{calls.push({input:structuredClone(input),refs:[...refs]});const filePath=path.join(dir,'fake-generated.png');fs.writeFileSync(filePath,png);return {filePath,imageToolSeen:true};}};
+ const studio=createStudio({dataDir:path.join(dir,'data'),bridge,jimengBridge:{close(){},status:async()=>({connected:false,installed:false}),models:async()=>({items:[]})},storyboardGenerator:{close(){},generate(){throw Error('No real AI allowed');}}});
+ await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+studio.server.address().port;
+ t.after(async()=>{await browser?.close();studio.close();await new Promise(r=>studio.server.close(r));assert.equal(path.dirname(path.resolve(dir)),parent);fs.rmSync(dir,{recursive:true,force:true});});
+ const workbook=path.join(dir,'合成分镜.xlsx');fs.writeFileSync(workbook,writeXlsx([{name:'第1话',rows:[productionHeaders,...productionRows]}]));const folder=path.join(dir,'参考场景');fs.mkdirSync(folder);fs.writeFileSync(path.join(folder,'石桥.png'),png);
+ const state=async()=>(await(await fetch(origin+'/api/state')).json()),project=async()=>(await state()).projects[0];
+ browser=await chromium.launch({channel:'msedge',headless:true,args:['--disable-gpu']});const context=await browser.newContext({viewport:{width:1864,height:1000}});
+ await context.addInitScript(()=>localStorage.setItem('comic-generation-provider','codex'));
+ await context.route('**/*',route=>{const url=new URL(route.request().url());return url.origin===origin||['data:','blob:'].includes(url.protocol)?route.continue():route.abort();});
+ const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));const pass=name=>{assert.deepEqual(errors,[]);checks.push(name);console.log('PASS '+name);};
+ const save=async()=>{await page.keyboard.press('Control+s');await page.waitForFunction(()=>document.querySelector('#save-state').textContent==='已保存到本机');};
+ const response=async(method,suffix,run)=>{const waiting=page.waitForResponse(r=>r.url().endsWith(suffix)&&r.request().method()===method);await run();const r=await waiting;assert.ok(r.ok(),await r.text());return r.json();};
+ try{
+  await page.goto(origin);await page.locator('#rule-import-empty').waitFor();assert.equal(await page.locator('#rule-import').getAttribute('aria-label'),'导入分镜表');assert.equal(await page.locator('#storyboard-workflow-open').count(),0);assert.equal(await page.locator('.novel-production-dialog').count(),0);
+  await page.locator('#rule-import').click();assert.equal(await page.locator('#rule-dialog h2').textContent(),'导入分镜表');
+  const checked=await response('POST','/api/storyboards/check',()=>page.locator('#rule-file').setInputFiles(workbook));assert.equal(checked.summary.ready,true);
+  const confirmed=await response('POST','/confirm',()=>page.getByRole('button',{name:'确认摘要，开始整话试排',exact:true}).click());assert.equal(confirmed.shots.length,2);
+  await page.locator('.rule-stats strong').waitFor();await response('POST','/api/projects/rule-layout',()=>page.getByRole('button',{name:'保存并打开整话',exact:true}).click());await page.locator('#rule-dialog').waitFor({state:'hidden'});
+  let p=await project();assert.equal(p.shots.length,2);assert.equal(p.storyboardWorkflow,undefined);assert.equal(p.novelProductionWorkflow,undefined);pass('XLSX goes directly to checked layout without novel/client/approval workflow');
+  await page.locator('#panel-prompts-open').click();const prompt=page.locator('[data-section="panel-generation"][data-field="prompt"]');await prompt.waitFor({state:'visible'});assert.match(await prompt.inputValue(),/小雨/);assert.match(await prompt.inputValue(),/打开折伞/);assert.match(await page.locator('[data-panel-composition]').textContent(),/主格/);
+  const original=await prompt.inputValue();await prompt.fill(original+'\n人工要求：甲的右手握住伞柄。');await prompt.blur();await save();p=await project();assert.match(p.pages[0].panels[0].generation.prompt,/右手/);assert.doesNotMatch(p.pages[0].panels[1].generation.prompt,/右手/);pass('main/sub prompts retain context and edits affect only selected panel');
+  await page.locator('#asset-directory').evaluate(node=>node.click());await page.locator('.asset-binding-workspace').waitFor();assert.equal(await page.locator('[data-production-tab]').count(),0);assert.equal((await page.locator('#modal-body').textContent()).includes('小说'),false);
+  await page.locator('#binding-directory').fill(folder);await page.getByRole('button',{name:'读取全部目录',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-binding-tab="all"]').textContent==='全部资产 1');
+  await page.locator('.binding-need').filter({has:page.locator('strong',{hasText:'石桥'})}).click();await page.locator('.binding-asset').first().click();await page.getByRole('button',{name:'应用所选绑定',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#binding-status').textContent.includes('已同步'));
+  await page.getByRole('button',{name:'稍后处理',exact:true}).click();await save();p=await project();assert.equal(p.pages[0].panels[0].generation.referenceRoles.length,1);assert.equal(p.pages[0].panels[1].generation.referenceRoles.length,1);pass('asset library imports original paths and binds the correct scene to actual frames');
+  await page.locator('#generate-selected').click();await page.waitForFunction(()=>document.querySelector('#generate-selected').textContent==='生成此格');for(let i=0;!calls.length&&i<100;i++)await new Promise(r=>setTimeout(r,20));assert.equal(calls.length,1);assert.match(calls[0].input.shot.productionPrompt,/右手/);assert.deepEqual(calls[0].refs,[path.join(folder,'石桥.png')]);
+  for(let i=0;i<100;i++){p=await project();if(p.pages[0].panels[0].imageAssetId)break;await new Promise(r=>setTimeout(r,20));}assert.ok(p.pages[0].panels[0].imageAssetId);await page.waitForFunction(()=>[...document.querySelectorAll('#stage image')].some(image=>image.href.baseVal&&image.getBoundingClientRect().width>0));pass('fake image queue fills panel using local prompt and exactly chosen scene asset');
+  await page.screenshot({path:path.join(evidence,'desktop-production.png')});
+  await page.locator('[data-action="edit-image"]').click();await page.locator('#edit-prompt').waitFor();await page.locator('#edit-prompt').fill('只修正握伞的右手，保留人物和背景');await page.getByRole('button',{name:'取消',exact:true}).click();assert.equal(calls.length,1);pass('manual image-repaint controls remain available without launching real AI');
+  await page.locator('#ai-design-open').click();await page.locator('.comic-design-dialog').waitFor();assert.equal(await page.locator('[data-design-action="one-click"]').isEnabled(),true);await page.locator('[data-design-action="close"]').click();pass('AI layout accepts imported storyboard without an approved client version');
+  await page.setViewportSize({width:1280,height:900});await page.screenshot({path:path.join(evidence,'compact-production.png')});
+  await page.setViewportSize({width:390,height:844});await page.locator('#inspector-close').click();await page.screenshot({path:path.join(evidence,'mobile-production.png')});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.locator('#workbench-more').click();assert.equal(await page.locator('#panel-prompts-open').isVisible(),true);await page.screenshot({path:path.join(evidence,'mobile-actions.png')});await page.locator('#workbench-more').click();
+  await page.locator('#rule-import').click();const dialog=await page.locator('#rule-dialog').boundingBox();assert.ok(dialog.x>=0&&dialog.x+dialog.width<=390+1);await page.screenshot({path:path.join(evidence,'mobile-import.png')});await page.keyboard.press('Escape');pass('desktop, compact and phone layouts keep import, assets and prompt actions accessible');
+  await page.setViewportSize({width:1864,height:1000});await page.reload();await page.locator('#panel-prompts-open').click();assert.match(await page.locator('[data-section="panel-generation"][data-field="prompt"]').inputValue(),/右手/);assert.ok((await project()).pages[0].panels[0].imageAssetId);
+  assert.equal(requests.some(url=>/\/(?:novel-production|storyboard-workflow|asset-production-ui)(?:\/|\.|$)/.test(url)),false);assert.deepEqual(errors,[]);pass('reopen retains manual prompt, image and reference with zero retired module requests');
+  fs.writeFileSync(path.join(evidence,'report.json'),JSON.stringify({ok:true,checks,errors,synthetic:true,realAI:false,userDataTouched:false,imageCalls:calls.length},null,2));
+ }catch(error){await page.screenshot({path:path.join(evidence,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(evidence,'failure.json'),JSON.stringify({error:error.stack,checks,errors,project:await project()},null,2));throw error;}
+});

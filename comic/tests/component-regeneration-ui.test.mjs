@@ -1,0 +1,62 @@
+import {teamChannelFixture} from './helpers/team-channel-fixture.mjs';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import http from 'node:http';
+import {spawn} from 'node:child_process';
+import {createRequire} from 'node:module';
+import {randomUUID} from 'node:crypto';
+import {createStudio} from '../server.mjs';
+import {createProject} from '../public/model.js';
+import {migrateLayerDocument} from '../public/layers.js';
+
+const require=createRequire(import.meta.url),canvas=require(process.env.COMIC_TEST_CANVAS_MODULE);
+const {chromium}=require('C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const evidence=path.resolve('../verification/component-regeneration');fs.mkdirSync(evidence,{recursive:true});
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function until(check,message){for(let n=0;n<100;n++){const value=await check();if(value)return value;await pause(80);}throw Error(message);}
+
+test('组件失败不停止其他组件；手部可重生、重复点击复用任务；生成记录打开可见面板',{timeout:90000},async t=>{
+ const dir=fs.mkdtempSync(path.join(evidence,'fixture-')),data=path.join(dir,'asset-data');fs.mkdirSync(data);
+ const allocator=http.createServer();await new Promise(r=>allocator.listen(0,'127.0.0.1',r));const port=allocator.address().port;await new Promise(r=>allocator.close(r));
+ const calls=[],counts={};let releaseHands;const held=new Promise(resolve=>releaseHands=resolve);
+ const studio=createStudio({dataDir:path.join(dir,'comic'),bridge:{status:async()=>({connected:true}),async generate(folder,input){
+  const component=input.shot.assetProductionContract.stage.slice('component-'.length);counts[component]=(counts[component]||0)+1;calls.push(component);
+  if(component==='prop')throw Error('测试配饰连接超时，保留已有图片');
+  if(component==='hands'&&counts.hands===2)await held;
+  if(component==='hands'&&counts.hands===3)throw Error('测试手部连接超时，保留已有图片');
+  const c=canvas.createCanvas(component==='views'?1536:1024,component==='views'?1024:1536),ctx=c.getContext('2d');ctx.fillStyle=component==='hands'&&counts.hands>1?'#d8734a':'#468dc2';ctx.fillRect(0,0,c.width,c.height);
+  const filePath=path.join(folder,'generated.png');fs.mkdirSync(folder,{recursive:true});fs.writeFileSync(filePath,c.toBuffer('image/png'));return {filePath};
+ }}});
+ const project=migrateLayerDocument(createProject('组件重新生成验收')).project;studio.store.db.projects.push(project);studio.store.save();
+ fs.writeFileSync(path.join(data,'asset-studio.json'),JSON.stringify({projectId:project.id,mainProjectId:project.id,title:project.title}));
+ await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));const comic='http://127.0.0.1:'+studio.server.address().port,origin='http://127.0.0.1:'+port;
+ const channel=await teamChannelFixture(t,dir);const child=spawn(process.execPath,[path.resolve('../asset-studio/app/roles/assets.mjs'),'--port',String(port)],{cwd:path.resolve('..'),windowsHide:true,env:{...process.env,...channel.env,ASSET_EDITOR:comic,ASSET_STUDIO_DATA_DIR:data,ASSET_CANVAS_MODULE:process.env.COMIC_TEST_CANVAS_MODULE},stdio:['ignore','pipe','pipe']});let logs='';child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);
+ let browser;t.after(async()=>{releaseHands();await browser?.close();child.kill();await studio.close();fs.writeFileSync(path.join(evidence,'service.log'),logs);});
+ await until(async()=>{try{return (await fetch(origin+'/api/health')).ok;}catch{return false;}},'资产服务未启动');
+ const request=async(route,body)=>{const res=await fetch(origin+route,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});const value=await res.json();assert.ok(res.ok,JSON.stringify(value));return value;};
+ const created=await request('/api/production-records',{requestId:randomUUID(),type:'character',characterRole:'lead',source:{work:{projectId:project.id,title:project.title}},name:'回归角色',outfit:'白衣',prompt:'合成图片验收，不调用真实AI',referenceIds:[]}),route='/api/production-records/'+created.id;
+ let record=await until(async()=>{const r=await request(route);return r.status==='failed'&&r.finished.length===3&&r;},'初始部分失败状态未回填');
+ assert.equal(calls.length,4);const originalHands=record.jobs.hands;
+ browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1864,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(origin+'/?embed=1&record='+created.id);await page.locator('[data-component-regenerate="hands"]').getByText('重新生成',{exact:true}).waitFor();
+ await page.locator('#open-production-history').click();await page.locator('#production-history-dialog').waitFor();
+ const history=page.locator('[data-history-record="'+created.id+'"]');await history.waitFor();assert.equal(await history.locator('img').count(),1);assert.match(await history.innerText(),/部分完成/);
+ await page.locator('#production-history-dialog input').fill('不存在的角色');await page.locator('[data-history-message]').filter({hasText:'没有匹配'}).waitFor();
+ await page.locator('#production-history-dialog input').fill('回归角色');await history.getByText('打开编辑',{exact:true}).click();await page.locator('#production-history-dialog').waitFor({state:'hidden'});assert.equal(calls.length,4,'查看记录不能提交生成');
+ const hands=page.locator('[data-component-regenerate="hands"]');await hands.click();
+ await until(()=>counts.hands===2,'重生按钮未提交手部任务');record=await request(route);assert.notEqual(record.jobs.hands,originalHands);assert.equal(record.status,'running','配饰旧失败不能使手部新任务停止刷新');
+ assert.equal(await hands.isDisabled(),true);assert.equal(await page.locator('[data-component-regenerate="prop"]').isEnabled(),true);
+ const reused=await request(route+'/component',{component:'hands',requestId:randomUUID()});assert.equal(reused.reusedJob,true);assert.equal(reused.jobs.hands,record.jobs.hands);assert.equal(counts.hands,2);
+ const front=page.locator('.board-slot[data-id="front"]'),box=await front.boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+24,box.y+box.height/2);await page.mouse.up();
+ const transform=await front.locator('img').evaluate(img=>img.style.transform);await pause(2800);assert.equal(await front.locator('img').evaluate(img=>img.style.transform),transform,'状态轮询不能重置未保存的组件取景');
+ await page.screenshot({path:path.join(evidence,'hands-regenerating.png')});releaseHands();
+ await page.locator('[data-component-status="hands"]').getByText('已完成',{exact:true}).waitFor();assert.equal(await hands.isEnabled(),true);assert.equal((await request(route)).status,'failed','配饰失败状态保留，手部单独完成');
+ const pixel=canvas.createCanvas(1,1);pixel.getContext('2d').drawImage(await canvas.loadImage(Buffer.from(await(await fetch(origin+route+'/image?slot=hands')).arrayBuffer())),0,0,1,1);assert.deepEqual([...pixel.getContext('2d').getImageData(0,0,1,1).data],[216,115,74,255]);
+ await hands.click();await page.locator('[data-component-status="hands"]').getByText('失败，可重试',{exact:true}).waitFor();assert.equal(await hands.isEnabled(),true);assert.equal(await page.locator('.board-slot[data-id="hands"] img').isVisible(),true);
+ assert.match((await request(route)).error,/测试手部连接超时/);await hands.click();
+ await until(()=>counts.hands===4,'失败后无法再次生成');await page.locator('[data-component-status="hands"]').getByText('已完成',{exact:true}).waitFor();assert.equal(calls.length,7);assert.deepEqual(errors,[]);
+ await page.locator('#open-production-history').click();await page.locator('[data-history-record="'+created.id+'"] .record-phases').getByText('手部 · 已完成',{exact:true}).waitFor();await page.screenshot({path:path.join(evidence,'history-dialog.png')});
+ fs.writeFileSync(path.join(evidence,'report.json'),JSON.stringify({ok:true,realAI:false,regenerations:3,duplicateSubmissionsPrevented:true,partialFailureDoesNotStopPolling:true,unsavedTransformPreserved:true,visibleHistoryDialog:true,errors},null,2));
+});

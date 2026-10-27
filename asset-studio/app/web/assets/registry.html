@@ -1,0 +1,372 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>璧勪骇鍙拌处 路 璧勪骇宸ヤ綔瀹?/title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .stat-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; padding-top:18px; }
+    .stat { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px 16px; box-shadow:var(--shadow); position:relative; overflow:hidden; }
+    .stat::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--line-strong); }
+    .stat.accent::before { background:var(--accent); }
+    .stat.warn::before { background:#c99a45; }
+    .stat.bad::before { background:var(--red); }
+    .stat-value { font-size:30px; font-weight:700; letter-spacing:-.5px; }
+    .stat-label { color:var(--muted); font-size:13px; margin-top:1px; }
+    .stat small { display:block; color:#94a09f; font-size:11px; margin-top:5px; letter-spacing:.4px; }
+
+    .registry-card { margin-top:16px; }
+    .registry-toolbar { display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+    .filter-btn { border:1px solid var(--line); background:#fff; color:var(--muted); border-radius:8px; padding:8px 13px; font-size:13px; cursor:pointer; }
+    .filter-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; }
+    .filter-count { margin-left:auto; color:var(--muted); font-size:12px; }
+
+    .registry-table { width:100%; border-collapse:collapse; font-size:14px; }
+    .registry-table th { position:sticky; top:0; z-index:1; background:#faf7ef; color:var(--muted); font-weight:600; text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); white-space:nowrap; font-size:11px; letter-spacing:.4px; }
+    .registry-table td { padding:9px 12px; border-bottom:1px solid #efe9dc; vertical-align:middle; }
+    .registry-table tr:hover td { background:#fbf9f3; }
+    .registry-table tr.selected td { background:#f2faf6; }
+    .id-cell { font-family:Consolas,monospace; font-size:11px; color:#5b6c70; }
+    .name-cell { font-weight:600; }
+    .muted { color:var(--muted); }
+    .num { font-variant-numeric:tabular-nums; }
+
+    .asset-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .asset-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+
+    .asset-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(27,40,46,.10); }
+    .asset-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(44,122,99,.16); }
+
+    .asset-thumb {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background:
+        linear-gradient(45deg, rgba(160,145,115,.08) 25%, transparent 25%, transparent 75%, rgba(160,145,115,.08) 75%) 0 0 / 16px 16px,
+        #faf8f2;
+    }
+
+    .asset-thumb .ph {
+      font-size: 30px;
+      font-weight: 700;
+      color: rgba(44,122,99,.22);
+      letter-spacing: 2px;
+    }
+
+    .asset-thumb.type-costume .ph { color: rgba(61,104,140,.24); }
+    .asset-thumb.type-scene .ph { color: rgba(154,106,36,.24); }
+    .asset-thumb.type-prop .ph { color: rgba(163,72,62,.24); }
+
+    .asset-thumb img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #fff;
+    }
+
+    .type-tag {
+      position: absolute;
+      left: 7px;
+      top: 7px;
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: rgba(20,36,43,.72);
+      color: #fff;
+      font-size: 9px;
+      letter-spacing: .5px;
+    }
+
+    .err-dot {
+      position: absolute;
+      right: 7px;
+      top: 7px;
+      min-width: 17px;
+      height: 17px;
+      padding: 0 4px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: var(--red);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+    }
+
+    .asset-body { padding: 9px 10px 10px; }
+    .asset-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .asset-id { font-family: Consolas, monospace; font-size: 10px; color: var(--muted); margin-top: 1px; }
+    .asset-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+    .asset-metrics { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; margin-top: 7px; }
+    .asset-metrics b { color: var(--ink-2); font-weight: 600; }
+
+    .badge { display:inline-flex; align-items:center; padding:2px 7px; border-radius:999px; font-size:11px; border:1px solid var(--line); color:var(--muted); white-space:nowrap; }
+    .badge.ok { color:var(--accent-deep); border-color:#b7d8c9; background:var(--accent-soft); }
+    .badge.warn { color:var(--amber); border-color:#e5d3b0; background:var(--amber-soft); }
+    .badge.bad { color:var(--red); border-color:#e3bdb8; background:var(--red-soft); }
+    .badge.info { color:#47667a; border-color:#cadbe4; background:#eef5f8; }
+    .badge.plain { background:#faf7ef; }
+
+    .components { display:flex; gap:4px; flex-wrap:wrap; }
+    .comp { font-size:10px; padding:1px 5px; border-radius:4px; border:1px solid var(--line); color:var(--muted); }
+    .comp.ok { color:var(--accent-deep); border-color:#b7d8c9; background:#f1faf5; }
+    .comp.warn { color:var(--amber); border-color:#e5d3b0; background:#fcf6e9; }
+    .comp.bad { color:var(--red); border-color:#e3bdb8; background:#fcf1ef; }
+
+    .issue-card { margin-top:16px; }
+    .issue-list { max-height:420px; overflow:auto; }
+    .issue-row { display:grid; grid-template-columns:64px 110px 1fr 190px; gap:10px; align-items:start; padding:9px 16px; border-bottom:1px solid #efe9dc; font-size:13px; }
+    .issue-row:last-child { border-bottom:0; }
+    .issue-row:hover { background:#fbf9f3; }
+    .issue-sev { font-size:11px; font-weight:700; }
+    .issue-sev.error { color:var(--red); }
+    .issue-sev.warning { color:var(--amber); }
+    .issue-asset { font-family:Consolas,monospace; font-size:11px; color:#5b6c70; }
+    .issue-code { font-family:Consolas,monospace; font-size:11px; color:#8b9798; text-align:right; word-break:break-all; }
+    .empty-row { padding:28px; color:var(--muted); font-size:13px; text-align:center; }
+
+    .legend { display:flex; gap:14px; color:var(--muted); font-size:11px; padding:0 2px; }
+    .legend i { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:4px; }
+
+    @media (max-width:1100px) { .stat-grid { grid-template-columns:repeat(3,1fr); } }
+    @media (max-width:760px) {
+      .stat-grid { grid-template-columns:repeat(2,1fr); }
+      .issue-row { grid-template-columns:60px 1fr; }
+      .issue-code { text-align:left; grid-column:2; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="/">
+        <span class="brand-mark">璧?/span>
+        <span class="brand-text">
+          <b>璧勪骇宸ヤ綔瀹?/b>
+          <small>ASSET STUDIO</small>
+        </span>
+      </a>
+
+      <nav class="nav">
+        <a class="nav-item" href="/">
+          <span class="nav-icon">鉁?/span>
+          <span>鐢熸垚璧勪骇</span>
+        </a>
+        <a class="nav-item active" href="/registry">
+          <span class="nav-icon">鈻?/span>
+          <span>璧勪骇鍙拌处</span>
+        </a>
+      </nav>
+
+      <div class="nav-section">鍙拌处瑙嗗浘</div>
+      <div class="nav-hint">
+        <span>01</span> 鍦ㄥ姙
+        <span>02</span> 鍏ㄩ儴
+        <span>03</span> 闂
+      </div>
+
+      <div class="sidebar-foot">
+        <div class="moku-line">鏁版嵁 <b>asset-registry.json</b></div>
+        <p class="sidebar-note" id="generated"></p>
+        <p class="sidebar-note">鍙牎楠屽湪鍔炶祫浜э紱鏈紑濮嬭祫浜т笉浜х敓閿欒銆?/p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">璧勪骇鐢熶骇 / 鍙拌处</p>
+          <h1>璧勪骇鍙拌处</h1>
+          <p class="sub">瑙勬牸銆佺粍浠躲€佸鎵广€佺粦瀹氾紝涓€澶勭湅娓?/p>
+        </div>
+        <div class="top-actions">
+          <a class="btn ghost" href="/">鐢熸垚璧勪骇</a>
+          <a class="btn ghost" href="/compose">鎷肩増宸ヤ綔鍙?/a>
+        </div>
+      </header>
+
+      <div class="stat-grid" id="cards"></div>
+
+      <section class="card registry-card">
+        <div class="registry-toolbar">
+          <button class="filter-btn active" data-filter="active">鍦ㄥ姙</button>
+          <button class="filter-btn" data-filter="all">鍏ㄩ儴</button>
+          <button class="filter-btn" data-filter="issues">鍙湅鏈夐棶棰樼殑</button>
+          <span class="filter-count" id="count"></span>
+          <div class="legend">
+            <span><i style="background:#2c7a63"></i>鎵瑰噯</span>
+            <span><i style="background:#c99a45"></i>鍊欓€?璀﹀憡</span>
+            <span><i style="background:#a3483e"></i>缂哄け/閿欒</span>
+          </div>
+        </div>
+        <div class="asset-grid" id="asset-grid"></div>
+      </section>
+
+      <section class="card issue-card">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="step">!</span>
+            <h2>鏍￠獙闂</h2>
+          </div>
+          <span class="chip" id="issue-chip"></span>
+        </div>
+        <div class="issue-list" id="issues"></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module">
+    const typeLabel = {character: '瑙掕壊', costume: '鏈嶈', scene: '鍦烘櫙', prop: '閬撳叿'};
+    const stageLabel = {in_progress: '鍦ㄥ姙', backlog: '鏈紑濮?};
+    const specLabel = {approved: '宸茬‘璁?, candidate: '鍊欓€?, pending: '寰呯‘璁?};
+    const approvalLabel = {approved: '宸叉壒鍑?, candidate: '鍊欓€?, rejected: '椹冲洖'};
+    const codeLabel = {
+      spec_missing: '瑙勬牸鏈‘璁?,
+      not_approved: '鏈壒鍑?,
+      unbound: '鏈粦瀹氱敾鏍?,
+      variants_missing: '鏃犲彉浣撹褰?
+    };
+
+    const registry = await (await fetch('/api/registry')).json();
+    const report = await (await fetch('/api/registry/validation')).json();
+    const assets = registry.assets || [];
+    const issues = report.issues || [];
+    const issueByAsset = new Map();
+    for (const issue of issues) {
+      if (!issueByAsset.has(issue.assetId)) issueByAsset.set(issue.assetId, []);
+      issueByAsset.get(issue.assetId).push(issue);
+    }
+
+    document.querySelector('#generated').textContent = `${registry.generatedAt || ''}`;
+
+    const counts = registry.counts || {};
+    const statData = [
+      ['璧勪骇', counts.assets || assets.length, `${counts.characters || 0} 瑙掕壊 路 ${counts.costumes || 0} 鏈嶈`, ''],
+      ['鍦ㄥ姙', report.summary?.stage?.in_progress || 0, `鏈紑濮?${report.summary?.stage?.backlog || 0}`, 'accent'],
+      ['閿欒', report.summary?.errors || 0, '闇€瑕佸鐞?, 'bad'],
+      ['璀﹀憡', report.summary?.warnings || 0, '寰呯‘璁?, 'warn'],
+      ['鍙樹綋', counts.variants || 0, 'V005 鍙樹綋璁板綍', '']
+    ];
+    document.querySelector('#cards').innerHTML = statData.map(([label, value, note, tone]) =>
+      `<div class="stat ${tone}"><div class="stat-value">${value}</div><div class="stat-label">${label}</div><small>${note}</small></div>`
+    ).join('');
+
+    function componentText(asset) {
+      const components = asset.components || {};
+      const entries = Object.entries(components);
+      if (!entries.length) return '<span class="muted">鈥?/span>';
+      const parts = [];
+      const approved = entries.filter(([, value]) => value?.status === 'approved').length;
+      const candidate = entries.filter(([, value]) => value?.status === 'candidate').length;
+      const missingIssues = (issueByAsset.get(asset.assetId) || []).filter(item => item.code?.startsWith('missing_component:')).length;
+      const missing = entries.filter(([, value]) => !value || value.status === 'missing').length + missingIssues;
+      if (approved) parts.push(`<span class="comp ok">${approved} 鎵瑰噯</span>`);
+      if (candidate) parts.push(`<span class="comp warn">${candidate} 鍊欓€?/span>`);
+      if (missing) parts.push(`<span class="comp bad">${missing} 缂?/span>`);
+      return `<div class="components">${parts.join('')}</div>`;
+    }
+
+    function row(asset) {
+      const assetIssues = issueByAsset.get(asset.assetId) || [];
+      const errors = assetIssues.filter(item => item.severity === 'error').length;
+      const bindings = Array.isArray(asset.bindings) ? asset.bindings.length : 0;
+      const variants = Array.isArray(asset.variants) ? asset.variants.length : 0;
+      const components = Object.values(asset.components || {});
+      const approved = components.filter(item => item?.status === 'approved').length;
+      const candidate = components.filter(item => item?.status === 'candidate').length;
+      const missing = components.filter(item => !item || item.status === 'missing').length
+        + assetIssues.filter(item => item.code?.startsWith('missing_component:')).length;
+      return `<article class="asset-card" data-asset="${asset.assetId}">
+        <div class="asset-thumb type-${asset.type}">
+          <span class="ph">${typeLabel[asset.type] || '璧勪骇'}</span>
+          <img loading="lazy" alt="" src="/api/asset-thumb?assetId=${encodeURIComponent(asset.assetId)}" onerror="this.remove()">
+          <span class="type-tag">${typeLabel[asset.type] || asset.type}</span>
+          ${errors ? `<span class="err-dot">${errors}</span>` : ''}
+        </div>
+        <div class="asset-body">
+          <div class="asset-name" title="${asset.name || ''}">${asset.name || ''}</div>
+          <div class="asset-id">${asset.assetId || ''}</div>
+          <div class="asset-badges">
+            <span class="badge ${asset.stage === 'in_progress' ? 'ok' : 'plain'}">${stageLabel[asset.stage] || asset.stage}</span>
+            <span class="badge ${asset.specStatus === 'approved' ? 'ok' : asset.specStatus === 'candidate' ? 'warn' : 'plain'}">瑙勬牸 ${specLabel[asset.specStatus] || '寰呯‘璁?}</span>
+            <span class="badge ${asset.approval === 'approved' ? 'ok' : 'warn'}">${approvalLabel[asset.approval] || '鍊欓€?}</span>
+          </div>
+          <div class="asset-metrics">
+            <span>缁勪欢 <b>${approved + candidate}/${approved + candidate + missing}</b></span>
+            <span>鍙樹綋 <b>${variants}</b></span>
+            <span>缁戝畾 <b>${bindings}</b></span>
+          </div>
+        </div>
+      </article>`;
+    }
+
+    let filter = 'active';
+    let selectedAsset = null;
+
+    function renderIssues() {
+      const list = selectedAsset
+        ? (issueByAsset.get(selectedAsset) || [])
+        : issues.filter(issue => filter !== 'issues' || issue.severity === 'error');
+      document.querySelector('#issue-chip').textContent = `${list.length} 鏉;
+      document.querySelector('#issues').innerHTML = list.length
+        ? list.map(issue => `<div class="issue-row">
+            <span class="issue-sev ${issue.severity}">${issue.severity === 'error' ? '閿欒' : '璀﹀憡'}</span>
+            <span class="issue-asset">${issue.assetId}</span>
+            <span>${issue.message}</span>
+            <span class="issue-code">${codeLabel[issue.code] || issue.code}</span>
+          </div>`).join('')
+        : '<div class="empty-row">娌℃湁鏍￠獙闂</div>';
+    }
+
+    function render() {
+      const list = assets.filter(asset => {
+        if (filter === 'active') return asset.stage === 'in_progress';
+        if (filter === 'issues') return issueByAsset.has(asset.assetId);
+        return true;
+      });
+      document.querySelector('#count').textContent = `${list.length} 涓祫浜;
+      document.querySelector('#asset-grid').innerHTML = list.length
+        ? list.map(row).join('')
+        : '<div class="empty-row">娌℃湁璧勪骇</div>';
+      renderIssues();
+    }
+
+    document.querySelectorAll('[data-filter]').forEach(button => {
+      button.addEventListener('click', () => {
+        filter = button.dataset.filter;
+        selectedAsset = null;
+        document.querySelectorAll('[data-filter]').forEach(item => item.classList.toggle('active', item === button));
+        render();
+      });
+    });
+
+    document.querySelector('#asset-grid').addEventListener('click', event => {
+      const card = event.target.closest('.asset-card');
+      if (!card) return;
+      selectedAsset = selectedAsset === card.dataset.asset ? null : card.dataset.asset;
+      document.querySelectorAll('.asset-card').forEach(item => item.classList.toggle('selected', item.dataset.asset === selectedAsset));
+      renderIssues();
+    });
+
+    render();
+  </script>
+</body>
+</html>
+

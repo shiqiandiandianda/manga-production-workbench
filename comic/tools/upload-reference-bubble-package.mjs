@@ -1,0 +1,6 @@
+import fs from 'node:fs';import path from 'node:path';import {createHash} from 'node:crypto';import {createRemoteLibrary} from '../lib/remote-library.mjs';import assert from 'node:assert/strict';
+const audit=path.resolve('../verification/editable-bubbles-20261022'),file='D:/生图平台/素材库/漫画素材/手绘细线对白框/手绘细线对白框_参考8款_可编辑_20261022.zip',receipt=path.join(audit,'package-upload.json');
+const library=createRemoteLibrary({dataDir:path.join(audit,'publisher'),configPath:path.resolve('../production-comic-data-current/library-session.local.json'),store:{db:{libraryFonts:[]}}}),bytes=fs.readFileSync(file),sha256=createHash('sha256').update(bytes).digest('hex');
+let uploaded;try{const previous=JSON.parse(fs.readFileSync(receipt,'utf8'));if(previous.sha256===sha256)uploaded=previous;}catch{}
+if(!uploaded){uploaded=await library.uploadAsset({projectId:null,name:path.basename(file),bytes,mime:'application/zip',folder:'气泡素材',category:'reference'});fs.writeFileSync(receipt,JSON.stringify({...uploaded,sha256,localFile:file},null,2));}
+const returned=Buffer.from(await(await library.remote('/api/revisions/'+uploaded.revisionId+'/download')).arrayBuffer());assert.equal(createHash('sha256').update(returned).digest('hex'),sha256);console.log(JSON.stringify({ok:true,assetId:uploaded.assetId,revisionId:uploaded.revisionId,bytes:bytes.length,sha256,downloadHashMatch:true}));

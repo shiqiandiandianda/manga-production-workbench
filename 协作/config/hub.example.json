@@ -1,0 +1,19 @@
+{
+  "port": 18897,
+  "host": "0.0.0.0",
+  "dataDir": "../../运行数据/协作/中控",
+  "hubName": "PhotoCraft 协作中控",
+  "heartbeatTimeoutMs": 15000,
+  "leaseMs": 120000,
+  "maxAttemptMs": 900000,
+  "resultMaxBytes": 67108864,
+  "maxTasks": 5000,
+  "pairingEnabled": true,
+  "allowedProjectIds": [],
+  "_说明": [
+    "host=0.0.0.0 表示允许局域网其他电脑连接；只想本机测试可改成 127.0.0.1。",
+    "dataDir 相对本配置文件或 开发/协作 目录解析；也可写绝对路径。",
+    "allowedProjectIds 为空表示不限制项目；填写后中控只派发这些 projectId 的任务。",
+    "配对码在本机 开发/运行数据/协作/中控/配对码.txt，或看中控启动窗口。"
+  ]
+}

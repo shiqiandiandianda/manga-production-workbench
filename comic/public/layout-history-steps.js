@@ -1,0 +1,47 @@
+import {queryLayoutHistory} from './layout-history.js';
+import {layoutHistoryRecordMarkup} from './layout-history-ui.js';
+import {historyObjectLabel} from './layout-history-navigation.js';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const labels={manual:'人工',automatic:'自动',undo:'撤回',redo:'重做',unknown:'未知'};
+const operations={'layer.paste':'粘贴画面','strip.spacing':'调整间距','layout.reflow':'整话重排','layout.initial':'自动排版','bubble.auto-fit':'自动扩泡',move:'移动',resize:'尺寸',crop:'裁切',arrangement:'排列','bubble.move':'移动气泡','bubble.resize':'气泡尺寸','bubble.tail':'气泡尾尖','layer.create':'新增','layer.delete':'删除',property:'属性',undo:'撤回',redo:'重做'};
+export function mountHistorySteps({getProject,getRevision=()=>0,getControls,onRestore,onLocate,onVisibility=()=>{},onExport,toast}){
+ const host=document.querySelector('.canvas-wrap'),panel=document.createElement('aside');panel.id='layout-history-steps';panel.className='history-steps-panel';panel.hidden=true;panel.setAttribute('aria-label','画板修改步骤');host.append(panel);
+ const style=document.createElement('style');style.textContent=`.canvas-wrap.history-steps-open{display:grid;grid-template-columns:minmax(0,1fr) 300px}.history-steps-open>#canvas-scroll{grid-column:1;grid-row:1;min-width:0}.history-steps-panel{grid-column:2;grid-row:1;min-height:0;overflow:auto;background:var(--panel,#18222d);border-left:1px solid var(--line,#344557);padding:10px;color:var(--text);font-size:12px}.history-steps-panel[hidden]{display:none}.history-steps-panel header,.history-steps-tools,.history-step-heading,.history-step-controls{display:flex;align-items:center;gap:5px}.history-steps-panel header{justify-content:space-between;position:sticky;top:-10px;background:var(--panel);z-index:2;padding:7px 0}.history-steps-panel button{font-size:11px!important;min-height:30px!important;padding:4px 7px!important}.history-steps-panel input,.history-steps-panel select{width:100%;font-size:11px;padding:7px!important}.history-steps-panel label{display:block;margin:6px 0!important;font-size:11px!important}.history-step{padding:8px 0;border-top:1px solid var(--line)}.history-step-heading{align-items:stretch}.history-step-locate{flex:1;min-width:0;text-align:left!important;justify-content:flex-start!important;white-space:normal;display:block!important}.history-step-locate strong,.history-step-locate small{display:block;overflow-wrap:anywhere}.history-step-locate small{color:var(--muted);line-height:1.6}.history-step-fold{flex:none;width:30px}.history-step.active>.history-step-heading{outline:1px solid #91c8fb;border-radius:5px}.history-step-controls{flex-wrap:wrap;margin:5px 0}.history-step-note,#history-step-status{font-size:11px;color:var(--muted);line-height:1.6;overflow-wrap:anywhere}.history-step-detail{overflow:auto;max-height:320px}.history-step-detail section{border-bottom:1px solid var(--line)}.history-step-detail table{font-size:10px}.history-step-detail td,.history-step-detail th{padding:3px}.history-step-object{width:100%;justify-content:flex-start!important;white-space:normal;margin-bottom:3px}.history-step-warning{color:#e9b76b!important}@media(max-width:900px){.canvas-wrap.history-steps-open{grid-template-columns:minmax(0,1fr) min(260px,42vw)}}`;
+ document.head.append(style);
+ let signature='',projectId=null,expanded=new Set(),active=null,offset=0,filter={objectId:'',operation:'',source:''},status='点击步骤定位；折叠按钮查看前后值。';
+ const buttons=()=>document.querySelectorAll('[data-open-history-steps]');
+ function setOpen(open){panel.hidden=!open;host.classList.toggle('history-steps-open',open);buttons().forEach(b=>b.setAttribute('aria-expanded',String(open)));if(open)render();onVisibility(open);}
+ function render(){
+  const p=getProject();if(!p){panel.innerHTML='<p>请先打开工程。</p>';return;}
+  const all=queryLayoutHistory(p,{...filter,limit:Number.MAX_SAFE_INTEGER}).reverse(),rows=all.slice(offset,offset+50),h=p.layoutHistory;
+  panel.innerHTML=`<header><strong>画板修改步骤</strong><button data-history-close aria-label="收起修改步骤">×</button></header><p id="history-step-status" role="status">${esc(status)}</p>`+
+   '<p class="history-step-note">16 MiB 循环：达到大小上限清理最早一半历史 · 已清理 '+(h?.evictedRecords||0)+' 条</p>'+
+   '<details class="history-step-filters"><summary>筛选 · '+all.length+' 条</summary><label>对象 / 画板 / 分镜 ID<input id="history-step-object" value="'+esc(filter.objectId)+'"></label><label>操作关键词<input id="history-step-operation" value="'+esc(filter.operation)+'"></label><label>来源<select id="history-step-source"><option value="">全部</option>'+Object.entries(labels).map(([k,v])=>'<option value="'+k+'" '+(filter.source===k?'selected':'')+'>'+v+'</option>').join('')+'</select></label><button data-history-filter>查询</button></details>'+
+   '<div class="history-steps-tools"><button data-history-export>查看 / 导出</button><button data-history-collapse>全部收起</button></div>'+
+   (rows.length?rows.map(r=>{
+    const controls=getControls(r),concrete=r.changes.filter(c=>['panel','bubble','gradient'].includes(c.objectType)),objects=concrete.length?concrete:r.changes;
+    const summary=r.operation.startsWith('undo.steps:')?'撤回多步':r.operation.startsWith('redo.steps:')?'重做多步':r.operation.split('+').map(v=>operations[v]||v).join(' · '),open=expanded.has(r.id),number=(h?.records.findIndex(v=>v.id===r.id)??0)+1;
+    return `<article class="history-step ${active===r.id?'active':''}" data-history-step="${esc(r.id)}"><div class="history-step-heading"><button class="history-step-fold" data-history-fold="${esc(r.id)}" aria-label="${open?'收起':'展开'}步骤 ${number}" aria-expanded="${open}">${open?'▾':'▸'}</button><button class="history-step-locate" data-history-locate="${esc(r.id)}" title="定位此步对象，不撤销"><strong>${number}. ${esc(summary)}</strong><small>${esc(labels[r.source]||r.source)} · ${esc(r.at)}<br>${esc(objects.slice(0,3).map(c=>historyObjectLabel(p,c)).join('、'))}${objects.length>3?' 等 '+objects.length+' 个对象':''}</small></button></div>`+
+     `<div class="history-step-controls"><button data-history-undo="${esc(r.id)}" ${!controls.undoSteps?'disabled':''}>撤回到这一步${controls.undoSteps?'（'+controls.undoSteps+'步）':''}</button><button data-history-redo="${esc(r.id)}" ${!controls.redoSteps?'disabled':''}>重做到这一步${controls.redoSteps?'（'+controls.redoSteps+'步）':''}</button></div><p class="history-step-note">${esc(controls.undoSteps?'撤回包含此步及其后续修改，共 '+controls.undoSteps+' 步。':controls.redoSteps?'顺序恢复待重做修改至此步之后，共 '+controls.redoSteps+' 步。':controls.reason)}</p>`+
+     `<div class="history-step-detail" ${!open?'hidden':''}>${open?objects.map(c=>'<button class="history-step-object" data-history-object="'+esc(c.objectId)+'" data-history-record="'+esc(r.id)+'">定位 '+esc(historyObjectLabel(p,c))+(c.action==='delete'?' · 删除记录':'')+'</button>').join('')+layoutHistoryRecordMarkup(r,filter):''}</div></article>`;
+   }).join(''):'<p class="empty-note">暂无符合条件的修改步骤。</p>')+
+   '<div class="history-steps-tools"><button data-history-prev '+(!offset?'disabled':'')+'>上一页</button><span>第 '+(Math.floor(offset/50)+1)+' 页</span><button data-history-next '+(offset+50>=all.length?'disabled':'')+'>下一页</button></div>';
+ }
+ function find(id){return getProject()?.layoutHistory?.records.find(r=>r.id===id);}
+ panel.addEventListener('keydown',e=>{if(!e.ctrlKey&&!e.metaKey&&['Delete','Backspace','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))e.stopPropagation();});
+ panel.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b||b.disabled)return;
+  try{
+   if(b.hasAttribute('data-history-close'))return setOpen(false);
+   if(b.hasAttribute('data-history-export'))return onExport();
+   if(b.hasAttribute('data-history-collapse')){expanded.clear();return render();}
+   if(b.hasAttribute('data-history-filter')){filter={objectId:panel.querySelector('#history-step-object').value.trim(),operation:panel.querySelector('#history-step-operation').value.trim(),source:panel.querySelector('#history-step-source').value};offset=0;return render();}
+   if(b.hasAttribute('data-history-prev')){offset=Math.max(0,offset-50);return render();}if(b.hasAttribute('data-history-next')){offset+=50;return render();}
+   const id=b.dataset.historyFold||b.dataset.historyLocate||b.dataset.historyRecord||b.dataset.historyUndo||b.dataset.historyRedo,r=find(id);if(!r)return;
+   if(b.dataset.historyFold){expanded.has(id)?expanded.delete(id):expanded.add(id);return render();}
+   if(b.dataset.historyUndo||b.dataset.historyRedo){const direction=b.dataset.historyUndo?'undo':'redo',c=getControls(r),count=direction==='undo'?c.undoSteps:c.redoSteps;if(!count)return;await onRestore(direction,count);status=`已${direction==='undo'?'撤回':'重做'} ${count} 步；点击记录只定位。`;return render();}
+   active=id;status=onLocate(r,b.dataset.historyObject||'')||'没有可定位区域。';render();
+  }catch(error){toast(error.message,true);}
+ });
+ buttons().forEach(b=>b.addEventListener('click',()=>{if(getProject())setOpen(panel.hidden);}));
+ return {notice(message){status=message;if(!panel.hidden)render();},refresh(){const p=getProject();if(p?.id!==projectId){projectId=p?.id;expanded.clear();active=null;offset=0;filter={objectId:'',operation:'',source:''};status='点击步骤定位；折叠按钮查看前后值。';}const next=projectId+':'+(p?.layoutHistory?.records.length||0)+':'+getRevision();if(next===signature)return;signature=next;if(!panel.hidden)render();},open(){setOpen(true);},close(){setOpen(false);}};
+}

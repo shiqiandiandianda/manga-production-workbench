@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {AssetCenterClient} from './client.mjs';
+import {executeOne,resumeResults} from './worker.mjs';
+const configFile=path.resolve(process.argv[2]||'worker.local.json');
+const config=JSON.parse(fs.readFileSync(configFile,'utf8')),client=new AssetCenterClient(config);
+if(!config.adapter)throw Error('请在worker.local.json中配置adapter模块路径');
+const adapter=await import(pathToFileURL(path.resolve(path.dirname(configFile),config.adapter)));if(typeof adapter.generate!=='function')throw Error('适配器需要导出generate函数');
+const directory=path.resolve(path.dirname(configFile),config.directory||'worker-data');let stopped=false;process.on('SIGINT',()=>{stopped=true;console.log('当前任务完成后停止接单');});process.on('SIGTERM',()=>{stopped=true;});
+const pending=await resumeResults({client,directory,onStatus:console.log});if(pending.some(item=>!item.ok))throw Error('有未回传结果，请先处理原文件，未开始新生成');
+do{try{const result=await executeOne({client,generate:adapter.generate,directory,provider:config.provider||'external',workId:config.workId,onStatus:console.log});if(!result.task&&!config.once)await new Promise(resolve=>setTimeout(resolve,3000));}catch(error){console.error(error.message);stopped=true;}}while(!stopped&&!config.once);

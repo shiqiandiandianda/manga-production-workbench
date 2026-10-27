@@ -1,0 +1,12 @@
+export function textLayerName(text){return String(text??'').replace(/\s+/gu,' ').trim()||'文字图层';}
+export function visualLayers(layers,ids){const selected=new Set(ids);return layers.filter(layer=>selected.has(layer.id)&&['image','text','paint'].includes(layer.type));}
+export function canvasLayerAtPoint(source,output,layers,bounds){for(const layer of [...layers].reverse()){if(!['image','text','paint'].includes(layer.type)||layer.visible===false||layer.versionHidden||layer.opacity===0)continue;const point=layer.coordinateSpace==='output'?output:source,box=bounds(layer);if(point&&box&&point.x>=box.x&&point.x<box.x+box.width&&point.y>=box.y&&point.y<box.y+box.height)return layer;}return null;}
+export function linkedMembers(layers,ids){const chosen=visualLayers(layers,ids),groups=new Set(chosen.map(layer=>layer.linkGroupId).filter(Boolean));return layers.filter(layer=>chosen.includes(layer)||groups.has(layer.linkGroupId));}
+export function linkLayers(layers,ids,groupId=crypto.randomUUID()){
+ const members=linkedMembers(layers,ids);if(members.length<2)throw new Error('请选择至少两个图片、文字或绘画图层');
+ if(new Set(members.map(layer=>layer.coordinateSpace||'source')).size!==1)throw new Error('请先将所选图层合并，或选择位于同一画板空间的图层再链接');
+ for(const layer of members)layer.linkGroupId=groupId;return members;
+}
+export function unlinkLayers(layers,ids){const selected=visualLayers(layers,ids),groups=new Set(selected.map(layer=>layer.linkGroupId).filter(Boolean));const members=layers.filter(layer=>groups.has(layer.linkGroupId));for(const layer of members){delete layer.linkGroupId;if(layer.autoTextPending){layer.pendingLinkCancelled=true;delete layer.pendingLinkGroupId;}}return members;}
+export function cleanLayerGroups(layers){const counts=new Map();for(const layer of layers)if(layer.linkGroupId)counts.set(layer.linkGroupId,(counts.get(layer.linkGroupId)||0)+1);for(const layer of layers)if(layer.linkGroupId&&counts.get(layer.linkGroupId)<2)delete layer.linkGroupId;}
+export function pastedLayerProperties(saved,id,groups,offset=24){const {jobId,regionId,originJobId,originRegionId,jobOrder,versionHidden,imageRef,linkGroupId,autoTextPending,pendingAutoShow,pendingLinkGroupId,pendingLinkCancelled,autoTextBaseline,autoTextLayoutOffset,...properties}=saved;return{...properties,id,name:(saved.name||'图层')+' 副本',locked:false,x:(saved.x||0)+offset,y:(saved.y||0)+offset,...(groups.has(linkGroupId)?{linkGroupId:groups.get(linkGroupId)}:{}),imported:saved.type==='image'||saved.imported};}

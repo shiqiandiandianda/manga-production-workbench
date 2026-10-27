@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1440" viewBox="0 0 1200 1440">
+  <defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#eef0e5"/><stop offset="1" stop-color="#d9d9c6"/></linearGradient><pattern id="shade" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><path d="M0 0V9" stroke="#565d50" stroke-width="1" opacity=".13"/></pattern></defs>
+  <rect width="1200" height="1440" fill="#faf8f0"/>
+  <rect x="50" y="60" width="1100" height="1320" fill="url(#sky)" stroke="#434b3f" stroke-width="4"/>
+  <path d="M60 250H1140M815 66V935M118 250V933M116 560H1145" stroke="#bdc3b0" stroke-width="12"/>
+  <g fill="#a5af97" opacity=".43"><path d="M80 587V390H170V587ZM177 590V310H296V590ZM310 590V413H435V590ZM878 591V371H995V591ZM1001 591V462H1144V591Z"/><path d="M80 715H1140V935H80Z"/></g>
+  <g stroke="#d1d5c3" stroke-width="5" opacity=".8"><path d="M218 330V556M245 330V556M343 436V572M371 436V572M938 404V550M1053 487V565"/></g>
+  <path d="M972 940q-37-191 56-326-37 161 8 326M1028 711q-98-45-96-110 93 15 96 110M1032 814q94-102 104-45-9 46-104 45M1022 864q-80-67-91-25 13 47 91 25" fill="#87997a" stroke="#536948" stroke-width="3"/>
+  <path d="M976 889H1083L1067 1010H993Z" fill="#b5bca5" stroke="#647359" stroke-width="4"/>
+  <path d="M292 875Q210 1010 176 1329L843 1348Q929 1100 804 888L684 799H447Z" fill="#687869" stroke="#283d31" stroke-width="6"/>
+  <path d="M292 875Q210 1010 176 1329L843 1348Q929 1100 804 888L684 799H447Z" fill="url(#shade)"/>
+  <path d="M495 742L478 856 562 939 663 848 632 734" fill="#e4c6aa" stroke="#574d3d" stroke-width="5"/>
+  <path d="M478 850L545 987 410 895 439 813ZM663 850L565 988 753 894 691 810Z" fill="#c9d0bc" stroke="#4f6252" stroke-width="5"/>
+  <path d="M554 984L505 1315M576 987L601 1327M314 1078L264 1306M810 1105L777 1283" fill="none" stroke="#a1ac93" stroke-width="7"/>
+  <path d="M364 474Q354 288 554 253 759 239 789 454L750 633 690 705 477 711 399 618Z" fill="#e8cfb3" stroke="#454939" stroke-width="6"/>
+  <path d="M370 489Q309 523 371 605L405 595M765 490Q825 523 765 605L741 598" fill="#e8cfb3" stroke="#454939" stroke-width="5"/>
+  <path d="M385 576Q376 702 524 754 660 792 746 625L764 448 370 455Z" fill="#e7cbb0" stroke="#454939" stroke-width="5"/>
+  <path d="M367 510Q293 320 395 235 521 135 684 213 817 272 788 501L719 461 691 339 645 465 604 328 561 454 520 301 440 436 415 372 393 532Z" fill="#394f45" stroke="#233c31" stroke-width="6"/>
+  <g fill="none" stroke="#7c9280" stroke-width="4"><path d="M371 323Q469 209 595 249M414 295Q502 233 683 290M688 242Q767 310 752 396M391 399Q428 350 452 302"/></g>
+  <g fill="none" stroke="#594c3b" stroke-width="5" stroke-linecap="round"><path d="M444 527Q483 505 523 528M613 527Q651 506 689 525M470 559Q491 568 514 556M620 557Q644 569 665 554M567 543L555 605 574 614M520 658Q566 677 614 651"/></g>
+  <path d="M441 584L515 586M624 582L689 581" stroke="#bf977b" stroke-width="5" opacity=".6"/>
+  <path d="M688 1030Q756 1143 947 1057L934 936Q809 995 755 908L699 938" fill="#849481" stroke="#314c3b" stroke-width="6"/>
+  <path d="M847 1005L874 1100 947 1065 928 972Z" fill="#b8c0a8" stroke="#425b43" stroke-width="5"/>
+  <g stroke="#63503c" stroke-width="5" stroke-linejoin="round"><path d="M903 991Q919 924 937 909L965 902 1024 952 1014 1020Q961 1074 918 1053Z" fill="#e4c6aa"/>
+  <path d="M934 946Q894 882 907 871 929 857 955 924M949 931Q929 853 947 846 970 844 974 922M972 929Q973 840 991 847 1014 861 994 938M995 944Q1016 866 1037 878 1050 899 1015 957M1012 962Q1057 900 1070 921 1080 943 1031 981M1024 988Q1082 954 1085 978 1088 1001 1032 1010" fill="#e4c6aa"/>
+  </g>
+  <path d="M885 882H986L976 1004Q943 1028 897 1004Z" fill="#f7f1dc" stroke="#536247" stroke-width="6"/><path d="M987 904Q1061 896 1037 955L983 973" fill="none" stroke="#536247" stroke-width="13"/><ellipse cx="935" cy="881" rx="50" ry="10" fill="#bcb494" stroke="#536247" stroke-width="4"/>
+  <path d="M901 848Q882 819 911 793M944 842Q965 817 941 789" fill="none" stroke="#a3ab91" stroke-width="4"/>
+  <path d="M53 1210H1148V1377H53Z" fill="#c2b99a" stroke="#5e6c50" stroke-width="5"/><path d="M56 1228H1144M69 1283L650 1290M500 1328H1112" fill="none" stroke="#a29575" stroke-width="3"/>
+  <rect x="104" y="121" width="245" height="65" rx="3" fill="#faf8ef" stroke="#7c8a6b" stroke-width="3"/>
+  <text x="129" y="164" font-family="sans-serif" font-size="25" fill="#738164" letter-spacing="4">午後のひととき</text>
+  <text x="91" y="1416" font-family="sans-serif" font-size="18" fill="#9ca68b" letter-spacing="3">DEMO ARTWORK · SELECT THE HAND TO TRY A LOCAL REPAIR</text>
+</svg>

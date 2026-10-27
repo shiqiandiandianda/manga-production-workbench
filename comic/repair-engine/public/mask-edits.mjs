@@ -1,0 +1,3 @@
+// Paint overrides remain separate from the feathered base mask.
+export function deriveMaskEdits(final,base){const edits=new Uint8ClampedArray(final.length);for(let i=0;i<final.length;i+=4){const a=final[i+3],b=base[i+3];if(a===b)continue;const show=a>b,value=show?255:0,coverage=show?(a-b)/(255-b):(b-a)/b;edits.set([value,value,value,Math.round(coverage*255)],i);}return edits;}
+export function applyMaskEdits(base,edits){const result=new Uint8ClampedArray(base);for(let i=0;i<result.length;i+=4){const coverage=edits[i+3]/255;result[i+3]=Math.round(base[i+3]*(1-coverage)+edits[i]*coverage);}return result;}

@@ -1,0 +1,4 @@
+const icons={trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 10v7M14 10v7"/>',add:'<path d="M12 5v14M5 12h14"/>',replace:'<path d="M20 7v5h-5M4 17v-5h5M5.3 8a7 7 0 0 1 11.5-3L20 8M4 16l3.2 3A7 7 0 0 0 18.7 16"/>'};
+export function imageCardControls({remove='',add='',replace='',disabled=false}={}){
+ return '<div class="image-card-controls">'+[['add',add,'添加图片'],['replace',replace,'替换图片'],['trash',remove,'删除图片']].filter(([,attributes])=>attributes).map(([icon,attributes,label])=>`<button type="button" class="image-card-control ${icon==='trash'?'is-delete':''}" ${attributes} aria-label="${label}" title="${label}" ${disabled?'disabled':''}><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icons[icon]}</svg></button>`).join('')+'</div>';
+}

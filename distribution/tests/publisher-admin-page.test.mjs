@@ -1,0 +1,23 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {createHash,generateKeyPairSync} from 'node:crypto';
+import {createRequire} from 'node:module';
+import {createPublisher} from '../publisher.mjs';
+const root=path.resolve(import.meta.dirname,'../..'),proof=path.join(root,'verification/team-admin-page-20261025');fs.mkdirSync(proof,{recursive:true});
+test('主机18914管理页完整加载所有模块，显示离线同事版本、全员升级及权限控制',{timeout:30000},async t=>{
+ const dir=fs.mkdtempSync(path.join(proof,'fixture-')),publicRoot=path.join(dir,'comic/public'),source=path.join(root,'comic/public'),modules=new Set();fs.mkdirSync(publicRoot,{recursive:true});
+ function copyModule(name){if(modules.has(name))return;modules.add(name);const text=fs.readFileSync(path.join(source,name),'utf8');fs.writeFileSync(path.join(publicRoot,name),text);for(const [,ref] of text.matchAll(/(?:\bfrom\s*|\bimport\s*)['"](\.[^'"]+)['"]/g))copyModule(path.posix.normalize(path.posix.join(path.posix.dirname(name),ref)));}
+ copyModule('team-dashboard.js');for(const name of ['team-dashboard.html','team-dashboard.css','team-dashboard-boot.js','team-comms.css'])fs.copyFileSync(path.join(source,name),path.join(publicRoot,name));
+ fs.mkdirSync(path.join(dir,'distribution'));fs.writeFileSync(path.join(dir,'distribution/environments.json'),'{"packages":[]}');
+ const dataDir=path.join(dir,'runtime-data/distribution/master');fs.mkdirSync(dataDir,{recursive:true});const keys=generateKeyPairSync('ed25519',{publicKeyEncoding:{type:'spki',format:'pem'},privateKeyEncoding:{type:'pkcs8',format:'pem'}}),machineId='SYNTHETIC-COLLEAGUE',registrationKey='1'.repeat(64),key=createHash('sha256').update(machineId+':'+registrationKey).digest('hex');
+ fs.writeFileSync(path.join(dataDir,'master.local.json'),JSON.stringify({...keys,enrollmentCode:'SYNTHETIC-INVITE',clients:{[key]:{name:machineId}}}));fs.writeFileSync(path.join(dataDir,'presence.local.json'),JSON.stringify({[key]:{name:'离线同事',nameSource:'profile',machine:machineId,version:'2026-10-24 V103',lastSeen:1}}));
+ const publisher=await createPublisher({root:dir,masterUrl:'http://127.0.0.1',checkSyntax:false,primaryContext:async()=>({name:'合成主机'})});await new Promise(r=>publisher.server.listen(0,'127.0.0.1',r));t.after(()=>publisher.close());await publisher.publish({force:true});const base='http://127.0.0.1:'+publisher.server.address().port;
+ for(const module of modules){const r=await fetch(base+'/'+module);assert.equal(r.status,200,module);assert.match(r.headers.get('content-type'),/javascript/,module);}assert.equal((await fetch(base+'/team-local-instances.json')).status,200);assert.equal((await fetch(base+'/primary-channel.mjs')).status,404);assert.equal((await fetch(base+'/../distribution/channel.json')).status,404);
+ const {chromium}=createRequire(import.meta.url)('C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'),browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());const page=await browser.newPage({viewport:{width:1497,height:927}}),errors=[],failed=[];page.on('pageerror',e=>errors.push(e.message));page.on('response',r=>{if(r.status()>=400&&!r.url().endsWith('/favicon.ico'))failed.push({url:r.url(),status:r.status()});});
+ await page.goto(base+'/');await page.waitForFunction(()=>document.documentElement.dataset.teamDashboardSettled==='1');assert.equal(await page.locator('#force-upgrade-all').isVisible(),true);assert.equal(await page.locator('#members [data-toggle-publish]').count(),1);assert.match(await page.locator('#members').innerText(),/离线同事/);assert.match(await page.locator('#members').innerText(),/2026-10-24 V103/);assert.match(await page.locator('#members').innerText(),/允许发布新版/);assert.equal(await page.locator('#message').innerText(),'');await page.locator('a[href="#team-members"]').click();await page.screenshot({path:path.join(proof,'synthetic-version-permissions.png')});
+ // A fake colleague's permission can be granted and revoked without touching the real roster.
+ await page.locator('#members [data-toggle-publish]').click();await page.waitForFunction(()=>document.querySelector('#members [data-toggle-publish]')?.textContent==='撤销发布权限');await page.locator('#members [data-toggle-publish]').click();await page.waitForFunction(()=>document.querySelector('#members [data-toggle-publish]')?.textContent==='允许发布新版');assert.deepEqual(errors,[]);assert.deepEqual(failed,[]);
+ fs.writeFileSync(path.join(proof,'synthetic-acceptance.json'),JSON.stringify({modules:[...modules],offlineVersionVisible:true,forceUpgradeVisible:true,permissionGrantRevoke:true,errors,failed},null,2));
+});

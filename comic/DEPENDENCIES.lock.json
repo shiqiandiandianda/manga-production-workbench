@@ -1,0 +1,19 @@
+{
+  "platform": "Windows x64",
+  "observedHost": {
+    "node": "24.21.0",
+    "python": "3.12.14"
+  },
+  "nodeMinimum": "22",
+  "pythonTarget": "3.12 x64",
+  "npm": {
+    "@napi-rs/canvas": "0.1.100",
+    "@napi-rs/canvas-win32-x64-msvc": "0.1.100"
+  },
+  "python": {
+    "Pillow": "12.3.0",
+    "numpy": "2.3.5"
+  },
+  "providers": "Optional external official Codex/Jimeng installations; no credentials; not installed by this release",
+  "fonts": "Bundled OFL fonts and licenses; Windows KaiTi is local only"
+}

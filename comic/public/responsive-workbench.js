@@ -1,0 +1,74 @@
+import {mountInspectorShortcut} from './inspector-shortcut.js';
+
+// Move the existing controls, preserving their listeners and editing semantics.
+export function mountResponsiveWorkbench({onOpenInspector,getInspectorState,onAddNode,onDeleteNode}={}){
+ const $=selector=>document.querySelector(selector),toolbar=$('.canvas-toolbar'),tools=$('.tools');
+ document.body.classList.add('unified-workbench');
+ const menus=[];
+ function menu(host,id,label){
+  const root=document.createElement('details');root.className='workbench-menu';root.id=id;
+  const summary=document.createElement('summary');summary.textContent=label;summary.setAttribute('role','button');summary.setAttribute('aria-expanded','false');
+  const panel=document.createElement('div');panel.className='workbench-menu-panel';root.append(summary,panel);host.append(root);menus.push(root);
+  root.addEventListener('toggle',()=>{summary.setAttribute('aria-expanded',String(root.open));if(root.open){for(const other of menus)if(other!==root)other.open=false;position(root);if(id==='edit-menu')requestAnimationFrame(()=>window.dispatchEvent(new Event('resize')));}});
+  return panel;
+ }
+ function move(host,...selectors){for(const selector of selectors){const node=$(selector);if(node)host.append(node);}}
+ function caption(host,text){const node=document.createElement('span');node.className='menu-caption';node.textContent=text;host.append(node);}
+ function position(root){const panel=root.lastElementChild,box=root.firstElementChild.getBoundingClientRect(),width=Math.min(320,innerWidth-24);panel.style.width=width+'px';panel.style.left=Math.max(12,Math.min(innerWidth-width-12,box.left))+'px';panel.style.top=box.bottom+8+'px';panel.style.maxHeight=Math.max(120,innerHeight-box.bottom-24)+'px';}
+
+ // Six stable editing entries. Detailed commands live in named groups.
+ const insert=menu(tools,'insert-menu','＋ 添加');insert.id='insert-actions';
+ caption(insert,'文字与素材');move(insert,'#add-bubble','[data-open-sfx]','#gradient-tool','[data-tool="insert-space"]');
+ const edit=menu(tools,'edit-menu','编辑');
+ caption(edit,'画面图层');move(edit,'#image-layer-copy','#image-layer-paste');
+ caption(edit,'选择范围');for(const button of [...$('#select-all-menu').children])edit.append(button);
+ const group=document.createElement('div');group.className='inline-frame-tools';group.dataset.placement='dock';move(edit,'#page-settings');
+ $('#select-all-trigger').hidden=true;
+ const view=menu(toolbar,'display-menu','视图');
+ move(view,'#panel-notes-toggle','#panel-display-mode','#panel-info-toggle','#frame-status-toggle','#draft-toggle','#history-steps-toggle');
+ $('#view-more').hidden=true;
+ const right=$('.toolbar-right');toolbar.append(right);
+ move(right,'#undo','#redo','#zoom');
+ const properties=mountInspectorShortcut({host:right,onOpenInspector,getInspectorState});
+ properties.button.querySelector('.properties-wide-label').textContent='属性';
+ properties.button.title='打开当前对象属性 · 双击画格也可打开';
+
+ const generate=$('.generation-actionbar');
+ const generationPanel=menu(generate,'generation-menu','生图');
+ caption(generationPanel,'按分镜表提示词生成');move(generationPanel,'#generate-current-panel','#generate-current-episode','#prompt-source-batch','#reference-review-episode');
+ $('#generate-current-episode').textContent='生成本话缺图';
+ const settings=document.createElement('button');settings.textContent='生图设置';settings.onclick=()=>$('[data-open-generation-settings]').click();generationPanel.append(settings);
+ $('.topbar').insertBefore(generate,$('.export-wrap'));
+ const footer=$('.job-heading');footer.insertBefore($('#generation-scope-status'),$('#job-latest-status'));
+ const projectTools=menu($('.topbar'),'project-tools-menu','更多');
+ move(projectTools,'.integration-actions');
+ $('.export-wrap').after($('#project-tools-menu'));
+ $('.workspace-controls').hidden=true;
+
+ // A fixed tool column belongs to the layout canvas, alongside the repair pane.
+ const editor=$('.app-shell>.editor'),area=document.createElement('div');area.className='canvas-work-area';editor.before(area);area.append(editor);
+ const dock=document.createElement('aside');dock.id='canvas-tool-dock';dock.className='canvas-tool-dock';dock.setAttribute('aria-label','排版常用工具');
+ dock.innerHTML='<div class="canvas-tool-heading"><strong>常用工具</strong><button data-close-canvas-tools aria-label="收起常用工具">×</button></div><div class="canvas-tool-content"><div class="dock-primary-tools" role="group" aria-label="选择、格子与图片"></div><p class="frame-selection-note">选中画格后调整形状、描边和图片</p></div>';
+ const primary=dock.querySelector('.dock-primary-tools'),content=dock.querySelector('.canvas-tool-content'),rect=$('[data-tool="rect"]');rect.textContent='格子';rect.title='调整画格边框和裁切范围，图片与对白保持原位';$('[data-tool="move"]').title='选中和移动图层；拖动边角时遵守等比开关';
+ primary.append($('[data-tool="move"]'),rect,$('[data-tool="image"]'));$('#panel-tool-toggle').innerHTML='<img class="ui-icon" src="/icons/border-all.svg" alt="">更多画格工具';content.append(group);$('#tools-tab').append(tools);area.append(dock);
+ const nodeModes=document.createElement('div');nodeModes.className='dock-frame-modes';nodeModes.hidden=true;nodeModes.dataset.frameModes='';const nodes=$('[data-tool="nodes"]');nodes.textContent='自由节点';nodes.title='拖动节点调整画格轮廓，图片保持原位';nodeModes.append(nodes);primary.after(nodeModes);
+ const nodeActions=document.createElement('div');nodeActions.className='dock-node-actions';nodeActions.dataset.nodeControls='';nodeActions.hidden=true;nodeActions.innerHTML='<button data-node-add aria-label="增加格子点">加点</button><button data-node-delete aria-label="删除格子点">删点</button><small>点击边线加点，选中节点后可删除</small>';nodeModes.after(nodeActions);nodeActions.querySelector('[data-node-add]').onclick=onAddNode;nodeActions.querySelector('[data-node-delete]').onclick=onDeleteNode;
+ const creates=$('.layer-create');creates.classList.add('rail-create');creates.setAttribute('aria-label','新增图层');$('.workspace-rail').insertBefore(creates,$('[data-open-generation-settings]'));for(const [id,label] of [['layer-add','格子＋'],['layer-add-bubble','对白'],['layer-add-gradient','渐变']])$('#'+id).textContent=label;creates.querySelector('[data-open-sfx]').textContent='特效';
+ const toggle=document.createElement('button');toggle.id='canvas-tools-toggle';toggle.textContent='常用工具';toggle.setAttribute('aria-controls',dock.id);toolbar.prepend(toggle);
+ function showTools(value){area.classList.toggle('tools-collapsed',!value);toggle.setAttribute('aria-expanded',String(value));window.dispatchEvent(new Event('resize'));}
+ toggle.onclick=()=>showTools(area.classList.contains('tools-collapsed'));dock.querySelector('[data-close-canvas-tools]').onclick=()=>showTools(false);
+ // Keep direct tool choices visible while giving portrait artwork the full canvas width.
+ toggle.before(primary);showTools(false);
+ const small=matchMedia('(max-width:700px)');small.addEventListener('change',()=>showTools(false));
+ document.addEventListener('click',event=>{if(event.target.closest('[data-panel-inspector-tab]'))showTools(false);});
+
+ const compact=matchMedia('(max-width:1000px)'),viewCommands=[...view.children],mobileViewCaption=document.createElement('span');mobileViewCaption.className='menu-caption';mobileViewCaption.textContent='视图设置';
+ function compactTools(){if(compact.matches){edit.append(mobileViewCaption,...viewCommands);}else{mobileViewCaption.remove();view.append(...viewCommands);}}
+ compact.addEventListener('change',compactTools);compactTools();
+
+ document.addEventListener('pointerdown',event=>{for(const root of menus)if(!root.contains(event.target))root.open=false;});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape')for(const root of menus)root.open=false;});
+ for(const root of menus)root.lastElementChild.addEventListener('click',event=>{if(event.target.closest('button,a')&&!event.target.closest('.inline-frame-tools'))root.open=false;});
+ const resize=new ResizeObserver(()=>{document.documentElement.style.setProperty('--responsive-tools-bottom',Math.round(toolbar.getBoundingClientRect().bottom)+'px');for(const root of menus)if(root.open)position(root);});resize.observe(toolbar);
+ return {group,floating:{follow(){}},syncInspectorShortcut:properties.sync,inspectorShortcutButton:properties.button};
+}

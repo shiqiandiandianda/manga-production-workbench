@@ -1,0 +1,7 @@
+{
+  "name":"scene-studio-local", "version":"1.5.3", "private":true, "type":"module",
+  "engines":{"node":">=22.13.0"},
+  "scripts":{"build":"node scripts/build.mjs","start":"node runtime/server.mjs","dev":"vite --host 127.0.0.1","test":"node --experimental-strip-types --test tests/*.test.mjs"},
+  "dependencies":{"react":"19.2.6","react-dom":"19.2.6","lucide-react":"1.55.0","mammoth":"1.13.0","zod":"3.25.76"},
+  "devDependencies":{"vite":"8.0.13","typescript":"5.9.3","@types/react":"19.2.14","@types/react-dom":"19.2.3","@types/node":"22.19.19"}
+}

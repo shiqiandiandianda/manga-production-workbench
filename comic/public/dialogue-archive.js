@@ -1,0 +1,10 @@
+import {clone} from './model.js';
+export function allDialogue(project){return [...(Array.isArray(project.pages)?project.pages:[]).flatMap(page=>page.bubbles||[]),...(Array.isArray(project.archivedBubbles)?project.archivedBubbles:[])];}
+export function archiveRemovedDialogue(project,before){
+ const active=new Set(project.pages.flatMap(page=>page.bubbles.map(b=>b.id))),archive=new Map((project.archivedBubbles||[]).filter(b=>!active.has(b.id)).map(b=>[b.id,b]));let added=0;
+ for(const page of before.pages)for(const bubble of page.bubbles)if((bubble.storyboard||bubble.layoutSourceLineId)&&!active.has(bubble.id)&&!archive.has(bubble.id)){archive.set(bubble.id,{...clone(bubble),visible:false,archivedFrom:{pageId:page.id,pageName:page.name,pageWidth:page.width}});added++;}
+ for(const bubble of before.archivedBubbles||[])if(!active.has(bubble.id)&&!archive.has(bubble.id))archive.set(bubble.id,clone(bubble));
+ if(archive.size||project.archivedBubbles)project.archivedBubbles=[...archive.values()];return added;
+}
+export function mergeDialogueArchive(project,saved){const active=new Set(project.pages.flatMap(page=>page.bubbles.map(b=>b.id))),archive=new Map([...(saved.archivedBubbles||[]),...(project.archivedBubbles||[])].filter(b=>!active.has(b.id)).map(b=>[b.id,b]));if(archive.size||project.archivedBubbles)project.archivedBubbles=clone([...archive.values()]);}
+export function restoreArchivedDialogue(project,bubbleId,pageId){const page=project.pages.find(p=>p.id===pageId),bubble=project.archivedBubbles?.find(b=>b.id===bubbleId);if(!page||!bubble)throw new Error('归档原文或当前页面不存在');if(page.bubbles.length>=3200)throw new Error('当前连续画板已有3200个文字图层，请先整理');const restored=clone(bubble);delete restored.archivedFrom;if(!page.panels.some(f=>f.id===restored.parentPanelId))delete restored.parentPanelId;restored.visible=true;restored.x=Math.max(0,Math.min(restored.x,page.width-restored.w));restored.y=Math.max(20,Math.min(restored.y,Math.max(20,page.height-restored.h)));page.bubbles.push(restored);project.archivedBubbles=project.archivedBubbles.filter(b=>b.id!==bubbleId);return restored;}

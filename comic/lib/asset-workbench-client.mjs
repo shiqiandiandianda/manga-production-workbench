@@ -1,0 +1,38 @@
+import {isIP} from 'node:net';
+import fs from 'node:fs';import path from 'node:path';import {createHash} from 'node:crypto';import {writeFileAtomicSync} from './durable-files.mjs';
+export const imageHash=bytes=>createHash('sha256').update(bytes).digest('hex');
+const fail=(message,status=409)=>Object.assign(Error(message),{status});
+export function generatorURL(value){let url;try{url=new URL(value);}catch{throw fail('请填写角色场景工具的 HTTP 地址',400);}if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw fail('工具地址只填写主机和端口，例如 http://192.168.80.44:8790',400);if(url.protocol==='http:'&&!(['localhost','[::1]'].includes(url.hostname)||isIP(url.hostname)===4&&/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(url.hostname)))throw fail('HTTP只允许本机或私有局域网IP；远程请填写局域网IP地址',400);return url.origin;}
+export class AssetWorkbenchClient{
+ constructor({url,token,fetchImpl=fetch}){this.url=generatorURL(url);this.token=token;this.fetch=fetchImpl;}
+ async request(route,{method='GET',data,signal,binary=false}={}){
+  const response=await this.fetch(this.url+route,{method,redirect:'error',headers:{Authorization:'Bearer '+this.token,...(data?{'Content-Type':'application/json'}:{})},body:data?JSON.stringify(data):undefined,signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});
+  if(binary){if(!response.ok)throw fail('取回资产图片失败（HTTP '+response.status+'）',response.status);const chunks=[];let size=0;for await(const bytes of response.body){size+=bytes.length;if(size>30*1024*1024)throw fail('资产图片超过30MB');chunks.push(bytes);}return Buffer.concat(chunks);}
+  if(!response.headers.get('content-type')?.includes('application/json'))throw fail('该地址没有返回资产工具 API，请检查端口',502);const value=await response.json();if(!response.ok){let message=String(value.message||value.error?.message||value.error||'工具请求失败');if(this.token)message=message.replaceAll(this.token,'[redacted]');throw fail(message.slice(0,500),response.status);}return value;
+ }
+ async status(){const health=await this.request('/api/lan/v1/health');if(health.app!=='asset-generation-workbench')throw fail('连接到的不是角色场景资产工具',502);const capabilities=await this.request('/api/lan/v1/capabilities');await this.request('/api/lan/v1/stats');return {health,capabilities};}
+}
+export function remoteAssetRequest(task,references,instanceId){
+ const brief=task.brief,preflight=message=>Object.assign(fail(message),{generationEnded:true});if(references.length>3)throw preflight('角色场景工具每项最多3张参考图，请调整固定参考计划');
+ const sizes=references.map(ref=>fs.statSync(ref.filePath).size);if(sizes.some(size=>size>30*1024*1024)||sizes.reduce((a,b)=>a+b,0)>36*1024*1024)throw preflight('参考图总量超过36MB，请选择较小的固定参考版本；未提交生图、未改动原图');
+ const refs=references.map(ref=>{const bytes=fs.readFileSync(ref.filePath);if(imageHash(bytes)!==ref.version.sha256)throw preflight('固定参考图校验失败');return 'data:'+ref.version.mime+';base64,'+bytes.toString('base64');});
+ const referenceVersions=references.map(ref=>({...brief.referenceImages?.find(r=>r.versionId===ref.version.id),versionId:ref.version.id,sha256:ref.version.sha256}));
+ return {vendor:'comic-shared-asset-center',clientRequestId:'comic-'+imageHash(JSON.stringify([instanceId,task.id,task.attempt])).slice(0,56),project:brief.workTitle||task.workId,destinations:['local'],collision:'version',items:[{mode:'generate',engine:brief.role==='character'?'workshop':'scene',type:brief.role==='scene'?'scene':brief.role==='character'?'card':'reference',character:brief.role==='character'?brief.name:'',outfit:brief.state||'',scene:brief.role==='scene'?brief.name:'',canonicalKey:brief.stableId||task.assetId,style:brief.style,chapter:[...new Set(brief.usages.map(u=>u.episode))].join(','),prompt:brief.prompt,size:'1536x864',references:refs,tags:['comic-center',brief.role],note:'按固定参考版本制作单项候选，回传漫画工作台人工确认。',vars:{comicContract:JSON.stringify({workId:task.workId,assetId:task.assetId,taskId:task.id,attempt:task.attempt,stableId:brief.stableId,aliases:brief.aliases,state:brief.state,sourceEvidence:brief.sourceEvidence,usages:brief.usages,spec:brief.spec,referenceVersions})}}]};
+}
+const sleep=(ms,signal)=>new Promise((resolve,reject)=>{if(signal?.aborted)return reject(fail('查询已停止，原远端任务保留'));const abort=()=>{clearTimeout(timer);reject(fail('查询已停止，原远端任务保留'));},timer=setTimeout(()=>{signal?.removeEventListener('abort',abort);resolve();},ms);signal?.addEventListener('abort',abort,{once:true});});
+export async function runRemoteAsset({connection,task,references=[],directory,instanceId,signal,onProgress=()=>{},pollMs=2500,recoveryOnly=false}){
+ const file=path.join(directory,'asset-workbench-'+task.attempt+'.local.json');fs.mkdirSync(directory,{recursive:true});let record=fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):null;
+ const persist=()=>writeFileAtomicSync(file,JSON.stringify(record,null,2),{mode:0o600});
+ if(record&&(record.taskId!==task.id||record.attempt!==task.attempt||record.url!==connection.url))throw fail('原远端任务记录与本次连接或任务不一致，禁止重新提交');
+ if(!record){if(recoveryOnly)throw fail('没有可恢复的远端任务记录');const payload=remoteAssetRequest(task,references,instanceId);record={version:1,taskId:task.id,attempt:task.attempt,url:connection.url,clientRequestId:payload.clientRequestId,state:'submitting',created:new Date().toISOString()};persist();
+  // Persist BEFORE POST. If a response is lost, recovery searches the original ID and never POSTs again.
+  try{const created=await connection.request('/api/lan/v1/jobs',{method:'POST',data:payload,signal});if(!/^job_[\w-]+$/.test(created.jobId||''))throw fail('工具没有返回有效任务编号',502);record.jobId=created.jobId;record.state='submitted';persist();}catch(error){record.state='uncertain';persist();throw error;}
+ }
+ if(!record.jobId){let found=null;for(let offset=0;offset<10000;offset+=200){const list=await connection.request('/api/lan/v1/jobs?vendor=comic-shared-asset-center&limit=200&offset='+offset,{signal}),rows=list.jobs||[];found=rows.find(j=>j.clientRequestId===record.clientRequestId);if(found||rows.length<200)break;}if(!found)throw fail('提交结果尚未核实；未找到原工单，禁止自动重发，请在资产工具中核对');record.jobId=found.jobId;record.state='submitted';persist();}
+ const deadline=Date.now()+90*60*1000;
+ while(Date.now()<deadline){const job=await connection.request('/api/lan/v1/jobs/'+record.jobId,{signal});if(job.clientRequestId!==record.clientRequestId)throw fail('远端工单身份不符');record.remoteStatus=job.status;record.message=String(job.message||'').slice(0,500);record.elapsedSeconds=job.elapsedSeconds;persist();onProgress('角色场景工具 · '+record.jobId+' · '+({queued:'排队',running:'生成中',completed:'生成完成',failed:'失败',partial:'部分完成',cancelled:'已取消'}[job.status]||job.status)+' · '+(job.elapsedSeconds||0)+'秒 · '+record.message);
+  if(['completed','partial'].includes(job.status)){if(job.assets?.length!==1)throw fail('工单返回多张或没有图片，需要在工具内核对，未自动选图');const asset=job.assets[0];if(!/^ast_[\w-]+$/.test(asset.assetId||'')||!/^[a-f0-9]{64}$/.test(asset.sha256||''))throw fail('工具返回的图片索引无效');const bytes=await connection.request('/api/lan/v1/assets/'+asset.assetId+'/file',{binary:true,signal});if(imageHash(bytes)!==asset.sha256)throw fail('生成图片传输校验失败，未采用');const resultPath=path.join(directory,'remote-result-'+task.attempt+'.png');writeFileAtomicSync(resultPath,bytes);record.state='downloaded';record.assetId=asset.assetId;record.sha256=asset.sha256;record.resultPath=resultPath;persist();return {filePath:resultPath};}
+  if(['failed','cancelled'].includes(job.status)){const interrupted=job.phase==='interrupted';throw Object.assign(fail('角色场景工具：'+(job.items?.find(i=>i.status==='failed')?.message||job.message||job.status)),{generationEnded:!interrupted});}
+  await sleep(pollMs,signal);
+ }throw fail('查询超过90分钟，原工单保留，未自动重派');
+}

@@ -1,0 +1,55 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import {createHash} from 'node:crypto';
+import {createStudio} from '../server.mjs';
+import {createProject,id,clone} from '../public/model.js';
+import {migrateLayerDocument} from '../public/layers.js';
+import {episodeExportLayout} from '../public/episode-board-export.js';
+const require=createRequire(import.meta.url),deps=path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules');
+const {chromium}=require(path.join(deps,'playwright')),native=require(process.env.COMIC_TEST_CANVAS_MODULE||path.join(deps,'@napi-rs/canvas'));
+
+test('synthetic horizontal source: artwork-only paste, independent portrait crops, move, undo/redo, save/reopen and actual PNG export',{timeout:90000},async t=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'comic-image-copy-')),evidence=path.resolve(process.env.COMIC_TEST_EVIDENCE_ROOT||'merge-audit/browser/image-layer-copy');fs.mkdirSync(evidence,{recursive:true});
+ const raw=path.join(dir,'synthetic-horizontal.png'),canvas=native.createCanvas(1000,500),ctx=canvas.getContext('2d');
+ ctx.fillStyle='#ff0000';ctx.fillRect(0,0,500,500);ctx.fillStyle='#0000ff';ctx.fillRect(500,0,500,500);fs.writeFileSync(raw,canvas.toBuffer('image/png'));
+ const hash=()=>createHash('sha256').update(fs.readFileSync(raw)).digest('hex'),sourceHash=hash();
+ const studio=createStudio({dataDir:path.join(dir,'data'),bridge:{status:async()=>({connected:false}),close(){}},jimengBridge:{close(){}},seedReference:false});let browser;
+ t.after(async()=>{await browser?.close();studio.close();assert.equal(path.dirname(path.resolve(dir)),path.resolve(os.tmpdir()));fs.rmSync(dir,{recursive:true,force:true});});
+ await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));const url='http://127.0.0.1:'+studio.server.address().port;
+ const api=async(route,method='GET',value)=>{const r=await fetch(url+route,{method,headers:value?{'Content-Type':'application/json'}:{},body:value?JSON.stringify(value):undefined}),data=await r.json();assert.ok(r.ok,JSON.stringify(data));return data;};
+ const asset=await api('/api/assets','POST',{filePath:raw});let project=migrateLayerDocument(createProject('Synthetic artwork copy')).project,pg=project.pages[0],first=pg.panels[0];pg.height=1200;
+ Object.assign(first,{x:80,y:100,w:1000,h:500,visible:true,border:0,feather:0,imageAssetId:asset.id,imageTransform:{x:0,y:0,scale:1},layoutSourceKey:'synthetic-source'});
+ pg.bubbles=[{id:id('bubble'),parentPanelId:first.id,shotId:first.shotId,x:80,y:760,w:380,h:100,text:'One original dialogue',type:'speech',shape:'oval',fontSize:28,visible:true,locked:false}];
+ project.layerOrder=[first.id,pg.bubbles[0].id];studio.store.db.projects.push(project);studio.store.save();const originalShots=clone(project.shots),originalBubbles=clone(pg.bubbles),firstId=first.id;
+ browser=await chromium.launch({channel:'msedge',headless:true,args:['--disable-gpu']});const context=await browser.newContext({viewport:{width:1800,height:1100},acceptDownloads:true});
+ const requests=[],errors=[],checks=[];await context.route('**/*',route=>{const u=new URL(route.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)||['data:','blob:'].includes(u.protocol)?route.continue():route.abort();});
+ const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push({method:r.method(),url:r.url()}));
+ const state=async()=>api('/api/projects/'+project.id),save=async()=>{await page.keyboard.press('Control+s');await page.waitForFunction(()=>document.querySelector('#save-state').textContent==='已保存到本机');};
+ const checkpoint=name=>{assert.deepEqual(errors,[]);checks.push(name);console.log('PASS '+name);};
+ const field=async(key,value)=>{await page.locator('[data-properties-shortcut="toolbar"]').click();await page.locator('[data-panel-inspector-tab="layout"]').click();const input=page.locator('[data-section="panel"][data-field="'+key+'"]');await input.fill(String(value));await input.blur();};
+ const select=async key=>{if(!await page.locator('#layer-list').isVisible())await page.locator('[data-rail-tab="layers"]').click();await page.locator('[data-layer="'+key+'"]').click();};
+ try{
+  await page.goto(url);await page.waitForFunction(()=>document.querySelector('#save-state').textContent==='已保存到本机');
+  assert.equal(await page.locator('#panel-info-layer').textContent(),'');await page.locator('[data-rail-tab="tools"]').click();if(!await page.locator('#image-layer-copy').isVisible())await page.locator('#edit-menu>summary').click();await page.locator('#image-layer-copy').click();await page.locator('#edit-menu>summary').click();await page.locator('#image-layer-paste').click();await save();
+  project=await state();assert.equal(project.pages[0].panels.length,2);const secondId=project.pages[0].panels[1].id;assert.notEqual(secondId,firstId);assert.equal(project.pages[0].panels[1].generationToken,null);assert.equal(project.pages[0].panels[1].imageAssetId,asset.id);assert.deepEqual(project.pages[0].bubbles,originalBubbles);checkpoint('buttons copy artwork only; source IDs retained, new instance ID');
+  await field('w',300);await field('x',600);await select(firstId);await field('w',300);await save();
+  project=await state();assert.ok(project.pages[0].panels.every(p=>p.w===300&&p.h===500));assert.equal(project.pages[0].panels.find(p=>p.id===secondId).x,600);assert.deepEqual(project.pages[0].bubbles,originalBubbles);checkpoint('two independent portrait crops using existing geometry fields');
+  await select(secondId);await page.locator('[data-tool="image"]').click();for(let i=0;i<60;i++)await page.keyboard.press('Shift+ArrowLeft');await save();
+  project=await state();assert.equal(project.pages[0].panels[0].imageTransform.x,0);assert.equal(project.pages[0].panels[1].imageTransform.x,-600);checkpoint('same source image has distinct red/blue framing');
+  await page.locator('[data-tool="move"]').click();await page.keyboard.press('Shift+ArrowDown');await save();project=await state();assert.equal(project.pages[0].panels[1].y,110);assert.equal(project.pages[0].panels[0].y,100);assert.deepEqual(project.pages[0].bubbles,originalBubbles);
+  await page.locator('#undo').click();await save();assert.equal((await state()).pages[0].panels[1].y,100);await page.locator('#redo').click();await save();assert.equal((await state()).pages[0].panels[1].y,110);checkpoint('independent layer move and real UI undo/redo');
+  await page.keyboard.press('Control+d');await save();project=await state();const thirdId=project.pages[0].panels[2].id;assert.equal(project.pages[0].panels.length,3);assert.notEqual(thirdId,secondId);await page.locator('#undo').click();await save();assert.equal((await state()).pages[0].panels.length,2);
+  await select(secondId);await page.locator('#stage').focus();await page.keyboard.press('Control+c');await page.keyboard.press('Control+v');await save();assert.equal((await state()).pages[0].panels.length,3);assert.notEqual((await state()).pages[0].panels[2].id,thirdId);await page.locator('#undo').click();await save();checkpoint('Ctrl+D and Ctrl+C/V paste, paste undo, no ID reuse');
+  await select(firstId);await page.locator('#layer-search').fill('synthetic');await page.locator('#layer-search').press('Control+d');await page.locator('#layer-search').press('Control+v');await page.locator('#layer-search').fill('');await save();assert.equal((await state()).pages[0].panels.length,2);checkpoint('text input copy/paste/duplicate shortcuts never duplicate artwork');
+  const saved=await state();await page.reload();await page.waitForFunction(()=>document.querySelector('#save-state').textContent==='已保存到本机');project=await state();assert.deepEqual(project.pages,saved.pages);assert.deepEqual(project.shots,originalShots);assert.deepEqual(project.pages[0].bubbles,originalBubbles);assert.equal((await api('/api/state')).jobs.length,0);checkpoint('save and browser reopen retain both crops and one original dialogue');
+  const exported=await page.evaluate(async()=>{const {exportEpisode}=await import('/render.js');const p=(await(await fetch('/api/state')).json()).projects[0];let blob;await exportEpisode(p,()=>{},{downloadURL:async url=>{blob=await(await fetch(url)).blob();}});return Array.from(new Uint8Array(await blob.arrayBuffer()));});
+  const bytes=Buffer.from(exported);fs.writeFileSync(path.join(evidence,'two-portrait-crops.png'),bytes);const image=await native.loadImage(bytes),out=native.createCanvas(image.width,image.height),outCtx=out.getContext('2d');outCtx.drawImage(image,0,0);
+  const outputLayout=episodeExportLayout(project),bodyPart=outputLayout.episodeBoardParts.find(part=>part.kind==='comic'&&part.sourcePageId===pg.id);assert.ok(bodyPart);assert.deepEqual(outputLayout.episodeBoardParts.map(part=>part.kind),['cover','comic','tail']);
+  assert.deepEqual([...outCtx.getImageData(180,bodyPart.y+300,1,1).data],[255,0,0,255]);assert.deepEqual([...outCtx.getImageData(750,bodyPart.y+300,1,1).data],[0,0,255,255]);assert.deepEqual([...outCtx.getImageData(10,10,1,1).data],[22,43,67,255]);assert.deepEqual([...outCtx.getImageData(10,outputLayout.height-10,1,1).data],[22,43,67,255]);assert.equal(image.width,1280);assert.equal(image.height,project.episodeBoards.templates.cover.height+pg.height+project.episodeBoards.templates.tail.height);assert.equal(image.height,outputLayout.height);assert.equal(hash(),sourceHash);checkpoint('actual production PNG exporter: fixed templates wrap independent red/blue crops; source hash unchanged');
+  await page.screenshot({path:path.join(evidence,'editor.png')});assert.equal(requests.some(r=>r.method==='POST'&&/\/api\/(?:generate|jobs|codex|jimeng)/.test(r.url)),false);fs.writeFileSync(path.join(evidence,'report.json'),JSON.stringify({ok:true,checks,pageErrors:errors,sourceHash,ids:project.pages[0].panels.map(p=>p.id),sharedAsset:asset.id,bubbleCount:1,jobCount:0,realAI:false,productionServiceTouched:false,export:{width:image.width,height:image.height,bytes:bytes.length}},null,2));
+ }catch(error){await page.screenshot({path:path.join(evidence,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(evidence,'failure.json'),JSON.stringify({error:error.stack,checks,pageErrors:errors},null,2));throw error;}
+});

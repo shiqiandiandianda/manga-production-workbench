@@ -1,0 +1,35 @@
+.modern-workbench .job-tray{max-height:286px;overflow:hidden;background:#16222e}
+.modern-workbench .job-tray.collapsed{max-height:52px}
+.modern-workbench .job-heading{height:48px;min-height:48px;gap:12px;padding:0 16px}
+.modern-workbench #job-count{font-size:12px;color:#b4d8f2}
+.job-latest-status{font-size:12px;color:#90b9d6;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px}
+.modern-workbench .job-heading #cancel-recent-jobs,.modern-workbench .job-heading #cancel-all-jobs{font-size:11px;min-height:30px;padding:4px 8px}
+.modern-workbench .job-heading #cancel-recent-jobs{color:#ffd8a0;border-color:#6d5940}
+.modern-workbench #job-list{padding:0 14px 10px;max-height:none;overflow:hidden}
+.task-card-filters{display:flex;gap:6px;align-items:center;padding:0 0 8px}
+.modern-workbench .task-card-filters button{border:0;background:transparent;color:#97b4cb;font-size:11px;padding:4px 10px;min-height:27px}
+.modern-workbench .task-card-filters button[aria-pressed=true]{background:#2c4a62;color:#d3ecff}
+.task-card-rail{display:grid;grid-auto-flow:column;grid-auto-columns:264px;gap:10px;overflow-x:auto;overflow-y:hidden;overscroll-behavior:contain;padding:0 0 8px;scroll-snap-type:x proximity;min-height:165px;scrollbar-color:#567b98 #17222d}
+.task-card{display:flex;flex-direction:column;height:165px;border:1px solid #446985;border-radius:8px;background:#24394b;color:#e7f3fc;overflow:hidden;scroll-snap-align:start}
+.task-card header{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;padding:9px 10px 7px;border-bottom:1px solid #4c6c8344}
+.task-card header strong{font-size:12px;line-height:1.6;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-state{flex:none;font-size:10px;color:#98d9ff;border-radius:4px;padding:2px 5px;background:#193149;white-space:nowrap}
+.task-card.done{border-color:#4d8979;background:#243d40}.task-card.done .task-state{color:#aff0c5;background:#1d4737}
+.task-card.failed{border-color:#a56e60;background:#443237}.task-card.failed .task-state{color:#ffd0bc;background:#654338}
+.task-card.cancelled{border-color:#526170;background:#293442}.task-card.cancelled .task-state{color:#b1c2ce;background:#1d2b38}
+.task-card.awaiting_confirmation{border-color:#b59b5a}.task-card.awaiting_confirmation .task-state{color:#ffe5a4;background:#4e442c}
+.task-card-body{display:flex;gap:9px;padding:9px 10px;min-height:0;flex:1}
+.task-result-image,.task-state-mark{flex:none;width:63px;height:63px;border:1px solid #6687a0;border-radius:5px;padding:0;overflow:hidden;background:#182a38}
+.task-result-image img{display:block;width:100%;height:100%;object-fit:contain}
+.task-state-mark{display:grid;place-items:center;color:#a9dcff;font-size:25px;font-weight:600}
+.task-card-description{flex:1;min-width:0;font-size:11px;line-height:1.5;display:flex;flex-direction:column;align-items:flex-start}
+.task-card-description small{color:#a5bfd1;font-size:10px}
+.task-card-description p{font-size:11px;color:#deedf7;margin:3px 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;overflow-wrap:anywhere}
+.task-card-description>span{font-size:10px;color:#a9c4d8}.task-card-description b{font-size:10px;color:#ffe0a1}
+.task-card footer{display:flex;gap:6px;align-items:center;justify-content:flex-end;padding:0 9px 8px}
+.modern-workbench .task-card footer button{font-size:11px;padding:3px 7px;min-height:25px;background:#1c3041;border-color:#4a718d}
+.modern-workbench .task-card footer .task-cancel{color:#ffc6b8;border-color:#886858}
+.modern-workbench .job-batch-actions{display:none}
+.task-detail-message{white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:1000px){.job-latest-status{max-width:190px}.modern-workbench .job-heading{gap:7px;padding:0 10px}.modern-workbench .job-heading .zoom-help{display:none}}
+@media(max-width:650px){.modern-workbench .job-heading{height:auto;min-height:52px;flex-wrap:wrap;padding:6px 10px;gap:5px}.modern-workbench .job-tray.collapsed{max-height:100px}.job-latest-status{flex-basis:100%;order:8;max-width:none}.modern-workbench .job-heading .task-caption,.modern-workbench .job-heading .page-marker{display:none}.task-card-rail{grid-auto-columns:240px}.modern-workbench .job-tray{max-height:330px}}

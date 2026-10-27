@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PhotoCraft 协作中控控制台</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="pair-screen" class="pair-screen" hidden>
+  <section class="pair-card">
+    <div class="pair-brand">
+      <img src="/favicon.svg" alt="" width="38" height="38">
+      <div><h1>PhotoCraft 协作中控</h1><p class="muted">局域网多电脑协同生图 · 控制台</p></div>
+    </div>
+    <p class="pair-note">首次使用需要配对：请输入中控启动时窗口里显示的 6 位配对码。配对成功后令牌只保存在本浏览器 localStorage 中，不会写入页面文件。</p>
+    <label class="field"><span>配对码</span><input id="pair-code" autocomplete="off" maxlength="16" placeholder="例如 ABC123" autofocus></label>
+    <label class="field"><span>设备名称（可选）</span><input id="pair-name" maxlength="40" placeholder="中控控制台"></label>
+    <p id="pair-error" class="form-error" role="alert" hidden></p>
+    <button id="pair-submit" class="primary wide" type="button">配对并进入控制台</button>
+    <p class="pair-meta">当前中控地址：<code id="pair-origin"></code></p>
+    <p class="pair-meta muted">配对码存放位置：中控启动窗口的提示，或 <code>开发/运行数据/协作/中控/配对码.txt</code>。也可以用 <code>?pair=配对码</code> 打开本页一键配对。</p>
+  </section>
+</div>
+
+<div id="console" hidden>
+  <header class="topbar">
+    <div class="brand">
+      <img src="/favicon.svg" alt="" width="26" height="26">
+      <div class="brand-text"><strong id="hub-name">协作中控</strong><span id="hub-meta" class="muted">正在读取中控信息…</span></div>
+    </div>
+    <div class="conn"><span id="conn-dot" class="dot"></span><span id="conn-text">正在连接</span></div>
+    <div class="top-spacer"></div>
+    <span id="client-label" class="muted"></span>
+    <button id="btn-disconnect" class="quiet" type="button" title="清除本机保存的令牌，回到配对界面">断开</button>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="控制台视图">
+    <button class="tab active" data-view="overview" type="button" role="tab">概览</button>
+    <button class="tab" data-view="nodes" type="button" role="tab">节点 <span id="nodes-badge" class="badge" hidden></span></button>
+    <button class="tab" data-view="tasks" type="button" role="tab">任务</button>
+    <button class="tab" data-view="assets" type="button" role="tab">共享资产</button>
+    <button class="tab" data-view="notifications" type="button" role="tab">通知 <span id="unread-badge" class="badge" hidden></span></button>
+  </nav>
+
+  <main class="content">
+    <section class="view active" data-view-panel="overview" aria-label="概览">
+      <div class="stat-grid">
+        <article class="stat"><span class="stat-label">节点</span><strong id="ov-nodes">—</strong><small id="ov-nodes-detail" class="muted">在线 / 总数</small></article>
+        <article class="stat"><span class="stat-label">空闲名额</span><strong id="ov-slots">—</strong><small class="muted">所有在线节点上报合计</small></article>
+        <article class="stat"><span class="stat-label">进行中任务</span><strong id="ov-active">—</strong><small id="ov-active-detail" class="muted">排队 / 执行 / 上传 / 待核实</small></article>
+        <article class="stat"><span class="stat-label">已完成任务</span><strong id="ov-done">—</strong><small id="ov-done-detail" class="muted">失败任务数</small></article>
+        <article class="stat"><span class="stat-label">共享资产</span><strong id="ov-assets">—</strong><small class="muted">中控索引的资产版本</small></article>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>任务状态</h2><button class="text-button" data-view-link="tasks" type="button">查看任务</button></div>
+        <div id="ov-task-status" class="chip-row"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>最新通知</h2><button class="text-button" data-view-link="notifications" type="button">全部通知</button></div>
+        <ul id="ov-notifications" class="notice-list"></ul>
+      </div>
+    </section>
+
+    <section class="view" data-view-panel="nodes" aria-label="节点">
+      <div class="panel">
+        <div class="panel-head"><h2>本机配对码</h2>
+          <div class="actions"><button id="btn-pairing-refresh" type="button">刷新</button><button id="btn-pairing-rotate" class="danger" type="button">轮换配对码</button></div>
+        </div>
+        <div class="pairing-box"><code id="pairing-code">—</code><span class="muted">节点和客户端凭此码换令牌；轮换后旧码立即失效，已配对的节点不受影响。</span></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>工作节点</h2><button id="btn-nodes-refresh" class="text-button" type="button">刷新</button></div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>名称 / 平台</th><th>在线</th><th>最后心跳</th><th>空闲名额</th><th>最大并发</th><th>启用</th><th>暂停</th><th>操作</th></tr></thead>
+            <tbody id="nodes-body"><tr><td colspan="8" class="empty">正在加载节点…</td></tr></tbody>
+          </table>
+        </div>
+        <p class="hint">设置（启用 / 暂停 / 最大并发 1–8）修改后立即下发到该节点。吊销后该节点令牌失效，需要重新配对。</p>
+      </div>
+    </section>
+
+    <section class="view" data-view-panel="tasks" aria-label="任务">
+      <div class="filters">
+        <label>状态<select id="task-status">
+          <option value="">全部</option><option value="queued">queued 排队中</option><option value="running">running 执行中</option>
+          <option value="uploading">uploading 上传中</option><option value="verifying">verifying 待核实</option>
+          <option value="done">done 已完成</option><option value="failed">failed 失败</option><option value="cancelled">cancelled 已取消</option>
+        </select></label>
+        <label>回填<select id="task-apply">
+          <option value="">全部</option><option value="pending">pending 待回填</option><option value="applied">applied 已回填</option>
+          <option value="conflict">conflict 冲突</option><option value="candidate">candidate 仅候选</option>
+          <option value="failed">failed 回填失败</option><option value="skipped">skipped 已丢弃</option>
+        </select></label>
+        <label>项目<input id="task-project" list="task-project-options" placeholder="项目 ID（可选）"><datalist id="task-project-options"></datalist></label>
+        <button id="btn-tasks-refresh" type="button">刷新</button>
+        <span id="tasks-summary" class="muted"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>项目</th><th>画格</th><th>类型</th><th>状态</th><th>回填</th><th>节点</th><th>尝试</th><th>更新时间</th><th>操作</th></tr></thead>
+          <tbody id="tasks-body"><tr><td colspan="9" class="empty">正在加载任务…</td></tr></tbody>
+        </table>
+      </div>
+      <p class="hint">列表最多显示前 100 条；点「详情」查看提示词、参考图、尝试时间线、结果预览，并可取消 / 重新派单。</p>
+    </section>
+
+    <section class="view" data-view-panel="assets" aria-label="共享资产">
+      <div class="filters">
+        <label>搜索<input id="asset-q" placeholder="名称 / 形态 / 服装 / 画风" autocomplete="off"></label>
+        <label>项目<input id="asset-project" placeholder="项目 ID（可选）"></label>
+        <label>种类<select id="asset-kind">
+          <option value="">全部</option><option value="character">角色</option><option value="prop">道具</option>
+          <option value="scene">场景</option><option value="style">画风</option><option value="panel">画格</option><option value="other">其他</option>
+        </select></label>
+        <label>状态<select id="asset-status">
+          <option value="">全部</option><option value="available">available 可用</option><option value="pending">pending 生成中</option><option value="failed">failed 失败</option>
+        </select></label>
+        <label class="check"><input type="checkbox" id="asset-all-versions">显示全部版本</label>
+        <button id="btn-assets-refresh" type="button">刷新</button>
+        <span id="assets-summary" class="muted"></span>
+      </div>
+      <div id="assets-grid" class="asset-grid"><p class="empty">正在加载共享资产…</p></div>
+      <p class="hint">缩略图不可用时自动回退原图；点「详情」查看同谱系版本列表与下载原图。</p>
+    </section>
+
+    <section class="view" data-view-panel="notifications" aria-label="通知">
+      <div class="filters">
+        <button id="btn-notif-refresh" type="button">刷新</button>
+        <button id="btn-notif-readall" type="button">全部标记已读</button>
+        <span id="notif-summary" class="muted"></span>
+      </div>
+      <ul id="notifications-list" class="notice-list full"></ul>
+      <p class="hint">按 seq 增量拉取（since=当前最大序号），每 2 秒轮询一次。级别颜色：info 蓝、success 绿、warn 黄、error 红。</p>
+    </section>
+  </main>
+</div>
+
+<div id="drawer-mask" class="drawer-mask" hidden></div>
+<aside id="drawer" class="drawer" hidden role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+  <div class="drawer-head"><h2 id="drawer-title">详情</h2><button id="drawer-close" class="icon" type="button" aria-label="关闭详情">×</button></div>
+  <div id="drawer-body" class="drawer-body"></div>
+</aside>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<script src="/app.js" defer></script>
+</body>
+</html>

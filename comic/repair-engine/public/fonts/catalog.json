@@ -1,0 +1,510 @@
+[
+  {
+    "id": "source-han-sans",
+    "label": "思源黑体",
+    "family": "Source Han Sans SC",
+    "group": "思源系列",
+    "source": "https://github.com/adobe-fonts/source-han-sans",
+    "faces": [
+      {
+        "file": "SourceHanSansSC-ExtraLight.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2/OTF/SimplifiedChinese/SourceHanSansSC-ExtraLight.otf",
+        "weight": "250",
+        "sha256": "0f9697397cc718090b438ac7b03e9c6d81c85fe7b7032339be861c9f9cb42e56",
+        "bytes": 14893644,
+        "member": null
+      },
+      {
+        "file": "SourceHanSansSC-Light.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2/OTF/SimplifiedChinese/SourceHanSansSC-Light.otf",
+        "weight": "300",
+        "sha256": "b6dfc945aae0daf9b15019f59c2f7b18d17da3b92f00c3ec32fb5f0333696d9c",
+        "bytes": 16460112,
+        "member": null
+      },
+      {
+        "file": "SourceHanSansSC-Normal.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2/OTF/SimplifiedChinese/SourceHanSansSC-Normal.otf",
+        "weight": "350",
+        "sha256": "7e5b7e586262f5e187c3397935b3a0dfbe28e08a916be0f60ec7fee2b50abd6d",
+        "bytes": 16525388,
+        "member": null
+      },
+      {
+        "file": "SourceHanSansSC-Regular.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/release/OTF/SimplifiedChinese/SourceHanSansSC-Regular.otf",
+        "weight": "400",
+        "member": null,
+        "sha256": "f1d8611151880c6c336aabeac4640ef434fa13cbfbf1ffe82d0a71b2a5637256",
+        "bytes": 16529832
+      },
+      {
+        "file": "SourceHanSansSC-Medium.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2/OTF/SimplifiedChinese/SourceHanSansSC-Medium.otf",
+        "weight": "500",
+        "sha256": "1df61d31687d04fd2f928a3bb6ca6cd61f0e988cc267cf317f32406edbb49f70",
+        "bytes": 16546328,
+        "member": null
+      },
+      {
+        "file": "SourceHanSansSC-Bold.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/release/OTF/SimplifiedChinese/SourceHanSansSC-Bold.otf",
+        "weight": "700",
+        "member": null,
+        "sha256": "df2b90f5bcc6d01dfc964cec5f6d535d6b6aebd26ed7fd79a9c1b3f2112fcb6b",
+        "bytes": 16963428
+      },
+      {
+        "file": "SourceHanSansSC-Heavy.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2/OTF/SimplifiedChinese/SourceHanSansSC-Heavy.otf",
+        "weight": "900",
+        "sha256": "6374b11bc4c2cd4bd7be1a1d64cf5047906c8a6a025c64e023c6792e50ba985e",
+        "bytes": 17614484,
+        "member": null
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/release/LICENSE.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "source-han-serif",
+    "label": "思源宋体",
+    "family": "Source Han Serif SC",
+    "group": "思源系列",
+    "source": "https://github.com/adobe-fonts/source-han-serif",
+    "faces": [
+      {
+        "file": "SourceHanSerifSC-ExtraLight.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/7889f11bf31170b5d092a083b357c8c8130f89e0/OTF/SimplifiedChinese/SourceHanSerifSC-ExtraLight.otf",
+        "weight": "250",
+        "sha256": "5bc869357df7afff49786c1d4d5d3bc6dc9cf7e8331c4a5e31b0d87d5a4c3580",
+        "bytes": 21406352,
+        "member": null
+      },
+      {
+        "file": "SourceHanSerifSC-Light.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/7889f11bf31170b5d092a083b357c8c8130f89e0/OTF/SimplifiedChinese/SourceHanSerifSC-Light.otf",
+        "weight": "300",
+        "sha256": "b1bdb1a3581ae143ba3c7a27fc351ec66d2161b057262936e2c65348b0b058fa",
+        "bytes": 24501300,
+        "member": null
+      },
+      {
+        "file": "SourceHanSerifSC-Regular.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/release/OTF/SimplifiedChinese/SourceHanSerifSC-Regular.otf",
+        "weight": "400",
+        "member": null,
+        "sha256": "78aa7a328fd974df2d688c8a9fd74a33d8334dfa84ab24d9d11efb2ffc464117",
+        "bytes": 24543332
+      },
+      {
+        "file": "SourceHanSerifSC-Medium.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/7889f11bf31170b5d092a083b357c8c8130f89e0/OTF/SimplifiedChinese/SourceHanSerifSC-Medium.otf",
+        "weight": "500",
+        "sha256": "1d4dc4b757c07034e2412d6edf48f54f94ec7172d4deb3b90a3e4fc9dcb94f5d",
+        "bytes": 24805580,
+        "member": null
+      },
+      {
+        "file": "SourceHanSerifSC-SemiBold.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/7889f11bf31170b5d092a083b357c8c8130f89e0/OTF/SimplifiedChinese/SourceHanSerifSC-SemiBold.otf",
+        "weight": "600",
+        "sha256": "faf16caeaf207e1926e01af8d9f1a8e71b0e9d8f51bf3b5d9a78f9f30e7e3e31",
+        "bytes": 24700532,
+        "member": null
+      },
+      {
+        "file": "SourceHanSerifSC-Bold.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/release/OTF/SimplifiedChinese/SourceHanSerifSC-Bold.otf",
+        "weight": "700",
+        "member": null,
+        "sha256": "706b8c0de2deff6cbc0c87e2cdedfd33a78b7ffd76cebb4549012f197ba611fe",
+        "bytes": 25521732
+      },
+      {
+        "file": "SourceHanSerifSC-Heavy.otf",
+        "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/7889f11bf31170b5d092a083b357c8c8130f89e0/OTF/SimplifiedChinese/SourceHanSerifSC-Heavy.otf",
+        "weight": "900",
+        "sha256": "d033af54f96530476faed924ab5d5e9e6ef0833495670fd57bab9a7758398048",
+        "bytes": 24063280,
+        "member": null
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/release/LICENSE.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "lxgw-wenkai",
+    "label": "霞鹜文楷",
+    "family": "LXGW WenKai",
+    "group": "楷书与手写",
+    "source": "https://github.com/lxgw/LxgwWenKai",
+    "faces": [
+      {
+        "file": "LXGWWenKai-Light.ttf",
+        "url": "https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKai-Light.ttf",
+        "weight": "300",
+        "sha256": "526ec70cbb0118e871d481f8179e03ff045f0e4d72d080dcca87950c4ab27cca",
+        "bytes": 28267156,
+        "member": null
+      },
+      {
+        "file": "LXGWWenKai-Regular.ttf",
+        "url": "https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKai-Regular.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "39ad71264b588165b469e35e6afb162a378dacd1f95348160240ba9038ac3009",
+        "bytes": 25575676
+      },
+      {
+        "file": "LXGWWenKai-Medium.ttf",
+        "url": "https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKai-Medium.ttf",
+        "weight": "500",
+        "sha256": "d4bdeb38a39151d74d084cba5090f8cb7d20bf83eedb78c35939ae70b9f4e3f6",
+        "bytes": 25379848,
+        "member": null
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/lxgw/LxgwWenKai/main/OFL.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "lxgw-wenkai-mono",
+    "label": "霞鹜文楷等宽",
+    "family": "LXGW WenKai Mono",
+    "group": "楷书与手写",
+    "source": "https://github.com/lxgw/LxgwWenKai",
+    "faces": [
+      {
+        "file": "LXGWWenKaiMono-Light.ttf",
+        "url": "https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKaiMono-Light.ttf",
+        "weight": "300",
+        "sha256": "e4d22716a148d4ee820b9a4f63886a1d52dd68b4fa5826cc5e2dec55977f7930",
+        "bytes": 28287272,
+        "member": null
+      },
+      {
+        "file": "LXGWWenKaiMono-Regular.ttf",
+        "url": "https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKaiMono-Regular.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "bc068e4e395c396f2909ffdfac3a3751578b73ed3d64a79c9c31bfa84e43debe",
+        "bytes": 25603912
+      },
+      {
+        "file": "LXGWWenKaiMono-Medium.ttf",
+        "url": "https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKaiMono-Medium.ttf",
+        "weight": "500",
+        "sha256": "7a674f448b15a1b3df781c3498973d77f71d270788f7f921080c1344e9d739e1",
+        "bytes": 25445000,
+        "member": null
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/lxgw/LxgwWenKai/main/OFL.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "zcoolkuaile",
+    "label": "站酷快乐体",
+    "family": "ZCOOL KuaiLe",
+    "group": "漫画与标题",
+    "source": "https://github.com/google/fonts/tree/main/ofl/zcoolkuaile",
+    "faces": [
+      {
+        "file": "ZCOOLKuaiLe-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/zcoolkuaile/ZCOOLKuaiLe-Regular.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "812a6fc1fe54b6d73a419245c32dfeba8aa33104d5be90d1cf6af082007cb71d",
+        "bytes": 1514968
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/zcoolkuaile/OFL.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "zcoolqingkehuangyou",
+    "label": "站酷庆科黄油体",
+    "family": "ZCOOL QingKe HuangYou",
+    "group": "漫画与标题",
+    "source": "https://github.com/google/fonts/tree/main/ofl/zcoolqingkehuangyou",
+    "faces": [
+      {
+        "file": "ZCOOLQingKeHuangYou-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/zcoolqingkehuangyou/ZCOOLQingKeHuangYou-Regular.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "54f0c0df4308cd74cd0f2fd3494ae054dbc4a1fd6fa7d71f4807eb4cdd8b4136",
+        "bytes": 8328684
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/zcoolqingkehuangyou/OFL.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "zcoolxiaowei",
+    "label": "站酷小薇体",
+    "family": "ZCOOL XiaoWei",
+    "group": "宋体与正文",
+    "source": "https://github.com/google/fonts/tree/main/ofl/zcoolxiaowei",
+    "faces": [
+      {
+        "file": "ZCOOLXiaoWei-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/zcoolxiaowei/ZCOOLXiaoWei-Regular.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "a42b620140f493db42f741351dfbf343c0936d58588ee8004b8b2a218d997ff1",
+        "bytes": 6313808
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/zcoolxiaowei/OFL.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "mashanzheng",
+    "label": "马善政毛笔楷书",
+    "family": "Ma Shan Zheng",
+    "group": "楷书与手写",
+    "source": "https://github.com/google/fonts/tree/main/ofl/mashanzheng",
+    "faces": [
+      {
+        "file": "MaShanZheng-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/mashanzheng/MaShanZheng-Regular.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "6d2546bb189c732a8ca29af9e22457b152387d158aa459e4ac2ce1e51788b7fb",
+        "bytes": 5857936
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/mashanzheng/OFL.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "longcang",
+    "label": "龙藏体",
+    "family": "Long Cang",
+    "group": "楷书与手写",
+    "source": "https://github.com/google/fonts/tree/main/ofl/longcang",
+    "faces": [
+      {
+        "file": "LongCang-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/longcang/LongCang-Regular.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "e5bf2c3f24ef2327c6f136d8f73e2f9dfdf44896fdbeb35a9515f44777bb91bc",
+        "bytes": 5162508
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/longcang/OFL.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "zhimangxing",
+    "label": "志莽行书",
+    "family": "Zhi Mang Xing",
+    "group": "楷书与手写",
+    "source": "https://github.com/google/fonts/tree/main/ofl/zhimangxing",
+    "faces": [
+      {
+        "file": "ZhiMangXing-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/zhimangxing/ZhiMangXing-Regular.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "644e0cae9b40f0b10ab729a01bd32032e3973bac22be3dccae01bf6ae7fde969",
+        "bytes": 4063532
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/zhimangxing/OFL.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "liujianmaocao",
+    "label": "刘建毛草",
+    "family": "Liu Jian Mao Cao",
+    "group": "楷书与手写",
+    "source": "https://github.com/google/fonts/tree/main/ofl/liujianmaocao",
+    "faces": [
+      {
+        "file": "LiuJianMaoCao-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/liujianmaocao/LiuJianMaoCao-Regular.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "cab396b91a5b7c0b4005a35891180d06e6751f5ac261fe680aec65c1ae209033",
+        "bytes": 4951804
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/liujianmaocao/OFL.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "iansui",
+    "label": "芫荽（繁体）",
+    "family": "Iansui",
+    "group": "圆体与繁体",
+    "source": "https://github.com/google/fonts/tree/main/ofl/iansui",
+    "faces": [
+      {
+        "file": "Iansui-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/iansui/Iansui-Regular.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "6e6340d80d618a42b48ade9370c34fa37a8210750c6fbc8efe65f23716538a2b",
+        "bytes": 9420560
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/iansui/OFL.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "huninn",
+    "label": "粉圆体（繁体）",
+    "family": "Huninn",
+    "group": "圆体与繁体",
+    "source": "https://github.com/google/fonts/tree/main/ofl/huninn",
+    "faces": [
+      {
+        "file": "Huninn-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/huninn/Huninn-Regular.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "1bd770a5ffc0c06723b567686f8b5db5abf9ab54227f3bbc4e6fd648f4698805",
+        "bytes": 4683972
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/huninn/OFL.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "chocolateclassicalsans",
+    "label": "巧克力古典黑（繁体）",
+    "family": "Chocolate Classical Sans",
+    "group": "圆体与繁体",
+    "source": "https://github.com/google/fonts/tree/main/ofl/chocolateclassicalsans",
+    "faces": [
+      {
+        "file": "ChocolateClassicalSans-Regular.ttf",
+        "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/chocolateclassicalsans/ChocolateClassicalSans-Regular.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "e6345f3d92c7a9b7044c31a87d9b61f50220b08c0f1dcc2736e94c2aa587ce03",
+        "bytes": 12183000
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/google/fonts/main/ofl/chocolateclassicalsans/OFL.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "smiley-sans",
+    "label": "得意黑",
+    "family": "Smiley Sans",
+    "group": "漫画与标题",
+    "source": "https://github.com/atelier-anchor/smiley-sans",
+    "faces": [
+      {
+        "file": "SmileySans-Oblique.ttf",
+        "url": "https://github.com/atelier-anchor/smiley-sans/releases/download/v2.0.1/smiley-sans-v2.0.1.zip",
+        "weight": "400",
+        "member": "SmileySans-Oblique\\.ttf$",
+        "sha256": "b447d7e781f08bc95c4c9f23ba71ed2b8ebb639aa7184485c71c4ca5afcd25c4",
+        "bytes": 2629764
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/atelier-anchor/smiley-sans/main/LICENSE",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "lxgw-marker",
+    "label": "霞鹜漫黑",
+    "family": "LXGW Marker Gothic",
+    "group": "漫画与标题",
+    "source": "https://github.com/lxgw/LxgwMarkerGothic",
+    "faces": [
+      {
+        "file": "LXGWMarkerGothic-Regular.ttf",
+        "url": "https://github.com/lxgw/LxgwMarkerGothic/releases/download/v1.003/LxgwMarkerGothic-v1.003.zip",
+        "weight": "400",
+        "member": "fonts/ttf/LXGWMarkerGothic-Regular\\.ttf$",
+        "sha256": "9a1e46379442856b9fc64de1d9bd4120903780990e28d99fd6415cadee78a47d",
+        "bytes": 3179616
+      }
+    ],
+    "licenseUrl": null,
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "xiangcui-wave",
+    "label": "香萃自在舒畅黑",
+    "family": "Xiangcui Wave Sans",
+    "group": "漫画与标题",
+    "source": "https://github.com/Miiiller/Xiangcui-Wave-Sans",
+    "faces": [
+      {
+        "file": "XiangcuiWaveSans.ttf",
+        "url": "https://raw.githubusercontent.com/Miiiller/Xiangcui-Wave-Sans/main/%E9%A6%99%E8%90%83%E8%87%AA%E5%9C%A8%E8%88%92%E7%95%85%E9%BB%91.ttf",
+        "weight": "400",
+        "member": null,
+        "sha256": "70a60c9d4b6da38dde22fc9749012b17016cf5a25a00306c8c9343f553b4ca31",
+        "bytes": 9809928
+      }
+    ],
+    "licenseUrl": "https://raw.githubusercontent.com/Miiiller/Xiangcui-Wave-Sans/main/SIL_Open_Font_License_1.1.txt",
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "fusion-pixel-8",
+    "label": "缝合像素 8px",
+    "family": "Fusion Pixel 8px SC",
+    "group": "像素字体",
+    "source": "https://github.com/TakWolf/fusion-pixel-font",
+    "faces": [
+      {
+        "file": "fusion-pixel-8px-monospaced-zh_hans.otf.woff2",
+        "url": "https://github.com/TakWolf/fusion-pixel-font/releases/download/2026.09.25/fusion-pixel-font-8px-monospaced-otf.woff2-v2026.09.25.zip",
+        "weight": "400",
+        "member": "fusion-pixel-8px-monospaced-zh_hans\\.otf\\.woff2$",
+        "sha256": "2e05f9b5c16ef55fd936fc6e1545f3bca2e3faebf22f20b2ea22fbe599b9b343",
+        "bytes": 369180
+      }
+    ],
+    "licenseUrl": null,
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "fusion-pixel-10",
+    "label": "缝合像素 10px",
+    "family": "Fusion Pixel 10px SC",
+    "group": "像素字体",
+    "source": "https://github.com/TakWolf/fusion-pixel-font",
+    "faces": [
+      {
+        "file": "fusion-pixel-10px-monospaced-zh_hans.otf.woff2",
+        "url": "https://github.com/TakWolf/fusion-pixel-font/releases/download/2026.09.25/fusion-pixel-font-10px-monospaced-otf.woff2-v2026.09.25.zip",
+        "weight": "400",
+        "member": "fusion-pixel-10px-monospaced-zh_hans\\.otf\\.woff2$",
+        "sha256": "f4a0b576f8ddce22847f99dd947e936643171b6de8cb01ad41a278098814dc40",
+        "bytes": 407080
+      }
+    ],
+    "licenseUrl": null,
+    "license": "OFL-1.1"
+  },
+  {
+    "id": "fusion-pixel-12",
+    "label": "缝合像素 12px",
+    "family": "Fusion Pixel 12px SC",
+    "group": "像素字体",
+    "source": "https://github.com/TakWolf/fusion-pixel-font",
+    "faces": [
+      {
+        "file": "fusion-pixel-12px-monospaced-zh_hans.otf.woff2",
+        "url": "https://github.com/TakWolf/fusion-pixel-font/releases/download/2026.09.25/fusion-pixel-font-12px-monospaced-otf.woff2-v2026.09.25.zip",
+        "weight": "400",
+        "member": "fusion-pixel-12px-monospaced-zh_hans\\.otf\\.woff2$",
+        "sha256": "a2f54f80506f5d48e24ba94b2b714efdfb1b6bf0a1b250f50e7dd28a50a6b5b6",
+        "bytes": 666240
+      }
+    ],
+    "licenseUrl": null,
+    "license": "OFL-1.1"
+  }
+]

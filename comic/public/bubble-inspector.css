@@ -1,0 +1,60 @@
+.modern-workbench #inspector-panel:has([data-bubble-properties]) .inspector-title{padding:14px 14px 10px}
+#inspector-panel:has([data-bubble-properties]) .inspector-heading strong{font-size:18px;margin-bottom:0}
+#inspector-panel:has([data-bubble-properties]) #inspector-title{display:none}
+.modern-workbench #inspector-panel:has([data-bubble-properties]) #inspector-body{padding:0 14px 16px}
+.bubble-properties{border-top:1px solid var(--line);font-size:12px;min-width:0;padding-top:10px}
+.modern-workbench .bubble-properties .bubble-join-lines{min-height:24px;padding:3px 6px;margin:3px 0 8px;font-size:11px;color:#a7d5ff;background:transparent;border:0;text-align:left}
+.bubble-properties [hidden]{display:none!important}
+.modern-workbench #inspector-body .bubble-properties label{display:block;margin:0;color:#aec6db;font-size:12px;line-height:1.45;min-width:0}
+.bubble-properties input:not([type=checkbox]),.bubble-properties select,.bubble-properties textarea{width:100%;min-width:0;margin-top:4px;min-height:34px;height:34px;padding:6px 8px;font-size:13px}
+.bubble-properties input[type=color]{padding:4px;cursor:pointer}
+.bubble-properties .field-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px 10px;margin:0}
+.bubble-properties .field-grid>label{min-width:0}
+.bubble-properties .bubble-context{display:flex;gap:8px;align-items:center;margin-bottom:9px;min-height:32px}
+.bubble-context .bubble-type-field{flex:0 0 82px;margin-left:auto}
+.bubble-context .bubble-type-field select{margin:0;height:32px;min-height:32px;padding:4px 6px;font-size:12px}
+.bubble-context .bubble-speaker-info{display:flex;flex:1;min-width:0;gap:7px;padding:0;margin:0;border:0;background:transparent;box-shadow:none}
+.bubble-context .bubble-speaker-info>img,.bubble-context .bubble-speaker-info>svg,.bubble-context .speaker-initial{width:28px;height:28px;min-width:28px;font-size:13px}
+.bubble-context .bubble-speaker-info>div{min-width:0;flex:1}
+.bubble-context .bubble-speaker-info small{display:none}
+.bubble-context .bubble-speaker-info strong{font-size:12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:block}
+.modern-workbench .bubble-context .bubble-speaker-info button{padding:3px 5px;min-height:26px;font-size:10px;flex:none}
+.bubble-properties .bubble-content-field textarea{height:76px;min-height:55px;max-height:160px;resize:vertical;line-height:1.55;margin-bottom:9px}
+.modern-workbench .bubble-style-shortcut{display:flex;align-items:center;width:100%;gap:9px;min-height:50px;padding:8px 10px;margin:0 0 8px;background:#213d53;border:1px solid #456985;text-align:left}
+.bubble-style-shortcut svg{width:37px;height:27px;flex:none}
+.bubble-style-shortcut>span{flex:1;min-width:0}
+.bubble-style-shortcut strong{display:block;font-size:12px}
+.bubble-style-shortcut small{display:block;font-size:10px;font-weight:400;margin-top:2px;color:#adc7dd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bubble-style-shortcut b{font-size:11px;font-weight:500;white-space:nowrap;color:#acd7fa}
+.bubble-properties-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;position:sticky;top:0;z-index:3;background:#172734;padding:5px 0 8px;border-bottom:1px solid var(--line)}
+.modern-workbench .bubble-properties-tabs button{min-width:0;min-height:34px;padding:6px 3px;border:1px solid transparent;background:transparent;color:#abc5da;font-size:12px}
+.modern-workbench .bubble-properties-tabs button[aria-selected=true]{border-color:#628baa;background:#30536e;color:#eff8ff;font-weight:600}
+.bubble-properties-pane{padding-top:11px;display:flex;flex-direction:column;gap:10px}
+.bubble-properties-pane h3{font-size:12px;color:#c4daec;margin:1px 0 0}
+.bubble-properties-pane>button{min-height:34px;font-size:12px;padding:6px 8px}
+.bubble-properties .sub-note,.bubble-properties .bubble-overflow-note{font-size:11px;line-height:1.55;margin:0;color:#9ebbd4}
+.bubble-properties .bubble-overflow-note{padding:7px;border-left:2px solid #deaa69;background:#44392d;color:#f0c797}
+.modern-workbench #inspector-body .bubble-properties .checkbox-field{display:flex;align-items:center;gap:7px;margin:0;min-height:25px}
+.bubble-properties .checkbox-field input{width:14px;height:14px;margin:0}
+.bubble-tail-controls{border-top:1px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:8px}
+.bubble-tail-controls label:not(.checkbox-field)>span{display:flex;justify-content:space-between;gap:8px}
+.bubble-tail-controls output{color:#e0ecf7;font-variant-numeric:tabular-nums}
+.bubble-properties input[type=range]{height:20px;min-height:20px;padding:0;margin-top:4px;accent-color:#9acaff}
+.bubble-properties details{border-top:1px solid var(--line);padding-top:0;margin:0}
+.bubble-properties details summary{padding:10px 0;font-size:12px;cursor:pointer;color:#b9d2e7}
+.bubble-properties details[open]>.field-grid,.bubble-properties details[open]>label,.bubble-properties details[open]>button,.bubble-properties details[open]>.row{margin-bottom:10px}
+.bubble-properties details .row{display:flex;gap:8px}
+.bubble-properties details .row button{flex:1}
+.bubble-properties .bubble-parts-controls{display:flex;flex-direction:column;gap:0}
+/* Keep dialogue controls compact without changing text rendered on the artwork. */
+body.modern-workbench.unified-workbench #inspector-panel .bubble-properties label{font-size:12px;line-height:1.45}
+body.modern-workbench.unified-workbench #inspector-panel .bubble-properties :is(input,select,textarea){font-size:13px}
+body.modern-workbench.unified-workbench #inspector-panel .bubble-properties button{font-size:12px}
+@media(max-height:800px){.modern-workbench #inspector-panel:has([data-bubble-properties]) .inspector-title{padding-top:10px;padding-bottom:8px}.bubble-properties-pane{gap:8px}.bubble-properties .field-grid{gap:7px 9px}.bubble-properties input:not([type=checkbox]):not([type=range]),.bubble-properties select{height:32px;min-height:32px}}
+@media(max-height:740px){.bubble-properties .bubble-content-field textarea{height:58px;min-height:48px}}
+@media(max-height:800px){
+ .bubble-properties{padding-top:4px}
+ .bubble-properties .bubble-content-field textarea{height:52px;min-height:48px;margin-bottom:4px}
+ .modern-workbench .bubble-style-shortcut{min-height:40px;padding:5px 8px;margin-bottom:5px}
+ .bubble-properties-pane{padding-top:6px;gap:6px}
+}

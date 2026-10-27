@@ -1,0 +1,32 @@
+import {DEFAULT_GRADIENT_WIDTH,DEFAULT_GRADIENT_HEIGHT} from './gradient-region.js';
+import {attachBubbleGroups} from './layer-groups.js';
+import {id,clone,rectangle,bounds,layoutLongStrip,rescalePageWidth} from "./model.js";
+import {anchoredBackground,anchorStripBackgrounds} from './strip-background.js';
+import {createComicEffectRouting} from './comic-effect-routing.js';
+export function allLayers(project){return [...(project.pages||[]).flatMap(page=>page.panels.map(item=>({type:'panel',item,page,pageId:page.id}))),...(project.pages||[]).flatMap(page=>page.bubbles.map(item=>({type:'bubble',item,page,pageId:page.id}))),...(project.gradients||[]).map(item=>({type:'gradient',item,page:null,pageId:null}))];}
+export function orderedLayers(project){
+ const entries=allLayers(project),map=new Map(entries.map(e=>[e.item.id,e])),out=[];
+ for(const key of project.layerOrder||[])if(map.has(key)){out.push(map.get(key));map.delete(key);}
+ const ordered=[...out,...map.values()],firstBubble=ordered.findIndex(entry=>entry.type==='bubble');
+ if(firstBubble<0)return ordered;
+ // Director transitions are backgrounds, even in projects saved by the old compiler.
+ const above=ordered.slice(firstBubble).filter(entry=>entry.type==='gradient'&&Number.isInteger(entry.item.designEpisode));
+ if(!above.length)return ordered;
+ const moved=new Set(above.map(entry=>entry.item.id));
+ return [...ordered.slice(0,firstBubble),...above,...ordered.slice(firstBubble).filter(entry=>!moved.has(entry.item.id))];
+}
+export function normalizeLayerOrder(project){project.gradients||=[];anchorStripBackgrounds(project);project.layerOrder=orderedLayers(project).map(e=>e.item.id);return project.layerOrder;}
+export function findLayer(project,key){return allLayers(project).find(e=>e.item.id===key)||null;}
+export function moveLayer(project,key,target,side='above'){const order=normalizeLayerOrder(project),old=order.indexOf(key);if(old<0)return false;let to;if(typeof target==='string'){if(target===key)return false;order.splice(old,1);const i=order.indexOf(target);if(i<0){order.splice(old,0,key);return false;}to=i+(side==='above'?1:0);}else{to=Math.max(0,Math.min(order.length-1,old+target));if(to===old)return false;order.splice(old,1);}order.splice(to,0,key);return true;}
+export function deleteLayer(project,key){const entry=findLayer(project,key);if(!entry)return false;if(entry.type==='gradient')project.gradients=project.gradients.filter(g=>g.id!==key);else entry.page[entry.type==='bubble'?'bubbles':'panels']=entry.page[entry.type==='bubble'?'bubbles':'panels'].filter(g=>g.id!==key);normalizeLayerOrder(project);return true;}
+export function makeGradientLayer(project,{y=0}={}){return {id:id('gradient'),name:'渐变 '+((project.gradients?.length||0)+1),visible:true,locked:false,coverage:'area',x:0,y:Math.max(0,Math.round(y)),w:DEFAULT_GRADIENT_WIDTH,h:DEFAULT_GRADIENT_HEIGHT,points:rectangle(),feather:0,border:0,borderColor:'#111111',gradient:{enabled:true,mode:'transparent',startColor:'#000000',endColor:'#000000',opacity:1,start:{x:.5,y:0},end:{x:.5,y:1}}};}
+export function gradientFrame(layer,layout){if(layer.assistantLayoutAnchor){const a=layer.assistantLayoutAnchor,e=layout.pages.find(p=>p.pageId===a.pageId);return {...layer,y:(e?.y||0)+a.y};}if(layer.coverage!=='document')return anchoredBackground(layer,layout.width);return {...layer,x:0,y:0,w:layout.width,h:Math.max(1,layout.height),points:rectangle(),gradient:{...layer.gradient,start:{x:(layer.x+layer.gradient.start.x*layer.w)/layout.width,y:(layer.y+layer.gradient.start.y*layer.h)/Math.max(1,layout.height)},end:{x:(layer.x+layer.gradient.end.x*layer.w)/layout.width,y:(layer.y+layer.gradient.end.y*layer.h)/Math.max(1,layout.height)}}};}
+export function sceneLayers(project,layout=layoutLongStrip(project.pages)){const pages=new Map(layout.pages.map(p=>[p.pageId,p])),frames=new Map(project.pages.flatMap(p=>p.panels.map(f=>[f.id,f]))),effects=createComicEffectRouting(project.pages.flatMap(p=>p.panels));return orderedLayers(project).filter(e=>!e.item.productionBackgroundResource&&(!e.item.productionBackgroundInstance||frames.get(e.item.productionBackgroundInstance.sourcePanelId)?.visible!==false)&&effects.shouldRender(e.item)).map(e=>e.type==='gradient'?{...e,entry:null,scale:1,offsetY:0,frame:gradientFrame(e.item,layout)}:{...e,entry:pages.get(e.pageId),scale:pages.get(e.pageId)?.scale||1,offsetY:pages.get(e.pageId)?.y||0,frame:e.item});}
+export function layerFocus(project,key){const e=findLayer(project,key);if(!e)return null;const layout=layoutLongStrip(project.pages);if(e.type==='gradient'){const g=e.item.gradient;return {x:e.item.x+(g.start.x+g.end.x)/2*e.item.w,y:Math.max(0,e.item.y+Math.min(g.start.y,g.end.y)*e.item.h),pageId:null};}const p=layout.pages.find(p=>p.pageId===e.pageId),b=e.type==='panel'?bounds(e.item):{x:0,y:0,w:e.item.w,h:e.item.h};return {x:(e.item.x+b.x+b.w/2)*p.scale,y:p.y+(e.item.y+b.y)*p.scale,pageId:e.pageId};}
+/** Narrow migration: existing IDs/assets/jobs/shot content are retained, only geometry and layer schema change. */
+export function migrateLayerDocument(source){const project=clone(source);if(project.editorLayoutVersion===2&&project.layerGroupsVersion===1&&project.layerSchema===1&&project.pages.every(p=>p.width===1280)&&!project.pages.some(p=>p.panels.some(f=>f.gradient)))return {project,changed:false,migratedPages:0,gradients:0};let migratedPages=0,gradients=0;
+ for(const p of project.pages)if(p.width!==1280){rescalePageWidth(p,1280);migratedPages++;}
+ project.gradients||=[];const existing=orderedLayers(project).map(e=>e.item.id),order=[];const layout=layoutLongStrip(project.pages),byPage=new Map(layout.pages.map(e=>[e.pageId,e]));
+ for(const key of existing){order.push(key);const layer=findLayer(project,key);if(layer?.type!=='panel'||!layer.item.gradient)continue;const f=layer.item,p=byPage.get(layer.pageId);const gradient={id:id('gradient'),sourcePanelId:f.id,name:'渐变 · '+(project.shots.find(s=>s.id===f.shotId)?.title||'旧渐变'),visible:f.visible,locked:false,coverage:'area',x:f.x,y:p.y+f.y,w:f.w,h:f.h,points:clone(f.points),feather:f.feather||0,border:0,borderColor:'#111111',gradient:clone(f.gradient)};if(f.featherEdges)gradient.featherEdges=clone(f.featherEdges);if(f.mask)gradient.mask=clone(f.mask);project.gradients.push(gradient);order.push(gradient.id);delete f.gradient;gradients++;}
+ attachBubbleGroups(project);project.layerOrder=order;normalizeLayerOrder(project);project.layerSchema=1;project.editorLayoutVersion=2;return {project,changed:true,migratedPages,gradients};
+}

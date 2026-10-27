@@ -1,0 +1,6 @@
+.bubble-material-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:5px 0;max-height:55vh;overflow:auto}
+.bubble-material-card{display:flex;flex-direction:column;gap:7px;white-space:normal;text-align:left;min-width:0;padding:10px}
+.bubble-material-card[aria-pressed=true]{border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+.bubble-material-card img{width:100%;height:104px;object-fit:contain;border-radius:4px;background:#e6ebef}
+.bubble-material-card span{font-size:12px;line-height:1.5;overflow-wrap:anywhere}.bubble-material-card small{font-size:10px;color:var(--muted)}
+@media(max-width:600px){.bubble-material-picker{grid-template-columns:repeat(2,minmax(0,1fr))}}

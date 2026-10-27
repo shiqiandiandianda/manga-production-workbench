@@ -1,0 +1,104 @@
+[
+  {
+    "name": "打开工程与选择范围",
+    "testNameTokens": [
+      "browser-project-switch",
+      "core-user-flow",
+      "episode-catalog"
+    ]
+  },
+  {
+    "name": "制作资料导入",
+    "testNameTokens": [
+      "production-package",
+      "storyboard-import",
+      "xlsx",
+      "direct-json-import"
+    ]
+  },
+  {
+    "name": "已有资产匹配与采用",
+    "testNameTokens": [
+      "moku-reference-flow",
+      "moku-live-classified",
+      "asset-bindings",
+      "tag-append",
+      "tag-character"
+    ]
+  },
+  {
+    "name": "缺失资产补建",
+    "testNameTokens": [
+      "asset-generator.integration",
+      "asset-production",
+      "reference-asset-generation"
+    ]
+  },
+  {
+    "name": "画格与整话成图",
+    "testNameTokens": [
+      "page-generation",
+      "panel-generation",
+      "generation-queue.integration"
+    ]
+  },
+  {
+    "name": "裁格与自动排版",
+    "testNameTokens": [
+      "panel-slices",
+      "storyboard-layout-batch",
+      "browser-layout-selection"
+    ]
+  },
+  {
+    "name": "人工排版与对白",
+    "testNameTokens": [
+      "layers",
+      "bubble-editor",
+      "browser-bubble-text-frame",
+      "browser-image-layer-copy"
+    ]
+  },
+  {
+    "name": "局部修图与回写",
+    "testNameTokens": [
+      "repair-roundtrip",
+      "repair-auto-return",
+      "integrated-workspace"
+    ]
+  },
+  {
+    "name": "导出交付与重新打开",
+    "testNameTokens": [
+      "complete-strip-export",
+      "server",
+      "comic-style-portable"
+    ]
+  },
+  {
+    "name": "多人协作与审核",
+    "testNameTokens": [
+      "team-projects",
+      "collab-apply",
+      "team-production"
+    ]
+  },
+  {
+    "name": "版本留存与最新版确认",
+    "testNameTokens": [
+      "episode-versions",
+      "project-sync",
+      "moku-project-library"
+    ]
+  },
+  {
+    "name": "账号任务与故障恢复",
+    "testNameTokens": [
+      "asset-moku-session",
+      "moku-classified-reader",
+      "jobs-cancel-all",
+      "queue",
+      "codex"
+    ]
+  }
+]

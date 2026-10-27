@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+ <title>小说原文 · 漫画工作台</title>
+ <link rel="icon" href="/icons/book-2.svg" type="image/svg+xml">
+ <link rel="stylesheet" href="/novel-reader.css">
+ <script type="module" src="/novel-reader.js"></script>
+</head>
+<body data-theme="paper">
+ <header class="reader-toolbar">
+  <div class="reader-heading"><button id="reader-close" title="关闭这个阅读页，回到原来的工作台">← 返回工作台</button><strong id="chapter-label">小说原文</strong></div>
+  <form id="reader-search" role="search" autocomplete="off">
+   <input id="search-input" type="search" maxlength="160" placeholder="查找人物、服装或原句 · Ctrl+F" aria-label="查找原文">
+   <output id="search-count" aria-live="polite">输入关键词</output>
+   <button id="search-prev" type="button" aria-label="上一个匹配" title="上一个 · Shift+Enter" disabled>↑</button>
+   <button id="search-next" type="submit" aria-label="下一个匹配" title="下一个 · Enter" disabled>↓</button>
+  </form>
+  <div class="reader-controls" aria-label="阅读设置">
+   <div class="font-controls"><button id="font-smaller" aria-label="缩小字体">A−</button><output id="font-size" aria-live="polite">20</output><button id="font-larger" aria-label="放大字体">A＋</button></div>
+   <button id="reader-width" aria-pressed="false">宽版</button>
+   <button id="reader-theme" aria-pressed="false">夜间</button>
+   <button id="reader-origin" disabled>回到引用</button>
+  </div>
+ </header>
+ <main>
+  <div class="reader-meta"><span id="reader-meta">正在读取原文…</span><a id="reader-download" hidden>下载原文</a></div>
+  <p id="reader-status" role="status" aria-live="polite"></p>
+  <article id="reader-document" aria-label="小说章节正文" aria-busy="true"></article>
+  <div class="reader-bottom"><span>原文只读 · 阅读设置自动保存在这台电脑</span><button id="reader-top">回到顶部 ↑</button></div>
+ </main>
+</body>
+</html>

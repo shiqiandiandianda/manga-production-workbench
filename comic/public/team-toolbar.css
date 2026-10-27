@@ -1,0 +1,49 @@
+/* Every changing status owns a slot. Text updates never change toolbar rows. */
+.modern-workbench.unified-workbench .topbar{display:grid;grid-template-columns:100px minmax(130px,1fr) auto 102px 116px 150px 62px 66px 112px 56px;grid-template-areas:'brand project nav save sync codex generate export update more';align-items:center;gap:6px;height:52px;min-height:52px;padding:8px 12px;flex-wrap:nowrap}
+.modern-workbench.unified-workbench .topbar>.brand{grid-area:brand;display:flex;font-size:15px;gap:6px}
+.modern-workbench.unified-workbench .topbar .brand>span:last-child{display:inline}
+.modern-workbench.unified-workbench .topbar .brand-mark{width:24px;height:26px;flex:none}
+.modern-workbench.unified-workbench .topbar .brand-mark img{width:18px;height:18px}
+.modern-workbench.unified-workbench .topbar>.project-switcher{grid-area:project;min-width:0;width:100%}
+.modern-workbench.unified-workbench .topbar .project-trigger{width:100%;max-width:none;min-width:0;font-size:13px;padding:4px 6px}
+.modern-workbench.unified-workbench #workbench-primary-nav{grid-area:nav;display:flex;align-items:center;flex:none;gap:4px;margin:0;min-width:0;flex-wrap:nowrap}
+.modern-workbench.unified-workbench .topbar button,.modern-workbench.unified-workbench .topbar summary,.modern-workbench.unified-workbench #workbench-primary-nav>a{min-height:32px;font-size:12px;line-height:18px;padding:6px 8px;white-space:nowrap;box-sizing:border-box}
+.modern-workbench.unified-workbench #workbench-primary-nav>a,.modern-workbench.unified-workbench #workbench-primary-nav>button{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--text);text-decoration:none;flex:none}
+.modern-workbench.unified-workbench #workbench-primary-nav>.primary{background:#9acaff;color:#142c40;font-weight:600}
+.modern-workbench.unified-workbench #workspace-modes{margin:0;padding:2px;gap:2px;flex:none}
+.modern-workbench.unified-workbench #workspace-modes button{min-height:26px;padding:3px 7px}
+.modern-workbench.unified-workbench #workbench-primary-nav #asset-studio-open{min-height:32px;font-size:12px;padding:6px 8px}
+.modern-workbench.unified-workbench #workbench-primary-nav .team-status{width:94px;color:#a4dcc4;overflow:hidden;text-overflow:ellipsis}
+.modern-workbench.unified-workbench #workbench-primary-nav .team-status[data-connection=offline]{color:#e6bd7e}
+.modern-workbench.unified-workbench #workbench-primary-nav #team-comms-open{width:78px;overflow:hidden;text-overflow:ellipsis}
+.modern-workbench.unified-workbench .topbar>.top-spacer{display:none}
+.modern-workbench.unified-workbench .topbar>.save-indicator{grid-area:save;display:flex;width:102px;min-width:0;margin:0;gap:4px;overflow:hidden}
+.modern-workbench.unified-workbench .topbar #save-state{display:block;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modern-workbench.unified-workbench .topbar>.moku-sync{grid-area:sync;width:116px;min-width:0;max-width:none;justify-content:flex-start}
+.modern-workbench.unified-workbench .topbar>.codex-connection-control{grid-area:codex;display:flex;flex-direction:row;align-items:center;gap:4px;width:150px;min-width:0}
+.modern-workbench.unified-workbench .topbar #codex-connect{width:104px;max-width:none;flex:none;gap:5px}
+.modern-workbench.unified-workbench .topbar #codex-connection-status{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.modern-workbench.unified-workbench .topbar>.generation-actionbar{grid-area:generate;min-width:0;width:62px}
+.modern-workbench.unified-workbench .topbar #generation-menu>summary{min-width:0;width:62px;text-align:center}
+.modern-workbench.unified-workbench .topbar>.export-wrap{grid-area:export;min-width:0}
+.modern-workbench.unified-workbench .topbar #export-toggle{width:66px;min-width:0;max-width:66px;gap:4px}
+.modern-workbench.unified-workbench .topbar>#team-update-notice{grid-area:update;width:112px;min-width:0;padding:6px 8px!important;overflow:hidden;text-overflow:ellipsis}
+.modern-workbench.unified-workbench .topbar>#project-tools-menu{grid-area:more;min-width:0}
+.modern-workbench.unified-workbench .topbar>#project-tools-menu>summary{width:56px;min-width:0;padding:6px 8px}
+.modern-workbench.unified-workbench .topbar .ui-icon{width:14px;height:14px;flex:none}
+.modern-workbench.unified-workbench .topbar>#layout-history-paused{position:absolute;right:12px;top:calc(100% + 2px);z-index:26}
+@media(max-width:1739px){
+ .modern-workbench.unified-workbench .topbar{height:90px;min-height:90px;grid-template-columns:102px 116px 150px 62px 66px 112px minmax(0,1fr) 56px;grid-template-rows:32px 32px;grid-template-areas:'brand project project nav nav nav nav more' 'save sync codex generate export update . .'}
+}
+@media(max-width:1100px){
+ .modern-workbench.unified-workbench .topbar{height:126px;min-height:126px;grid-template-columns:102px 116px 150px 62px 66px 112px minmax(0,1fr) 56px;grid-template-rows:32px 32px 32px;grid-template-areas:'brand project project project project update update more' 'nav nav nav nav nav nav nav nav' 'save sync codex generate export . . .'}
+ .modern-workbench.unified-workbench #workbench-primary-nav{overflow-x:auto;scrollbar-width:none}
+}
+@media(max-width:760px){
+ .modern-workbench.unified-workbench .topbar{padding:6px 8px;gap:4px;height:122px;min-height:122px;grid-template-columns:92px minmax(70px,1fr) 62px 66px 56px;grid-template-areas:'project project update update more' 'nav nav nav nav nav' 'sync codex generate export .'}
+ .modern-workbench.unified-workbench .topbar>.brand,.modern-workbench.unified-workbench .topbar>.save-indicator{display:none}
+ .modern-workbench.unified-workbench .topbar>.moku-sync{width:92px}
+ .modern-workbench.unified-workbench .topbar>.codex-connection-control{width:100%}
+ .modern-workbench.unified-workbench .topbar #codex-connect{width:100%;font-size:11px;padding-inline:5px}
+ .modern-workbench.unified-workbench .topbar #codex-connection-status{display:none}
+}

@@ -1,0 +1,1 @@
+Tabler Icons, MIT License. Source: https://github.com/tabler/tabler-icons . SVG files are the upstream outline icons, unmodified.

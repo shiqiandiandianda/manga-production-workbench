@@ -1,0 +1,29 @@
+/* 顶栏墨库快照状态。只占一个紧凑按钮，避免和“检查连接”、导出按钮抢空间。 */
+.moku-sync{display:inline-flex;align-items:center;gap:6px;max-width:190px;padding:5px 9px;border:1px solid var(--line,#d8dee6);border-radius:6px;background:var(--panel,#fff);color:var(--muted,#6b7a8d);font-size:11px;line-height:1;white-space:nowrap;cursor:pointer}
+.moku-sync .dot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:#8391a4}
+.moku-sync .moku-sync-text{overflow:hidden;text-overflow:ellipsis}
+.moku-sync:hover:not(:disabled){border-color:#9fb3c8;color:#26313d}
+.moku-sync:focus-visible{outline:2px solid #4a90d9;outline-offset:1px}
+.moku-sync:disabled{cursor:default;opacity:.6}
+.moku-sync.is-synced .dot{background:var(--green,#2f9e6b)}
+.moku-sync.is-synced{color:#2f7d5a;border-color:#b9ddcb;background:#f2fbf6}
+.moku-sync.is-pending .dot{background:#d79a2b}
+.moku-sync.is-pending{color:#8a6414;border-color:#e8d5a8;background:#fdf8ec}
+.moku-sync.is-busy .dot{background:#4a90d9;animation:moku-sync-pulse 1s ease-in-out infinite}
+.moku-sync.is-error .dot{background:#c0463a}
+.moku-sync.is-error{color:#a13a30;border-color:#e4bdb8;background:#fdf2f0}
+.moku-sync.is-off .dot{background:#b0b9c6}
+.moku-sync.is-off{color:#7c8797}
+@keyframes moku-sync-pulse{0%,100%{opacity:.35}50%{opacity:1}}
+@media(max-width:850px){.moku-sync{max-width:150px;font-size:11px}}
+@media(max-width:650px){.moku-sync{max-width:96px;padding:5px 6px}.moku-sync .moku-sync-text{font-size:0}.moku-sync .moku-sync-text::after{content:'墨库';font-size:11px}}
+#moku-login-dialog{width:min(460px,calc(100vw - 32px));max-height:90dvh;overflow:auto;padding:0;border:1px solid #46617b;border-radius:12px;background:#17293a;color:#e1edf8;box-shadow:0 20px 80px #0007}
+#moku-login-dialog::backdrop{background:#071019a6}
+#moku-login-dialog header{display:flex;justify-content:space-between;align-items:start;gap:16px;padding:22px 24px 12px}
+#moku-login-dialog h2{font-size:22px;margin:0 0 8px}#moku-login-dialog header p{font-size:13px;line-height:1.7;color:#a6bfd6;margin:0}
+#moku-login-dialog header>button{font-size:24px;line-height:1;padding:5px 10px}
+#moku-login-dialog form{padding:8px 24px 24px}#moku-login-dialog label{display:block;font-size:13px;color:#bdd2e5;margin:12px 0 7px}
+#moku-login-dialog input{display:block;width:100%;min-width:0;min-height:44px;background:#102131;color:#e1edf8;border:1px solid #3a556f;border-radius:6px;padding:10px 12px;font-size:14px}
+#moku-login-dialog input:focus{outline:2px solid #9acaff;outline-offset:1px}#moku-login-dialog [type=submit]{width:100%;min-height:42px;margin-top:4px}
+#moku-login-dialog [role=status]{font-size:13px;line-height:1.7;min-height:22px;color:#a8c9e5;margin:16px 0 10px}#moku-login-dialog [role=status].error{color:#f2c199}
+#moku-login-dialog .moku-login-note{font-size:12px;color:#91aec8;line-height:1.7;margin:14px 0 0}

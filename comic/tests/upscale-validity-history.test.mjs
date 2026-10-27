@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
@@ -11,6 +12,7 @@ import {runLocalUpscale,vulkanFailure} from '../lib/local-upscale.mjs';
 import {createLocalImageTools} from '../lib/local-image-tools.mjs';
 import {createStudio} from '../server.mjs';
 import {createProject} from '../public/model.js';
+import {listenForFetch} from './helpers/listen-for-fetch.mjs';
 const root=fileURLToPath(new URL('../../',import.meta.url)),require=createRequire(import.meta.url),runtime=path.join(root,'runtime');
 const canvasModule=process.env.COMIC_TEST_CANVAS_MODULE||path.join(runtime,'node/node_modules/@napi-rs/canvas'),{createCanvas,loadImage}=require(canvasModule);
 const python=process.env.COMIC_PYTHON_BIN||path.join(runtime,'python/python.exe'),script=path.join(root,'comic/python/local_upscale_image.py'),exec=promisify(execFile);
@@ -28,7 +30,8 @@ test('退出码0仍识别Vulkan失败，在同一任务内改用已发现独显�
 test('全透明及尺寸错误结果均拒绝输出，不生成可采用的result.png',async()=>{for(const options of [{blank:true},{size:true}]){const f=await fakePipeline(options);await assert.rejects(f.go(),/全透明|尺寸不正确/);assert.equal(fs.existsSync(f.output),false);assert.equal(hash(f.input),f.before);}});
 test('历史任务误标成功的透明结果仍会被拦截，保留历史图片文件',async()=>{const folder=dir(),taskId=randomUUID(),taskDir=path.join(folder,'local-tools',taskId);fs.mkdirSync(taskDir,{recursive:true});const input=path.join(taskDir,'input.png'),output=path.join(taskDir,'result.png');fs.writeFileSync(input,png());fs.writeFileSync(output,png(160,128,{blank:true}));const before=hash(output);fs.writeFileSync(path.join(taskDir,'task.json'),JSON.stringify({id:taskId,input,operation:'upscale',status:'done',scale:2}));const tools=createLocalImageTools({runtimeRoot:path.join(root,'.runtime/image-tools'),dataDir:folder,python,script:path.join(root,'comic/python/local_image_tools.py')});await assert.rejects(tools.validatedResult(taskId),/全透明/);assert.equal(tools.get(taskId).status,'failed');assert.equal(hash(output),before);});
 
-async function studioFixture(t){const folder=dir();Object.assign(process.env,{COMIC_PROJECT_SYNC:'0',COMIC_SLOT_DIR:path.join(folder,'slot'),COMIC_LIBRARY_CONFIG:path.join(folder,'moku.json'),COMIC_CANVAS_MODULE:canvasModule,COMIC_TEST_CANVAS_MODULE:canvasModule,COMIC_PYTHON_BIN:python});fs.writeFileSync(process.env.COMIC_LIBRARY_CONFIG,JSON.stringify({base:'http://127.0.0.1:9'}));
+async function studioFixture(t){const folder=dir();Object.assign(process.env,{COMIC_PROJECT_SYNC:'0',COMIC_SLOT_DIR:path.join(folder,'slot'),COMIC_LIBRARY_CONFIG:path.join(folder,'moku.json'),COMIC_CANVAS_MODULE:canvasModule,COMIC_TEST_CANVAS_MODULE:canvasModule,COMIC_PYTHON_BIN:python});
+ const offline=http.createServer((_request,response)=>{response.writeHead(503,{'Content-Type':'application/json'});response.end(JSON.stringify({error:'合成测试：墨库离线'}));});const offlineOrigin=await listenForFetch(offline);t.after(()=>{offline.closeAllConnections();offline.close();});fs.writeFileSync(process.env.COMIC_LIBRARY_CONFIG,JSON.stringify({base:offlineOrigin}));
  const taskId=randomUUID(),taskDir=path.join(folder,'local-tools',taskId);fs.mkdirSync(taskDir,{recursive:true});const taskInput=path.join(taskDir,'input.png');fs.writeFileSync(taskInput,png());fs.writeFileSync(path.join(taskDir,'result.png'),png(160,128));fs.writeFileSync(path.join(taskDir,'task.json'),JSON.stringify({id:taskId,input:taskInput,operation:'upscale',status:'done',scale:2,message:'处理完成',createdAt:new Date().toISOString()}));
  const studio=createStudio({dataDir:folder,bridge:{close(){},status:async()=>({connected:false})},jimengBridge:{close(){},status:async()=>({connected:false})}});await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));t.after(()=>{studio.close();studio.server.closeAllConnections();});const origin='http://127.0.0.1:'+studio.server.address().port;
  const api=async(route,input)=>{const r=await fetch(origin+route,{method:input?'POST':'GET',...(input?{headers:{'Content-Type':'application/json'},body:JSON.stringify(input)}:{})});return {status:r.status,body:await r.json()};};

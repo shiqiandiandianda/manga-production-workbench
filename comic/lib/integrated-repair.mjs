@@ -49,7 +49,14 @@ export function createIntegratedRepair({dataDir,store,body,json,saveProject,addA
    }
    // An existing HD layer is the repair target, even for an older editor still sending "upscale".
    const upscaleTarget=panel.cutoutLayer?.kind==='upscale',mode=upscaleTarget?'replace':requestedMode,child=mode==='layer'||mode==='upscale',resultHash=createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-   if(requestedMode==='upscale'||upscaleTarget)await localTools.validateUpscale(store.assetPath(session.imageAssetId),file);
+   // Model-output checks apply only when the user requested an upscale. A
+   // manually edited HD layer can legitimately become a flat-colour image.
+   if(requestedMode==='upscale'){
+    await localTools.validateUpscale(store.assetPath(session.imageAssetId),file);
+    // Validation runs in a child process. Another editor can replace the
+    // project while it is running, so never apply to the stale object.
+    check(store.project(session.projectId)===project&&project.revision===input.expectedRevision,'高清结果校验期间工程已有修改，请重新确认；结果仍保留',409);
+   }
    session.targetKind=upscaleTarget?'upscale':panel.cutoutLayer?'layer':'frame';
    const resultKey=requestedMode+':'+(requestedMode==='upscale'||upscaleTarget?resultHash:resultPath),previous=session.appliedResults?.[resultKey]||(!child&&session.lastResult?.sha256===resultHash?session.lastResult:null),existing=previous&&page.panels.find(f=>f.id===previous.layerId);
    if(previous&&(child?existing?.imageAssetId===previous.assetId:panel.imageAssetId===previous.assetId)){json(res,200,{applied:true,mode,layerId:previous.layerId,asset:store.asset(previous.assetId),project,session,message:'此结果已应用，没有重复新建图层'});return true;}

@@ -41,6 +41,8 @@
     "comic/tests/server.test.mjs",
     "comic/tests/import-file-roles.test.mjs",
     "comic/quality/cases/repair-integrated.test.mjs",
+    "comic/tests/upscale-child-layer.test.mjs",
+    "comic/tests/upscale-validity-history.test.mjs",
     "comic/quality/cases/toolbar-layout.test.mjs",
     "comic/tests/state-sync.test.mjs",
     "comic/tests/production-package.test.mjs",

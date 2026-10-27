@@ -53,6 +53,24 @@ const output = path.resolve(get('output', path.join(path.dirname(root), 'q', id)
 const internalRunRoot = path.join(root, 'quality-runs');
 if (output === root || output.startsWith(root + path.sep) && !output.startsWith(internalRunRoot + path.sep) || fs.existsSync(output)) throw Error('输出目录必须是新目录；仓库内只允许 quality-runs 子目录: ' + output);
 fs.mkdirSync(output, {recursive:true});
+function lowDiskReason(){
+  for(const [label,directory] of [['测试输出盘',output],['源码盘',root]]){
+    try{const stat=fs.statfsSync(directory),free=Number(stat.bavail)*Number(stat.bsize);if(Number.isFinite(free)&&free<3*1024**3)return label+'可用空间不足 3 GiB，已停止启动后续测试；已完成结果保留。';}catch(error){console.warn('无法读取'+label+'剩余空间：'+error.message);}
+  }
+  return '';
+}
+// Check before copying either source tree or model files, not just between tests.
+const earlyStopReason=lowDiskReason();
+if(earlyStopReason){
+  const summary={mode,complete:false,passed:false,counts:{},total:selected.length,filtered:!!filter||ranged,range:{start,end,available:available.length},interrupted:true,stoppedReason:earlyStopReason,results:[],limits:plan.limits};
+  const coverage=rows=>rows.map(row=>({...row,testFiles:row.tests.map(file=>({file,status:selected.includes(file)?'pending':'not-run'})),evidenceLevel:'关联到测试文件；文件通过不等于此条功能已逐项验收'}));
+  fs.writeFileSync(path.join(output,'inventory.json'),JSON.stringify(inventory,null,2));
+  fs.writeFileSync(path.join(output,'results.json'),JSON.stringify(summary,null,2));
+  fs.writeFileSync(path.join(output,'coverage.json'),JSON.stringify({features:coverage(catalog.features),flows:coverage(catalog.flows)},null,2));
+  fs.writeFileSync(path.join(output,'results.csv'),'\ufefffile,status,kind,seconds,pass,fail,skip,log\n');
+  fs.writeFileSync(path.join(output,'report.html'),'<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>工作台测试未启动</title><h1>测试未启动</h1><p>'+earlyStopReason+'</p><p>源码尚未复制；请释放空间后重新运行。</p><p><a href="results.json">结果详情</a></p></html>');
+  console.error(earlyStopReason);console.log('报告：'+path.join(output,'report.html'));process.exit(1);
+}
 const workers = Math.max(1,Math.min(2,Number(get('jobs','1'))||1));
 const stages=Array.from({length:workers},(_,i)=>path.join(output,'source-'+(i+1)));
 function copy(src, dest) {
@@ -179,22 +197,23 @@ async function run(file,index,stage) {
   return new Promise(resolve => {
     let child;
     try{child=spawn(isPython?python:process.execPath,isPython?[path.join(stage,'comic/quality/python/test-runner.py'),path.join(stage,file)]:['--test','--test-isolation=none',path.join(stage,file)],{cwd,env,windowsHide:true,stdio:['ignore','pipe','pipe']});}
-    catch(error){dest.end(String(error.stack||error));proxy.close();results.push({file,status:'failed',kind:'spawn_error',exitCode:null,seconds:0,pass:0,fail:1,skip:0,log});report();resolve();return;}
+    catch(error){dest.end(String(error.stack||error));proxy.close();interrupted=true;stoppedReason='无法启动测试子进程（'+(error.code||'unknown')+'），已停止后续测试；未启动的文件不算失败或通过。';results.push({file,status:'blocked',kind:'spawn_error',exitCode:null,seconds:0,pass:0,fail:0,skip:0,log});report();console.error(stoppedReason);resolve();return;}
     active.add(child);
     const append = value => {dest.write(value);raw=(raw+String(value)).slice(-4*1024*1024);};
-    child.stdout.on('data',append);child.stderr.on('data',append);child.on('error',e=>append(String(e.stack||e)));
+    let spawnError=null;
+    child.stdout.on('data',append);child.stderr.on('data',append);child.on('error',e=>{spawnError=e;append(String(e.stack||e));});
     const timer=setTimeout(()=>{timed=true;kill(child);},timeout);
     child.on('close',code=>{
       active.delete(child);clearTimeout(timer);dest.end();proxy.closeAllConnections();proxy.close();
-      const outcome=classifyOutcome({raw,code,timed,interrupted,isPython});
+      if(spawnError){interrupted=true;stoppedReason='无法启动测试子进程（'+(spawnError.code||'unknown')+'），已停止后续测试；未启动的文件不算失败或通过。';console.error(stoppedReason);}
+      const outcome=spawnError?{status:'blocked',kind:'spawn_error',pass:0,fail:0,skip:0,cancelled:0}:classifyOutcome({raw,code,timed,interrupted,isPython});
       const row={file,...outcome,exitCode:code,seconds:Math.round((Date.now()-start)/100)/10,log};results.push(row);report();console.log(`[${results.length}/${selected.length}] ${row.status} ${file} (${row.seconds}s)`);resolve();
     });
   });
 }
 function checkDiskSpace(){
-  for(const [label,directory] of [['测试输出盘',output],['源码盘',root]]){
-    try{const stat=fs.statfsSync(directory),free=Number(stat.bavail)*Number(stat.bsize);if(Number.isFinite(free)&&free<3*1024**3){stoppedReason=label+'可用空间不足 3 GiB，已停止启动后续测试；已完成结果保留。';interrupted=true;console.error(stoppedReason);return false;}}catch(error){console.warn('无法读取'+label+'剩余空间：'+error.message);}
-  }
+  const reason=lowDiskReason();
+  if(reason){stoppedReason=reason;interrupted=true;console.error(stoppedReason);return false;}
   return true;
 }
 report();let cursor=0;

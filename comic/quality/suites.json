@@ -1,6 +1,7 @@
 {
   "coreFunctions": [
     "comic/quality/cases/guard.test.mjs",
+    "comic/quality/cases/runner-preflight.test.mjs",
     "comic/quality/cases/outcomes.test.mjs",
     "comic/quality/cases/candidate-category-merge.test.mjs",
     "comic/quality/cases/upstream-workflows.test.mjs",

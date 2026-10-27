@@ -27,7 +27,7 @@ npm run quality:large -- --jobs 2 --timeout 150
 
 默认一次只跑一个测试文件；`--jobs 2` 使用两份隔离源码副本。`--timeout` 单位为秒。默认结果写到仓库上级目录的 `q/<时间>-<进程号>/`，可用 `--output` 指向**不存在的新目录**。运行结束后打开终端输出的 `report.html`，并查看 `results.csv`、各文件日志和 `coverage.json`。`inventory.json` 记录选中的文件。
 
-每个测试文件启动前检查输出盘和源码所在盘的剩余空间，任一盘低于 3 GiB 时停止启动后续文件，并在 `results.json` 的 `stoppedReason` 记录原因；这种中断不算通过。检查只在文件之间执行，单个测试仍需控制自己的磁盘使用。
+复制源码前及每个测试文件启动前，检查输出盘和源码所在盘的剩余空间；任一盘低于 3 GiB 时停止，并在 `results.json` 的 `stoppedReason` 记录原因。无法启动测试子进程时，运行器记录阻断并停止排队，不把未运行的文件记成业务失败。这些中断不算通过；单个测试仍需控制自己的磁盘使用。
 
 三个旧资产中心用例会在隔离环境生成或读取管理员令牌：`center/tests/http.test.mjs`、`comic/tests/asset-center.integration.test.mjs` 和 `comic/tests/asset-generator.integration.test.mjs`。运行器在启动之前将它们标为 `blocked` 并记录原因；这不是通过，也不覆盖现有用户权限要求。其他用例仍须事先审查其依赖和权限。
 

@@ -185,7 +185,9 @@ async function run(file,index,stage) {
   });
 }
 function checkDiskSpace(){
-  try{const stat=fs.statfsSync(output),free=Number(stat.bavail)*Number(stat.bsize);if(Number.isFinite(free)&&free<3*1024**3){stoppedReason='测试盘可用空间不足 3 GiB，已停止启动后续测试；已完成结果保留。';interrupted=true;console.error(stoppedReason);return false;}}catch(error){console.warn('无法读取测试盘剩余空间：'+error.message);}
+  for(const [label,directory] of [['测试输出盘',output],['源码盘',root]]){
+    try{const stat=fs.statfsSync(directory),free=Number(stat.bavail)*Number(stat.bsize);if(Number.isFinite(free)&&free<3*1024**3){stoppedReason=label+'可用空间不足 3 GiB，已停止启动后续测试；已完成结果保留。';interrupted=true;console.error(stoppedReason);return false;}}catch(error){console.warn('无法读取'+label+'剩余空间：'+error.message);}
+  }
   return true;
 }
 report();let cursor=0;

@@ -27,7 +27,7 @@ npm run quality:large -- --jobs 2 --timeout 150
 
 默认一次只跑一个测试文件；`--jobs 2` 使用两份隔离源码副本。`--timeout` 单位为秒。默认结果写到仓库上级目录的 `q/<时间>-<进程号>/`，可用 `--output` 指向**不存在的新目录**。运行结束后打开终端输出的 `report.html`，并查看 `results.csv`、各文件日志和 `coverage.json`。`inventory.json` 记录选中的文件。
 
-每个测试文件启动前检查测试盘剩余空间，低于 3 GiB 时停止启动后续文件并在 `results.json` 的 `stoppedReason` 记录原因；这种中断不算通过。检查只在文件之间执行，单个测试仍需控制自己的磁盘使用。
+每个测试文件启动前检查输出盘和源码所在盘的剩余空间，任一盘低于 3 GiB 时停止启动后续文件，并在 `results.json` 的 `stoppedReason` 记录原因；这种中断不算通过。检查只在文件之间执行，单个测试仍需控制自己的磁盘使用。
 
 仅查看计划，不执行：
 

@@ -47,7 +47,7 @@ const features = [
   feature('素材和资产','人物组件、反打和参考素材准备','角色工房','comic/lib/character-appearance.mjs','character-component-pipeline,character-preparation'),
   feature('画布与画格','连续画布、缩放和平移','画布工具栏','comic/public/canvas-pan.js','viewport,episode-board-canvas',true),
   feature('画布与画格','不同窗口宽度下工具栏和版本入口布局','顶部栏与画布工具栏','comic/public/team-toolbar.css','comic/quality/cases/toolbar-layout.test.mjs',true,'使用合成工程测试 245—1864 像素宽度'),
-  feature('画布与画格','新建、选择、移动和缩放画格','画布工具栏','comic/public/frame-primitives.js','model,panel-drag',true),
+  feature('画布与画格','新建、选择、移动和缩放画格','画布工具栏','comic/public/frame-primitives.js','model,panel-drag,browser-panel-width',true),
   feature('画布与画格','画格形状、节点、边框和裁切','画格属性','comic/public/custom-frame-shapes.js','custom-frame-shapes,frame-corner-matrix'),
   feature('画布与画格','图片取景、缩放、旋转和镜像','图片属性','comic/public/artwork-transform.js','artwork-corner,browser-artwork-mirror',true),
   feature('画布与画格','图层排序、复制、粘贴和合并','图层工具','comic/public/canvas-layer-order.js','layers,layer-merge,browser-image-layer-copy',true),

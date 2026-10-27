@@ -52,6 +52,8 @@
     "comic/tests/browser-multi-window.test.mjs",
     "comic/tests/browser-generation-shortcuts.test.mjs",
     "comic/tests/browser-bubble-material.test.mjs",
+    "comic/tests/browser-panel-width.test.mjs",
+    "comic/tests/layer-merge.test.mjs",
     "comic/tests/asset-simple-pick.test.mjs",
     "comic/tests/cutout-frame.test.mjs"
   ],

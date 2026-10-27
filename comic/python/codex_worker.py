@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -83,8 +84,31 @@ class BridgeError(RuntimeError):
         self.may_have_started = may_have_started
 
 
+RATE_LIMIT_PATTERN = re.compile(
+    r"(?:\b429\b|too many requests|rate[ _-]?limit|usage[ _-]?limit|insufficient[ _-]?quota|\bquota\b)",
+    re.IGNORECASE,
+)
+
+
+def is_rate_limited(message):
+    """True only for an explicit provider rejection (429 / quota), not for a generic timeout.
+
+    A 429 response means the request was refused before any turn/image existed, so the
+    caller must not treat the shot as "may have started" and must not auto-retry it.
+    """
+    return bool(RATE_LIMIT_PATTERN.search(str(message or "")))
+
+
 def rpc_error(message, stage, started=False):
     message = str(message or "官方 Codex 返回了没有说明的错误")
+    if is_rate_limited(message):
+        return BridgeError(
+            f"官方 Codex 账号已限流或额度用尽（{stage}）：{message}；本次请求已被拒绝，没有提交生成，原图保留。队列会自动暂停后重试。",
+            "account_rate_limited",
+            stage,
+            False,
+            False,
+        )
     if "workspace routing discovery timed out" in message.lower():
         return BridgeError(f"官方 Codex 工作区路由发现超时（{stage}）；账号状态尚未确认。这是临时连接失败，原图保留。详细信息：{message}", "workspace_routing_timeout", stage, True, started)
     return BridgeError(f"官方 Codex 在 {stage} 阶段失败：{message}；原图保留。", "app_server_rpc_failed", stage, False, started)
@@ -574,6 +598,50 @@ def generate(server, directory, digest_cache=None, skill_path=None):
     return manifest
 
 
+def rewrite_prompt(server, directory):
+    """Text-only revision in its own read-only thread; never replay a submitted turn."""
+    prompt = (directory / "request.txt").read_text(encoding="utf-8")
+    thread_id = turn_id = None
+    completed = False
+    reply = ""
+    schema = {"type": "object", "properties": {"prompt": {"type": "string", "minLength": 1, "maxLength": 20000}}, "required": ["prompt"], "additionalProperties": False}
+    try:
+        thread = server.rpc("thread/start", {"cwd": str(directory.resolve()), "sandbox": "read-only", "approvalPolicy": "never", "ephemeral": True, "modelProvider": "openai", "config": {"features.image_generation": False, "features.shell_tool": False, "features.apply_patch_freeform": False, "web_search": "disabled"}}, timeout=45)
+        thread_id = thread["thread"]["id"]
+        server.generation_started = True
+        progress("Codex 正在按修改意见修订提示词", "turn/start", "prompt-rewrite")
+        response = server.rpc("turn/start", {"threadId": thread_id, "input": [{"type": "text", "text": prompt}], "outputSchema": schema}, timeout=45)
+        turn_id = response.get("turn", {}).get("id")
+        if not turn_id:
+            raise BridgeError("Codex 未返回修改任务编号，原提示词保留", "invalid_turn_response", "prompt-rewrite", False, True)
+        for event in server.events(timeout=180):
+            method, params = event.get("method", ""), event.get("params", {})
+            if not matches_turn(params, thread_id, turn_id):
+                continue
+            item = params.get("item", {})
+            if method == "item/completed" and item.get("type") == "agentMessage" and item.get("phase") not in ("analysis", "reasoning", "commentary"):
+                reply = item.get("text", "")
+            if method == "error" and not params.get("willRetry"):
+                raise BridgeError((params.get("error") or {}).get("message", "Codex 修改提示词失败"), "prompt_rewrite_failed", "prompt-rewrite", False, True)
+            if method == "turn/completed":
+                completed = True
+                if params.get("turn", {}).get("status") != "completed":
+                    raise BridgeError("Codex 修改任务未完成，原提示词保留", "prompt_rewrite_failed", "prompt-rewrite", False, True)
+                break
+        if not completed:
+            raise BridgeError("Codex 修改提示词超时，原提示词保留", "prompt_rewrite_timeout", "prompt-rewrite", False, True)
+        try:
+            value = json.loads(reply)
+            if not isinstance(value.get("prompt"), str) or not value["prompt"].strip() or len(value["prompt"]) > 20000:
+                raise ValueError("invalid prompt")
+        except (ValueError, TypeError, AttributeError):
+            raise BridgeError("Codex 返回的提示词格式无效，原提示词保留", "prompt_rewrite_invalid", "prompt-rewrite", False, True)
+        return {"prompt": value["prompt"]}
+    finally:
+        if thread_id and turn_id:
+            server.settle_turn(thread_id, turn_id, completed=completed)
+
+
 class WorkerSession:
     def __init__(self, command, cwd=None, server_factory=AppServer):
         self.command = command
@@ -618,6 +686,12 @@ class WorkerSession:
                     except BridgeError:
                         self.close()
                     return {**status, "sessionReady": True, "probeOnly": True, "turnStartSent": False}
+                if action == "rewrite-prompt":
+                    result = rewrite_prompt(self.server, directory)
+                    (directory / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+                    if self.server.recycle_after_turn:
+                        self.close()
+                    return result
                 ready_ms = round((time.monotonic() - request_started) * 1000)
                 result = generate(self.server, directory, self.digest_cache, self.skill_path)
                 result["timings"]["connectionMs"] = ready_ms
@@ -655,9 +729,9 @@ def serve(command, cwd=None):
                 _request_started = time.monotonic()
                 action = request.get("action")
                 progress("Python 已收到当前请求", "worker/read")
-                if action not in ("status", "generate", "probe"):
+                if action not in ("status", "generate", "probe", "rewrite-prompt"):
                     raise BridgeError("Python 生图连接收到无效请求", "worker_protocol_error")
-                directory = Path(request["directory"]).resolve(strict=True) if action in ("generate", "probe") else None
+                directory = Path(request["directory"]).resolve(strict=True) if action in ("generate", "probe", "rewrite-prompt") else None
                 result = session.execute(action, directory, request.get("force") is True)
                 emit({"type": "result", **result})
             except Exception as error:

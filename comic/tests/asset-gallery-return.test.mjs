@@ -1,6 +1,7 @@
 import os from 'node:os';
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import {createRequire}from'node:module';import {randomUUID}from'node:crypto';
 import {galleryReturnDecision}from'../public/asset-gallery-batch.js';
+import {referenceRecordMatch}from'../lib/reference-generation-results.mjs';
 import {syntheticFiles}from'./fixtures/production-synthetic.mjs';import {inspectProductionPackage}from'../lib/production-package.mjs';import {productionProject}from'../lib/production-package-document.mjs';import {ensureProjectPanelGeneration}from'../public/panel-generation.js';import {assetWorkspaceInventory}from'../public/asset-workspace-model.js';import {prepareWorkspaceBinding,workspaceTarget}from'../lib/asset-workspace-api.mjs';
 const projectId='project-'+randomUUID(),use={panelId:'panel-a',needId:'need-a',missing:true},row={name:'测试人物',role:'character',state:'白衣',uses:[use]},record={id:'production-'+randomUUID(),name:row.name,role:row.role,state:row.state,status:'completed',partial:false,available:true,imageUrl:'/result.png',context:{projectId}};
 test('批量接回保护身份、版本、完整性和既有采用；仅填补可编辑的缺图位置',()=>{
@@ -11,6 +12,14 @@ test('批量接回保护身份、版本、完整性和既有采用；仅填补�
  for(const extra of[{missing:false},{locked:true},{skipped:true},{text:true}])assert.equal(galleryReturnDecision({...row,uses:[{...use,...extra}]},[record],{projectId}).status,'skip');
  assert.deepEqual(galleryReturnDecision({...row,uses:[use,{...use,panelId:'already',missing:false}]},[record],{projectId}).targets,[{panelId:use.panelId,needId:use.needId}]);
  assert.notEqual(galleryReturnDecision({...row,state:'未指定'},[record],{projectId}).status,'ready');
+});
+
+test('主库映射占位说明允许唯一、完整、由本需求生成的记录接回，仍保护真正未知服装及其他来源',()=>{
+ const state='待与项目主库对应，未绑定实际图片或固定版本；本批没有生成资产图。',pending={...row,state},generated={...record,state:'未指定（原创候选，待确认）',source:{projectId,panelId:use.panelId,needId:use.needId}};
+ assert.equal(galleryReturnDecision(pending,[generated],{projectId}).status,'ready');
+ for(const extra of [{source:undefined},{source:{...generated.source,projectId:'other'}},{source:{...generated.source,needId:'other'}},{status:'failed',partial:true},{matchNote:'服装待核对'}])assert.notEqual(galleryReturnDecision(pending,[{...generated,...extra}],{projectId}).status,'ready');
+ assert.equal(galleryReturnDecision(pending,[generated,{...generated,id:'other'}],{projectId}).status,'review');assert.notEqual(galleryReturnDecision({...pending,state:'服装待确认'},[generated],{projectId}).status,'ready');
+ const raw={...generated,type:'character',outfit:state},context={project:{id:projectId},panel:{id:use.panelId},need:pending};assert.equal(referenceRecordMatch(raw,context).matchNote,'');assert.match(referenceRecordMatch(raw,{...context,need:{...pending,state:'服装待确认'}}).matchNote,/核对/);
 });
 test('浏览器一键接回按筛选范围串行采用，单项失败继续，多版本及部分图待确认，重复点击不覆盖',{timeout:60000},async t=>{
  const names=['正常甲','正常乙','失败项','多版本项','部分项','进行中项','已有项','无结果项'],files=syntheticFiles(),board=JSON.parse(files[0].bytes),screen=JSON.parse(files[1].bytes);

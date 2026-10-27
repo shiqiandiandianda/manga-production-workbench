@@ -3,7 +3,7 @@ import {isCollaborationFile} from '../public/collaboration-files.js';
 import {expandMokuAssets,mokuCharacterMetadata} from '../public/moku-character-groups.js';
 import {createMokuClassifiedReader} from './moku-classified-reader.mjs';
 import {createMokuProjectLibrary} from './moku-project-library.mjs';
-import {createTeamProjectFiles} from './team-project-files.mjs';
+import {createProjectMediaFiles} from './project-media-files.mjs';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import fs from 'node:fs';import path from 'node:path';import {createHash,randomUUID} from 'node:crypto';
 import {check,imageInfo} from './store.mjs';import {writeFileAtomicSync} from './durable-files.mjs';import {FONT_FAMILIES} from '../public/lettering.js';import {createRequire} from 'node:module';
@@ -96,8 +96,6 @@ export function createRemoteLibrary({dataDir,configPath,baseUrl='http://127.0.0.
   if(method==='GET'&&pathname==='/api/library/open'){res.writeHead(302,{Location:base+'/','Cache-Control':'no-store'});res.end();return true;}
   if(method==='GET'&&pathname==='/api/library/status'){try{const me=await read('/api/auth/me');rememberAccount(me.user||me);json(res,200,{connected:true,baseUrl:base,user:me.user||me,fonts:fonts()});}catch(e){json(res,200,{connected:false,baseUrl:base,error:e.message,fonts:fonts()});}return true;}
   if(method==='POST'&&pathname==='/api/library/login'){const input=await body(req);const r=await remote('/api/auth/login',{method:'POST',body:JSON.stringify({username:input.username,password:input.password}),headers:{'Idempotency-Key':randomUUID()}});const cookies=r.headers.getSetCookie();const cookie=cookies.map(c=>c.split(';')[0]).find(c=>c.startsWith('library_session='));check(cookie,'素材库没有返回有效会话');session={base,cookie};sessionEpoch++;classified.clear();projectLibrary.clear();account={};accountAt=0;writeFileAtomicSync(local,JSON.stringify(session));json(res,200,{ok:true});return true;}
-  const tagMatch=pathname.match(/^\/api\/library\/assets\/([a-f0-9-]{36})\/tags$/i);
-  if(method==='POST'&&tagMatch){const input=await body(req);const asset=await pin(()=>classified.appendTags(tagMatch[1],input.tags));json(res,200,{asset});return true;}
   if(method==='POST'&&pathname==='/api/library/import'){const input=await body(req);json(res,201,await pin(()=>importAsset(input)));return true;}
   if(method==='GET'&&pathname==='/api/library/fonts'){json(res,200,{items:fonts()});return true;}
   const fontMatch=pathname.match(/^\/api\/library\/fonts\/([a-f0-9-]{36})$/i);if(method==='GET'&&fontMatch){const f=store.db.libraryFonts?.find(f=>f.revisionId===fontMatch[1]);check(f,'字体尚未取用',404);const bytes=fs.readFileSync(f.filePath);res.writeHead(200,{'Content-Type':path.extname(f.filePath)==='.otf'?'font/otf':'font/ttf','Cache-Control':'private, max-age=31536000, immutable'});res.end(bytes);return true;}
@@ -111,6 +109,6 @@ export function createRemoteLibrary({dataDir,configPath,baseUrl='http://127.0.0.
  }
  const api={handle,read,remote,memberIdentity,importAsset:input=>pin(()=>importAsset(input)),uploadAsset:input=>pin(()=>uploadAsset(input)),withSession:pin,rememberClassifiedAsset:classified.remember,projectUploadContext:projectLibrary.uploadContext,supportsClassified:classified.supported,organizeCollaborationAsset,ensureCollaborationFolder,fonts,baseUrl:base,defaultProjectId:defaults.projectId,defaultProjectName:defaults.projectName};
  const receiptsFile=path.join(dataDir,'moku-project-files.local.json');let receipts={};try{receipts=JSON.parse(fs.readFileSync(receiptsFile,'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
- const projectFiles=createTeamProjectFiles({store,library:api,dataDir,receipts,persist:()=>writeFileAtomicSync(receiptsFile,JSON.stringify(receipts))});
+ const projectFiles=createProjectMediaFiles({store,library:api,dataDir,receipts,persist:()=>writeFileAtomicSync(receiptsFile,JSON.stringify(receipts))});
  api.packProject=async(project,projectId)=>await classified.supported()?projectFiles.pack(project,projectId):null;return api;
 }

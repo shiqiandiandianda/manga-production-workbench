@@ -1,6 +1,8 @@
 // 协作执行适配层测试（协议 §7.1）：真实走 createStudio 的 pump/名额/fake bridge，
 // 断言结果文件校验、工作目录隔离、工程数据不被修改、坏参数 400、取消语义、重启后状态如实反映。
 // fake bridge 返回的是本文件生成的合成 PNG，明确不是真实生图。
+// 这些用例验证休眠的协作执行适配层；线上默认已移除团队帮忙生图。
+process.env.COMIC_TEAM_HELP='1';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

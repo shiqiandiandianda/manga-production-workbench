@@ -30,7 +30,7 @@ for(const change of ['derived-cache','prompt','previous-image'])test(`整屏生�
  else{
   const stale=structuredClone(f.project),frame=productionFrame(stale,'E011-S002');
   if(change==='derived-cache'){frame.referenceIds=frame.referenceIds.filter(id=>id!==f.assets[1].id);frame.generation.referenceRoles=frame.generation.referenceRoles.filter(ref=>ref.assetId!==f.assets[1].id);}
-  else frame.generation.promptSource=frame.generation.promptSource==='post-lettering'?'imported':'post-lettering';
+  else frame.generation.promptSource='post-lettering';
   await f.api('/api/projects/'+f.project.id,stale,'PUT');
  }
  f.release();await until(()=>f.studio.store.db.jobs.at(-1)?.status==='done');const job=f.studio.store.db.jobs.at(-1),frame=productionFrame(f.project,'E011-S002');

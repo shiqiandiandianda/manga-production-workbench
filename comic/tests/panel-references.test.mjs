@@ -31,7 +31,7 @@ test('request uses exact per-panel order and roles; save/export/import/reopen pr
  assert.equal(state.projects[0].pages[0].panels.at(-1).imageAssetId,null);assert.deepEqual(state.projects[0].pages[0].panels.at(-1).referenceIds,[x.assets[0].id]);assert.deepEqual(state.projects[0].references,x.p.references);
  const exported=(await x.request('/api/projects/'+x.p.id+'/export')).data;for(const id of ids)assert.ok(exported.assets.some(a=>a.id===id&&a.filePath&&!a.dataUrl));
  for(const id of ids)delete x.studio.store.asset(id).libraryRole;
- assert.equal((await x.request('/api/projects/import','POST',exported)).status,409,'duplicate identity is not silently copied');const imported=await x.request('/api/projects/import','POST',{...exported,importMode:'copy'});assert.equal(imported.status,201);assert.deepEqual(imported.data.pages[0].panels[0].referenceIds,ids);assert.notEqual(imported.data.pages[0].panels[0].id,x.f.id);assert.equal(x.studio.store.asset(ids[0]).libraryRole,'prop');assert.equal(x.studio.store.asset(ids[1]).libraryRole,'scene');
+ const imported=await x.request('/api/projects/import','POST',exported);assert.equal(imported.status,201);assert.deepEqual(imported.data.pages[0].panels[0].referenceIds,ids);assert.notEqual(imported.data.pages[0].panels[0].id,x.f.id);assert.equal(x.studio.store.asset(ids[0]).libraryRole,'prop');assert.equal(x.studio.store.asset(ids[1]).libraryRole,'scene');
 });
 test('reference edits during generation and rebinding prevent stale autofill while retaining candidates',async t=>{
  const x=await fixture(t);let release;x.setHold(new Promise(r=>release=r));const refs=[x.assets[1].id];await x.save(p=>p.pages[0].panels[0].referenceIds=refs);

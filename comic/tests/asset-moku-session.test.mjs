@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import {spawn} from 'node:child_process';import {createRequire} from 'node:module';
 import {readMokuConfig} from '../../asset-studio/app/roles/moku-session.mjs';
-const {chromium}=createRequire(import.meta.url)('C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'),evidence=path.resolve('../verification/asset-moku-session');fs.mkdirSync(evidence,{recursive:true});
+const {chromium}=createRequire(import.meta.url)('playwright'),evidence=path.resolve('../verification/asset-moku-session');fs.mkdirSync(evidence,{recursive:true});
 const wait=ms=>new Promise(r=>setTimeout(r,ms)),write=(file,data)=>fs.writeFileSync(file,JSON.stringify(data)),listen=server=>new Promise(r=>server.listen(0,'127.0.0.1',()=>r('http://127.0.0.1:'+server.address().port)));
 test('共享登录实时更新且不改工房项目；不同墨库地址不混用会话，独立目录不依赖生产数据',()=>{
  const dir=fs.mkdtempSync(path.join(evidence,'unit-')),local=path.join(dir,'moku.json'),shared=path.join(dir,'shared.json');write(local,{base:'http://127.0.0.1:8000',cookie:'old-fixture',projectId:'selected-project'});write(shared,{base:'http://127.0.0.1:8000',cookie:'new-fixture'});

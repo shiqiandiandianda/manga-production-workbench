@@ -1,7 +1,6 @@
-import {compatibleCanvas} from './canvas-image-compat.mjs';
 import {createRequire} from 'node:module';
 import {slicePixels,slicePolygon} from '../public/panel-slices.js';
-const canvas=()=>compatibleCanvas(createRequire(import.meta.url)(process.env.COMIC_CANVAS_MODULE||'@napi-rs/canvas'));
+const canvas=()=>createRequire(import.meta.url)(process.env.COMIC_CANVAS_MODULE||'@napi-rs/canvas');
 export async function detectSliceRegions(file,expected){
  const {loadImage,createCanvas}=canvas(),image=await loadImage(file);if(image.width*image.height>100000000)throw Error('原图超过一亿像素，请选择较低倍率的图片');
  const scale=Math.min(1,800/image.width,10000/image.height),w=Math.round(image.width*scale),h=Math.round(image.height*scale),c=createCanvas(w,h),ctx=c.getContext('2d');ctx.drawImage(image,0,0,w,h);const px=ctx.getImageData(0,0,w,h).data,groups=[...new Set(expected.map(p=>p['排']))];

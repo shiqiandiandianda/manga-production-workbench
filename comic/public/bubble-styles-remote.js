@@ -1,5 +1,6 @@
 import {applyRemoteBubbleStyles} from './comic-styles.js';
 import {refreshBubbleMaterials} from './bubble-material.js';
+import {readClassifiedBubbleAssets} from './moku-bubble-catalog.js';
 
 // 墨库「气泡素材」文件夹是气泡样式的唯一来源；读取失败时保留内置目录并如实报告。
 let status={loaded:false,source:'builtin',count:0,error:'',publishedAt:''};
@@ -27,6 +28,9 @@ export async function loadRemoteBubbleStyles(api,{refresh=false}={}){
     try{
       let result;try{result=await api('/api/library/bubble-styles'+(refresh?'?refresh=1':''));}catch(error){result={items:[],error:error.message};}
       if(!result?.classified)result=await latestManifest(api,result);
+      if(!result.items?.length){
+       try{const classified=await readClassifiedBubbleAssets(api);if(classified.items.length)result=classified;}catch(error){result={...result,error:error.message};}
+      }
       const items=(result.items||[]).filter(item=>item&&Array.isArray(item.contour)&&item.contour.length>=8);
       if(!items.length)throw new Error(result.error||'墨库「气泡素材」文件夹里还没有样式');
       const count=applyRemoteBubbleStyles(items);

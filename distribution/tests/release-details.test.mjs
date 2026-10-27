@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import {createRequire} from 'node:module';
 import {createPublisher} from '../publisher.mjs';import {releaseDetails,sourceReleaseDetails,pendingReleaseDetails} from '../release-details.mjs';import {decodeRelease} from '../updates.mjs';import {managerPage} from '../manager-page.mjs';
-const require=createRequire(import.meta.url),{chromium}=require('C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'),proof=path.resolve(import.meta.dirname,'../../verification/release-details-20261024');fs.mkdirSync(proof,{recursive:true});
+const require=createRequire(import.meta.url),{chromium}=require('playwright'),proof=path.resolve(import.meta.dirname,'../../verification/release-details-20261024');fs.mkdirSync(proof,{recursive:true});
 test('自动发布记录真实更新人和对应说明，签名包保留记录；纯测试更新不会冒充新功能',async t=>{
  const root=fs.mkdtempSync(path.join(proof,'source-')),put=(p,v)=>{const f=path.join(root,p);fs.mkdirSync(path.dirname(f),{recursive:true});fs.writeFileSync(f,v);};
  put('comic/server.mjs','export const v=1;');put('distribution/portable/README.md','synthetic');put('distribution/environments.json','{"packages":[]}');put('distribution/release-notes.json',JSON.stringify({changes:[{text:'新增合成排版功能。',files:['comic/server.mjs']}]}));

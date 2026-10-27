@@ -10,7 +10,7 @@ import {Store,uid} from '../lib/store.mjs';
 import {clone} from '../public/model.js';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const tempParent=path.join(root,'.runtime','temp');
-function tempDir(t,prefix){fs.mkdirSync(tempParent,{recursive:true});const directory=fs.mkdtempSync(path.join(tempParent,prefix));/* Retain isolated fixture until every store and team shutdown hook has flushed. */return directory;}
+function tempDir(t,prefix){fs.mkdirSync(tempParent,{recursive:true});const directory=fs.mkdtempSync(path.join(tempParent,prefix));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));return directory;}
 const submitId='11111111-1111-4111-8111-111111111111';
 function jimengState(directory,jobId,state){fs.mkdirSync(path.join(directory,'jobs',jobId),{recursive:true});fs.writeFileSync(path.join(directory,'jobs',jobId,'jimeng-state.json'),JSON.stringify({nodeId:'node_0123456789',submitId,...state}));}
 async function studioFor(t,directory){

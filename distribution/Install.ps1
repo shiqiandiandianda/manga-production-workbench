@@ -4,7 +4,6 @@ $taskRoot=[IO.Path]::GetFullPath($CodeDirectory).TrimEnd('\')
 if($taskRoot -notmatch '^[d-zD-Z]:\\'){throw '请把完整代码目录解压到 D 盘或其他数据盘，不能安装到 C 盘。'}
 if(!(Test-Path -LiteralPath (Join-Path $taskRoot 'comic\server.mjs'))){throw '代码目录不完整，缺少 comic/server.mjs。'}
 $taskSpec=Get-Content -LiteralPath (Join-Path $taskRoot 'distribution\environments.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-if (!$taskSpec.packages -or @($taskSpec.packages).Count -eq 0) { throw '公开源码未绑定运行环境下载包；请按 README 使用自有运行环境。' }
 $taskCache=if($PackageDirectory){[IO.Path]::GetFullPath($PackageDirectory)}else{Join-Path $taskRoot '.runtime\downloads'}
 [IO.Directory]::CreateDirectory($taskCache)|Out-Null
 Add-Type -AssemblyName System.Net.Http

@@ -15,7 +15,7 @@ const root=fileURLToPath(new URL('../',import.meta.url)),require=createRequire(i
 const modules=path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules');
 const {chromium}=require(process.env.COMIC_PLAYWRIGHT_PATH||path.join(modules,'playwright'));
 
-test('气泡素材实际页面：默认与自定义入口、全部内置款式选择、取消、换款、纹理退出、撤销、保存重开',{timeout:60000},async t=>{
+test('气泡素材实际页面：默认与自定义入口、54款选择、取消、换款、纹理退出、撤销、保存重开',{timeout:60000},async t=>{
  const tempRoot=path.join(root,'test-temp');fs.mkdirSync(tempRoot,{recursive:true});
  const directory=fs.mkdtempSync(path.join(tempRoot,'bubble-material-browser-'));
  const evidence=path.join(root,'merge-audit','bubble-material',String(Date.now())+'-'+process.pid);fs.mkdirSync(evidence,{recursive:true});
@@ -34,12 +34,12 @@ test('气泡素材实际页面：默认与自定义入口、全部内置款式�
  const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
  const saved=async()=>{const state=await (await fetch(origin+'/api/state')).json();return state.projects[0].pages[0].bubbles[0];};
  const save=async()=>{await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');return saved();};
- const selectBubble=async()=>{if(!await page.locator('#layer-list').isVisible())await page.locator('[data-rail-tab="layers"]').click();const row=page.locator('#layer-list [data-layer="'+bubble.id+'"]');if(!await row.isVisible())await page.locator('[data-toggle-group="'+frame.id+'"]').click();await row.click();await page.getByRole('tab',{name:'更多',exact:true}).click();const disclosure=page.locator('details[data-inspector-section="bubble-shape"]');if(await disclosure.getAttribute('open')===null)await disclosure.locator('summary').click();await page.locator('[data-section="bubble"][data-field="shape"]').waitFor({state:'visible'});};
+ const selectBubble=async()=>{await page.locator('[data-rail-tab="layers"]').click();const row=page.locator('#layer-list [data-layer="'+bubble.id+'"]');if(!await row.count())await page.locator('[data-toggle-group="'+frame.id+'"]').click();await row.click();await page.locator('[data-section="bubble"][data-field="shape"]').waitFor({state:'visible'});};
  const shape=page.locator('[data-section="bubble"][data-field="shape"]');
  try{
   await page.goto(origin+'/?project='+original.id);await page.locator('#project-label').waitFor();await selectBubble();
   const before=await saved();await shape.selectOption('asset');await page.locator('[data-bubble-material-picker]').waitFor({state:'visible'});
-  assert.equal(await page.locator('[data-bubble-material]').count(),bubbleMaterials.length);await page.screenshot({path:path.join(evidence,'54款气泡选择.png')});
+  assert.equal(await page.locator('[data-bubble-material]').count(),54);await page.screenshot({path:path.join(evidence,'54款气泡选择.png')});
   await page.locator('#modal-actions').getByRole('button',{name:'取消',exact:true}).click();assert.deepEqual(await saved(),before);assert.equal(await shape.inputValue(),'oval');
   await shape.selectOption('custom');const custom=await save();assert.ok(custom.points?.length>=3);
   await shape.selectOption('asset');await page.locator('[data-bubble-material="thin-01"]').click();await page.locator('#modal').waitFor({state:'hidden'});const first=await save();
@@ -50,7 +50,7 @@ test('气泡素材实际页面：默认与自定义入口、全部内置款式�
   await page.locator('#undo').click();assert.equal((await save()).comicStyleId,'thin-01');await page.locator('#redo').click();assert.equal((await save()).comicStyleId,'thin-14');
   const texture=bubbleMaterials.find(style=>style.texture);await page.locator('[data-action="bubble-choose-material"]').click();await page.locator('[data-bubble-material="'+texture.id+'"]').click();await page.locator('#modal').waitFor({state:'hidden'});const textured=await save();
   assert.equal(textured.styleTextureId,texture.id);assert.match(textured.styleTextureAssetId,/^asset_/);assert.ok(await page.locator('#stage [data-bubble="'+bubble.id+'"] image').count()>0);
-  await selectBubble();await shape.selectOption('none');const plain=await save();assert.equal(plain.shape,'none');assert.equal(plain.outlineWidth,5);assert.equal(plain.styleTextureId,undefined);assert.equal(plain.assetContour,undefined);assert.equal(await page.locator('#stage [data-bubble="'+bubble.id+'"] image').count(),0);
+  await shape.selectOption('none');const plain=await save();assert.equal(plain.shape,'none');assert.equal(plain.outlineWidth,5);assert.equal(plain.styleTextureId,undefined);assert.equal(plain.assetContour,undefined);assert.equal(await page.locator('#stage [data-bubble="'+bubble.id+'"] image').count(),0);
   await page.reload();await page.locator('#project-label').waitFor();await selectBubble();assert.equal(await shape.inputValue(),'none');assert.equal((await saved()).text,before.text);
   await shape.selectOption('asset');await page.locator('[data-bubble-material="thin-03"]').click();await page.locator('#modal').waitFor({state:'hidden'});await save();await shape.selectOption('oval');const oval=await save();assert.equal(oval.shape,'oval');assert.equal(oval.comicStyleId,undefined);assert.equal(oval.styleTextureId,undefined);
   holdRegistration=true;await shape.selectOption('asset');const pending=page.waitForRequest(request=>request.url()===origin+'/api/comic-style-library/register');await page.locator('[data-bubble-material="'+texture.id+'"]').click();await pending;
@@ -59,6 +59,6 @@ test('气泡素材实际页面：默认与自定义入口、全部内置款式�
   assert.equal(await page.locator('[data-bubble-material-picker]').isVisible(),true);assert.deepEqual(await saved(),oval);
   await page.locator('[data-bubble-material="thin-05"]').click();await page.locator('#modal').waitFor({state:'hidden'});assert.equal((await save()).comicStyleId,'thin-05');await shape.selectOption('oval');await save();
   assert.deepEqual(calls,[]);assert.deepEqual(errors,[]);assert.deepEqual(blocked,[]);
-  await page.screenshot({path:path.join(evidence,'切回普通气泡.png')});fs.writeFileSync(path.join(evidence,'report.json'),JSON.stringify({ok:true,styles:bubbleMaterials.length,cancelUnchanged:true,customPointsRetained:true,undoRedo:true,saveReload:true,textureExit:true,realGeneration:false,errors,blocked},null,2));
+  await page.screenshot({path:path.join(evidence,'切回普通气泡.png')});fs.writeFileSync(path.join(evidence,'report.json'),JSON.stringify({ok:true,styles:54,cancelUnchanged:true,customPointsRetained:true,undoRedo:true,saveReload:true,textureExit:true,realGeneration:false,errors,blocked},null,2));
  }catch(error){await page.screenshot({path:path.join(evidence,'failure.png')}).catch(()=>{});fs.writeFileSync(path.join(evidence,'failure.txt'),error.stack);throw error;}
 });

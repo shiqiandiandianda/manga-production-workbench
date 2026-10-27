@@ -45,7 +45,7 @@ function friendly(error){
 }
 
 export function createProjectSync({
-  dataDir,store,library,projectView,json,body,isFormallyManaged=()=>false,
+  dataDir,store,library,projectView,json,body,
   enabled=process.env.COMIC_PROJECT_SYNC!=='0',
   debounceMs=Math.max(1000,Number(process.env.COMIC_PROJECT_SYNC_DELAY)||8000),
 }={}){
@@ -151,7 +151,7 @@ export function createProjectSync({
       const current=await library.read('/api/documents/'+encodeURIComponent(item.documentId));
       check(Number.isInteger(current?.objectVersion),'墨库文档缺少版本号，无法覆盖');
       const remoteContent=current.content??current.revision?.content;
-      check(remoteContent?.stableHash===item.hash,'墨库已有其他人的工程修改，已停止覆盖；请从工程协作取回并合并',409);
+      check(remoteContent?.stableHash===item.hash,'墨库已有其他版本的工程修改，已停止覆盖；请先在墨库核对并保存所需版本',409);
       item.objectVersion=current.objectVersion;
       return await attempt();
     }
@@ -164,9 +164,8 @@ export function createProjectSync({
     check(!project.deletedAt,'工程已删除，停止上传快照');
     if(!enabled)throw Object.assign(new Error('工程快照同步已停用'),{status:503});
     const item=state.projects[projectId]||(state.projects[projectId]={});
-    if(isFormallyManaged(projectId)||Object.keys(project.formalVersionBindings||{}).length){item.pending=false;item.lastError='';persist();return {status:'formal-only',projectId,message:'本机自动保存不发布正式版本，请使用本话版本提交'};}
     if(generation(projectId).active){item.pending=true;item.nextAttemptAt=Date.now()+2000;persist();scheduleWake();return {status:'generating',state:status(projectId)};}
-    if(!item.documentId&&await library.supportsClassified?.())throw Object.assign(new Error('请先共享工程并明确选择墨库项目、角色或场景；本机工程已保存'),{status:409,code:'project_classification_required'});
+    if(!item.documentId&&!item.classification&&await library.supportsClassified?.())throw Object.assign(new Error('请先设置工程的墨库项目、角色或场景；本机工程已保存'),{status:409,code:'project_classification_required'});
     const {view,assets,references}=snapshot(project);
     // revision/updated 每次保存都会刷新（即使内容完全相同）；只用正文摘要判断是否真的变了。
     const digest=sha256(JSON.stringify({project:{...view,revision:null,updated:null},assets}));
@@ -184,7 +183,7 @@ export function createProjectSync({
     item.pending=true;persist();
     const pack=async forceAsset=>{const result=await encodeProjectSnapshot(content,library,{projectId:target.projectId,forceAsset,uploadedAsset:item.pendingUpload,inlineOnly:await library.supportsClassified?.()});if(result.uploadedAsset){item.pendingUpload=result.uploadedAsset;persist();}return result;};
     let packed=await pack(false);
-    let input={name:name.slice(0,180),schemaVersion:packed.schemaVersion,content:packed.content,references:[...new Set([...packed.references,...references])].slice(0,MAX_REFERENCES)};
+    let input={...(item.classification?{classification:item.classification}:{}),name:name.slice(0,180),schemaVersion:packed.schemaVersion,content:packed.content,references:[...new Set([...packed.references,...references])].slice(0,MAX_REFERENCES)};
     let document;
     const write=async()=>{
     if(item.documentId){
@@ -269,7 +268,6 @@ export function createProjectSync({
     const id=typeof project==='string'?project:project?.id;
     if(typeof id!=='string'||!id)return;
     const item=state.projects[id]||(state.projects[id]={});
-    if(item.teamManaged)return;
     item.pending=true;delete item.nextAttemptAt;delete item.suspended;
     clearTimeout(timer);timer=setTimeout(()=>{timer=null;void drain();},debounceMs);timer.unref?.();
   }
@@ -295,6 +293,10 @@ export function createProjectSync({
     if(method==='GET'&&pathname==='/api/project-sync/snapshot'){
       const projectId=text(url.searchParams.get('projectId'));check(!store.project(projectId).deletedAt,'工程已删除');const item=state.projects[projectId];check(item?.documentId,'工程尚无墨库快照',404);const document=await library.read('/api/documents/'+encodeURIComponent(item.documentId)),decoded=await decodeProjectSnapshot(document.content??document.revision?.content,library);check(decoded.projectId===projectId,'墨库快照属于其他工程',409);json(response,200,decoded);return true;
     }
+    if(method==='GET'&&pathname==='/api/project-sync/subjects'){
+      const remoteProjectId=url.searchParams.get('remoteProjectId');check(/^[a-f0-9-]{36}$/i.test(remoteProjectId||''),'请选择墨库项目');
+      json(response,200,await library.read('/api/project-library/'+remoteProjectId+'/subjects'));return true;
+    }
     if(method==='GET'&&pathname==='/api/project-sync/settings'){json(response,200,{auto:state.auto,enabled,debounceMs});return true;}
     if(method==='PUT'&&pathname==='/api/project-sync/settings'){
       const input=await body(request);check(typeof input?.auto==='boolean','请提供自动上传开关');
@@ -314,19 +316,22 @@ export function createProjectSync({
       const input=await body(request),projectId=text(input?.projectId),remoteProjectId=text(input?.remoteProjectId);
       check(/^[a-z]+_[0-9a-f-]{36}$/.test(projectId),'工程编号无效');check(!remoteProjectId||/^[a-f0-9-]{36}$/i.test(remoteProjectId),'墨库项目编号无效');
       const project=store.project(projectId);check(!project.deletedAt,'工程已删除');
+      let classification;
+      if(input.classification){
+        classification=input.classification;
+        check(remoteProjectId&&['characterIds','sceneIds'].every(k=>Array.isArray(classification[k])&&classification[k].every(id=>/^[a-f0-9-]{36}$/i.test(id))),'角色或场景选择无效');
+        check(classification.characterIds.length+classification.sceneIds.length>0,'请至少选择一个角色或场景');
+        const subjects=(await library.read('/api/project-library/'+remoteProjectId+'/subjects')).items||[];
+        for(const [key,kind]of [['characterIds','character'],['sceneIds','scene']])check(classification[key].every(id=>subjects.some(s=>s.id===id&&s.kind===kind)),'所选角色或场景不属于该墨库项目');
+      }
       const item=state.projects[projectId]||(state.projects[projectId]={});
       if(remoteProjectId){
         const projects=await listRemoteProjects(),found=projects.find(candidate=>candidate.id===remoteProjectId);
         check(found,'墨库项目不存在或无权访问');
         item.remoteProjectId=remoteProjectId;item.remoteProjectName=found.name;delete item.documentId;delete item.objectVersion;
       }else{delete item.remoteProjectId;delete item.remoteProjectName;delete item.documentId;delete item.objectVersion;}
-      if(input.bindOnly===true){
-        project.assetLibrary||={version:1,assetIds:[]};
-        if(remoteProjectId)project.assetLibrary.mokuProjectId=remoteProjectId;else delete project.assetLibrary.mokuProjectId;
-        project.revision=(project.revision||0)+1;project.updated=new Date().toISOString();store.markProject?.(project);store.save();
-        item.pending=false;item.error='';delete item.nextAttemptAt;delete item.setupRequired;
-      }else item.pending=true;
-      persist();json(response,200,status(projectId));return true;
+      if(classification)item.classification=classification;else delete item.classification;delete item.setupRequired;delete item.suspended;delete item.error;delete item.nextAttemptAt;
+      item.pending=true;persist();json(response,200,status(projectId));return true;
     }
     json(response,404,{error:'同步接口不存在'});return true;
   }
@@ -340,6 +345,5 @@ export function createProjectSync({
     timer=setTimeout(()=>{timer=null;void drain();},debounceMs);timer.unref?.();
   }
 
-  function hold(projectId){const item=state.projects[projectId]||(state.projects[projectId]={});item.teamManaged=true;item.pending=false;persist();}
-  return {handle,mark,status,close,push:projectId=>attempt(projectId,{force:true}),drain,hold,running:()=>running,forget(projectId){delete state.projects[projectId];persist();}};
+  return {handle,mark,status,close,push:projectId=>attempt(projectId,{force:true}),drain,running:()=>running,forget(projectId){delete state.projects[projectId];persist();}};
 }

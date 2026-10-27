@@ -10,7 +10,7 @@ import {canvasEpisodeBoards} from '../public/episode-board-canvas.js';
 import {documentView,renderSceneSvg} from '../public/scene-svg.js';
 import {createStudio} from '../server.mjs';
 
-const require=createRequire(import.meta.url),modules='C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules',native=require(path.join(modules,'@napi-rs/canvas'));
+const require=createRequire(import.meta.url),modules=(process.env.CODEX_TEST_NODE_MODULES || 'node_modules'),native=require(path.join(modules,'@napi-rs/canvas'));
 const qaRoot=path.resolve('../verification/inline-boards-20261022'),evidence=path.join(qaRoot,'evidence');fs.mkdirSync(evidence,{recursive:true});
 const fixture=()=>{const p=migrateLayerDocument(createProject('画布测试 · 合成漫画')).project;p.pages[0].height=500;p.pages[0].panels=[panel('',100,50,400,200)];p.shots=[];const second=makePage([], 'overlay',1280,600);second.panels=[panel('',200,80,400,200)];p.pages.push(second);p.layerOrder=p.pages.flatMap(p=>p.panels.map(f=>f.id));ensureEpisodeBoards(p);return p;};
 const escaped=v=>String(v||'');

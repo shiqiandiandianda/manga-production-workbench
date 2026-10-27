@@ -1,9 +1,8 @@
 """Local U2-Net CPU inference; preprocessing follows rembg's U2netSession.
 No rembg or PyTorch dependency. Output is always a new PNG.
 """
-import argparse,json,sys
+import argparse,json
 from pathlib import Path
-sys.path.insert(0,str(Path(__file__).resolve().parents[2]/".runtime/image-tools/extras"))
 import numpy as np
 from PIL import Image,ImageOps,ImageChops
 import onnxruntime as ort

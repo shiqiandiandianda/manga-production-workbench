@@ -128,7 +128,7 @@ export function createViewportController({scroll,stage,onRender=()=>{},onModeCha
   function scrollToPage(pageId,{localY=0}={}) {panX=0;panY=0;
     const entry=layout.pages.find(page=>page.pageId===pageId);
     if(!entry)return false;
-    logicalTopOverride=entry.y+Math.max(0,localY)*entry.scale;
+    logicalTopOverride=Math.max(0,entry.y+localY*entry.scale);
     expectedScroll=scrollPositionForY(layout,logicalTopOverride,{zoom,viewportHeight:viewportHeight(),maxPhysicalHeight});
     scroll.scrollTop=expectedScroll;apply();requestRender();return true;
   }

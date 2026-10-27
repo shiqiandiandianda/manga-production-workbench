@@ -12,7 +12,7 @@ import {syntheticFiles} from './fixtures/production-synthetic.mjs';
 
 const require=createRequire(import.meta.url);
 const {createCanvas}=require(process.env.COMIC_TEST_CANVAS_MODULE);
-const {chromium}=require('C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const {chromium}=require('playwright');
 const evidence=fileURLToPath(new URL('../../verification/episode-assets-navigation-20261022/',import.meta.url));
 fs.mkdirSync(evidence,{recursive:true});
 
@@ -67,7 +67,7 @@ for(const production of [true,false])test(`本话资产总览选图后返回并�
   return route.fulfill({json:{connected:false}});
  });
 
- await page.goto(origin+'/?project='+project.id+'&page='+project.pages[0].id);if(!await page.locator('#canvas-tool-dock').isVisible())await page.getByRole('button',{name:'常用工具',exact:true}).click();await page.waitForSelector('#canvas-tool-dock');
+ await page.goto(origin+'/?project='+project.id+'&page='+project.pages[0].id);await page.waitForSelector('#canvas-tool-dock');
  await page.locator('[data-rail-tab=references]').click();await page.locator('#asset-gallery-workspace').waitFor({state:'visible'});assert.equal(await page.locator('#asset-detail-panel').isVisible(),false);
  const card=name=>page.locator('.asset-gallery-card').filter({has:page.locator('.asset-gallery-caption>strong',{hasText:name})});
  await card(names[0]).locator('[data-gallery-settings]').click();assert.equal(await page.locator('#asset-detail-panel [role=tab]').count(),6);

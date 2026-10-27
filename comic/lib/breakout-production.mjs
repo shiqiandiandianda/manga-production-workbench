@@ -12,7 +12,7 @@ function locate(project,panelId){for(const page of project.pages||[]){const pane
 const assetSnapshot=a=>({id:a.id,filePath:a.filePath,mime:a.mime,width:a.width,height:a.height,name:a.name,libraryRole:a.libraryRole});
 function sourceState(project,panel,assets){
  const byId=assetMap(assets),background=byId.get(panel.imageAssetId);check(background,'破框背景图片不存在，请重新定位图片',409);
- return {content:panelContentKey(project,panel,[...byId.values()]),direction:panelArtDirection(panel),localPrompt:panel.generation?.prompt,referenceAssets:referencesForPanel(project,panel,[...byId.values()]).map(r=>assetSnapshot(byId.get(r.assetId)||{id:r.assetId})),geometry:{x:panel.x,y:panel.y,w:panel.w,h:panel.h,points:panel.points,imageAssetId:panel.imageAssetId,imageTransform:panel.imageTransform},background:assetSnapshot(background)};
+ return {content:panelContentKey(project,panel,[...byId.values()]),geometry:{x:panel.x,y:panel.y,w:panel.w,h:panel.h,points:panel.points,imageAssetId:panel.imageAssetId,imageTransform:panel.imageTransform},background:assetSnapshot(background)};
 }
 export function breakoutSourceKey(project,panel,assets){return digest(sourceState(project,panel,assets));}
 /** Expansion is page-local. A transparent foreground never inherits the source polygon. */

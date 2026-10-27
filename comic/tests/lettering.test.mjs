@@ -11,7 +11,7 @@ import {createStudio} from '../server.mjs';
 const bubble=(type='speech',extra={})=>({id:uid('bubble'),type,text:'第一行\n第二行',x:17,y:23,w:240,h:100,fontSize:28,visible:true,...extra});
 function contextSpy(){
   const calls=[],stack=[],fields=['font','fillStyle','strokeStyle','lineWidth','textAlign','textBaseline','lineJoin','globalAlpha'];
-  const context={calls,measureText(text){return {width:[...text].length*14};}};
+  const context={calls,measureText(text){return {width:[...text].length*(Number(/([\d.]+)px/.exec(this.font)?.[1])||28)/2};}};
   for(const method of ['translate','beginPath','ellipse','moveTo','lineTo','closePath','fill','stroke','fillRect','strokeRect','rect','clip','fillText','strokeText']){
     context[method]=(...args)=>calls.push({method,args,...Object.fromEntries(fields.map(field=>[field,context[field]]))});
   }
@@ -106,12 +106,12 @@ test('系统文字只有给定内容，半透明黑底、金外框、红内框�
   assert.equal(attributes(markup,'tspan').length,1);assert.match(markup,/>轻身功夫：螺旋九影<\/tspan>/);assert.doesNotMatch(markup,/系统提示/);
 });
 
-test('六类多行排版的坐标与字号一致，溢出可见且特殊文本不生成非法SVG',()=>{
+test('六类多行排版的坐标与字号一致，全文适配且特殊文本不生成非法SVG',()=>{
   for(const type of BUBBLE_TYPES)for(const size of [{w:240,h:100},{w:30,h:20}]){
     const value=bubble(type,{...size,text:'<>&"\n\n二三四',textColor:'" onload="evil()'}),context=contextSpy();paintBubble(context,value);
     const markup=svgBubbleMarkup(contextSpy(),value),clip=attributes(markup,'svg')[0],text=attributes(markup,'text')[0];
     assert.equal(calls(context,'clip').length,0);assert.equal(clip.overflow,'visible');
-    assert.ok(Number(clip.width)>=0&&Number(clip.height)>=0);assert.equal(Number(text['font-size']),value.fontSize);
+    assert.ok(Number(clip.width)>=0&&Number(clip.height)>=0);assert.equal(Number(text['font-size']),bubbleLayout(contextSpy(),value).fontSize);
     const spans=attributes(markup,'tspan'),canvasLines=calls(context,'fillText');
     assert.equal(spans.length,canvasLines.length);
     spans.forEach((span,index)=>{
@@ -192,14 +192,14 @@ test('椭圆内逐行安全宽度随纵向收窄，换行后文字不贴边也�
   }
 });
 
-test('溢出保留全部原文并提示，自动扩泡按设置扩大且不改写工程',()=>{
+test('自动适配保留全部原文，自动扩泡按设置扩大且不改写工程',()=>{
   const value=bubble('speech',{shape:'oval',w:60,h:30,text:'所有问号都应完整显示？！'}),snapshot=structuredClone(value),context=contextSpy();
-  const visible=bubbleLayout(context,value);assert.equal(visible.overflow,true);assert.equal(visible.expanded,false);
+  const visible=bubbleLayout(context,value);assert.equal(visible.overflow,false);assert.equal(visible.autoFitted,true);assert.equal(visible.expanded,false);
   paintBubble(context,value);assert.equal(calls(context,'clip').length,0);assert.equal(calls(context,'fillText').map(call=>call.args[0]).join(''),value.text);
-  assert.match(svgBubbleMarkup(contextSpy(),value,{selected:true}),/data-overflow="true"/);assert.match(svgBubbleMarkup(contextSpy(),value),/overflow="visible"/);
+  assert.match(svgBubbleMarkup(contextSpy(),value,{selected:true}),/data-overflow="false"/);assert.match(svgBubbleMarkup(contextSpy(),value),/overflow="visible"/);
   const expanded=bubbleLayout(contextSpy(),{...value,overflow:'expand'});
   assert.equal(expanded.expanded,true);assert.equal(expanded.overflow,false);assert.ok(expanded.w>value.w&&expanded.h>value.h);
-  assert.deepEqual(value,snapshot);assert.ok(visible.suggestedSize.w>value.w);
+  assert.deepEqual(value,snapshot);assert.ok(visible.fontSize<value.fontSize);
 });
 
 test('所有形状的颜色、描边与字体配置在SVG和Canvas中一致',()=>{

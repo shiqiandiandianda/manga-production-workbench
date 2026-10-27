@@ -11,6 +11,9 @@ const active=p=>['queued','running','recoverable','awaiting_confirmation','deleg
 const componentOf=id=>['front','side','back'].includes(id)?'views':id;
 let current=null,items=[],timer=null,opening=0,historyGroupId=null,historyTrashMode=false;
 const submitting=new Set();
+const cancelling=new Set();
+const cancelGeneration=document.createElement('button');cancelGeneration.id='cancel-production-generation';cancelGeneration.type='button';cancelGeneration.className='btn ghost';cancelGeneration.textContent='取消生成';cancelGeneration.hidden=true;
+const previewActions=document.createElement('div');previewActions.className='preview-generation-actions';$('#preview-chip').after(previewActions);previewActions.append($('#preview-chip'),cancelGeneration);
 const revisionUI=mountProductionRevisions({getCurrent:()=>current,saveCurrent,openRecord:open,note:text=>note(text)});
 const quickRevision=mountQuickRevision({getCurrent:()=>current,saveCurrent,openRecord:open});
 
@@ -48,6 +51,7 @@ style.textContent=`
 #production-history>strong{font-size:13px}#production-history [data-production-records]{display:flex;gap:6px;overflow:auto;padding:8px 0;max-height:90px;flex-wrap:wrap}
 #production-history button{font-size:12px;padding:6px 8px}#production-history p{font-size:12px;margin:3px 0;color:#67756d}#production-history details{font-size:12px;color:#9d3f32}#production-history details p{overflow-wrap:anywhere;max-height:130px;overflow:auto}
 #save-production-board{background:#26775f;color:white;border:0;border-radius:5px}.board-actions>button{min-width:0;white-space:nowrap}
+.preview-generation-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}.preview-card>.card-head{gap:8px;flex-wrap:wrap}#cancel-production-generation{font-size:12px;padding:6px 10px;border-color:#bc8171;color:#9d3f32;white-space:nowrap}#cancel-production-generation:disabled{opacity:.65;cursor:wait}
 #production-history-dialog{width:min(1040px,calc(100vw - 48px));max-height:85vh;padding:24px;border:1px solid #ddd5c5;border-radius:16px;background:#faf8f2;color:#233d40;box-shadow:0 20px 80px #0003}
 #production-history-dialog::backdrop{background:#14272688}#production-history-dialog header{display:flex;justify-content:space-between;align-items:start;gap:16px}#production-history-dialog h2{margin:0;font-size:22px}#production-history-dialog header p{margin:8px 0 18px;color:#6c7c78;font-size:13px}
 #production-history-dialog button{cursor:pointer;font:inherit}#production-history-dialog [data-history-close]{border:0;background:transparent;font-size:27px;padding:0 8px}.history-search{display:flex;gap:10px}.history-search input{flex:1;min-width:0;padding:10px;border:1px solid #d5d8ce;border-radius:7px;background:#fff}.history-search button{padding:8px 16px;border:1px solid #d5d8ce;border-radius:7px;background:#fff}
@@ -115,7 +119,7 @@ function renderHome(){
  }
 }
 
-function detailMode(name='新建资产'){document.body.classList.remove('production-home');$('.topbar h1').textContent=name;}
+function detailMode(name='新建资产'){document.body.classList.remove('production-home');$('.topbar h1').textContent=name;if(!current)cancelGeneration.hidden=true;}
 function homeMode(){++opening;clearTimeout(timer);document.body.classList.add('production-home');$('.topbar h1').textContent='资产工作室';history.replaceState(null,'','?home=1');renderHome();}
 $('[data-home-search]').oninput=renderHome;$('[data-home-type]').onchange=renderHome;$('[data-home-refresh]').onclick=()=>refresh().catch(e=>{$('[data-home-status]').textContent=e.message;});
 $('#production-home-open').onclick=async()=>{try{if(current)await saveCurrent();homeMode();await refresh();}catch(e){note(e.message);}};
@@ -123,7 +127,7 @@ $('#production-new').onclick=async()=>{++opening;clearTimeout(timer);current=nul
 async function refresh(){items=(await api('/api/production-records?includeTrashed=1')).items;items.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));renderRecent();renderHome();if(dialog.open)renderHistory();}
 function preview(r){
  revisionUI.update(r);quickRevision.update(r);
- const pending=Object.values(r.phases||{}).some(active)||['running','queued'].includes(r.status);$('#generate').disabled=pending;$('#board-grid').inert=false;
+ const pending=Object.values(r.phases||{}).some(active)||['running','queued'].includes(r.status);$('#generate').disabled=pending;$('#board-grid').inert=false;cancelGeneration.hidden=!pending&&!cancelling.has(r.id);cancelGeneration.disabled=cancelling.has(r.id);cancelGeneration.textContent=cancelling.has(r.id)?'正在取消…':'取消生成';
  $('#preview-chip').textContent=statusLabel(r);$('#error').hidden=true;$('#actions').hidden=true;
  if(r.imageUrl){const src=r.imageUrl+'&v='+encodeURIComponent(r.updatedAt||r.createdAt);if($('#image').getAttribute('src')!==src)$('#image').src=src;$('#result').hidden=false;$('#empty').hidden=true;$('#caption').textContent=r.name+' · '+(r.legacy?'旧版整图':r.width+'×'+r.height);}
  else{$('#result').hidden=true;$('#empty').hidden=pending;}
@@ -132,7 +136,24 @@ function preview(r){
  setProductionComponentState(r,{submitting:[...submitting]});
 }
 function remember(r){current=r;window.assetProductionRecord=r;const at=items.findIndex(i=>i.id===r.id);if(at>=0)items[at]=r;else items.unshift(r);renderRecent();if(dialog.open)renderHistory();}
-function schedule(){clearTimeout(timer);if(!current||!Object.values(current.phases||{}).some(active)&&!['running','queued'].includes(current.status))return;const id=current.id;timer=setTimeout(async()=>{try{const r=await api('/api/production-records/'+id);if(current?.id!==id)return;remember(r);await loadProductionBoard(r,{incremental:true});preview(r);report(r);}catch(e){note('进度读取失败：'+e.message+'；将继续刷新');}finally{if(current?.id===id)schedule();}},2500);}
+function schedule(){clearTimeout(timer);if(!current||cancelling.has(current.id)||!Object.values(current.phases||{}).some(active)&&!['running','queued'].includes(current.status))return;const id=current.id;timer=setTimeout(async()=>{try{const r=await api('/api/production-records/'+id);if(current?.id!==id||cancelling.has(id))return;remember(r);await loadProductionBoard(r,{incremental:true});preview(r);report(r);}catch(e){note('进度读取失败：'+e.message+'；将继续刷新');}finally{if(current?.id===id)schedule();}},2500);}
+cancelGeneration.onclick=async()=>{
+ if(!current||cancelling.has(current.id))return;
+ const id=current.id,requested=new Set();let next=current;
+ cancelling.add(id);clearTimeout(timer);preview(current);note('正在取消当前资产生成…');
+ try{
+  // Stop the waiting reverse view first so cancelling the front cannot start it.
+  for(let round=0;round<8;round++){
+   const targets=Object.entries(next.phases||{}).filter(([,phase])=>active(phase));
+   if(next.type==='scene'&&next.sceneOutputMode!=='front'&&targets.some(([component])=>component==='scene-front')&&!next.finished?.includes('scene-reverse')&&!targets.some(([component])=>component==='scene-reverse'))targets.unshift(['scene-reverse',next.phases?.['scene-reverse']||{}]);
+   const remaining=targets.filter(([component,phase])=>!requested.has(component+':'+(phase.jobId||next.jobs?.[component]||'')));
+   if(!remaining.length)break;
+   for(const [component,phase] of remaining){const jobId=phase.jobId||next.jobs?.[component];requested.add(component+':'+(jobId||''));next=await api('/api/production-records/'+id+'/component',{component,action:'cancel',...(jobId?{jobId}:{}),requestId:crypto.randomUUID()});if(current?.id===id)remember(next);}
+  }
+  if(current?.id===id){await loadProductionBoard(next,{incremental:true});note(Object.values(next.phases||{}).some(active)?'已申请取消，正在等待原任务结束；已有图片保留。':'当前资产生成已取消，已有图片保留。');}
+ }catch(e){if(current?.id===id)note('取消未完成：'+e.message+'；可查看原任务后重试。');}
+ finally{cancelling.delete(id);if(current?.id===id){preview(current);schedule();}}
+};
 async function open(id){
  const token=++opening;clearTimeout(timer);note('正在打开生成记录…');const r=await api('/api/production-records/'+id);if(token!==opening)return;
  if(r.deletedAt)throw Error('该版本已删除，可在回收站恢复');detailMode(r.name);remember(r);history.replaceState(null,'','?'+new URLSearchParams({...(new URLSearchParams(location.search).get('embed')?{embed:'1'}:{}),record:id}));

@@ -1,3 +1,6 @@
+import {ensureProjectPanelGeneration} from '../public/panel-generation.js';
+import {productionProject} from '../lib/production-package-document.mjs';
+import {validateProject} from '../lib/store.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -30,6 +33,14 @@ function compact(legacy){
  return manifest([...legacy.filter(f=>!f.relativePath.endsWith('.txt')&&!f.relativePath.endsWith('_执行提示词.json')&&f.relativePath!=='文件校验.json'),file('同源定稿/第901话_执行提示词.json',execution),file('精简导入.json',{'格式':'提示词驱动精简包1.0','提示词存储':'执行JSON'})]);
 }
 function mutate(files,name,edit){return manifest(files.map(f=>f.relativePath===name?file(name,edit(JSON.parse(f.bytes))):f));}
+
+test('新资料的准备说明单独保留，不导入成服装；专用服装字段优先且提示词逐字不变',()=>{
+ const note='文字设计存在，实际人物母版、衣装组合与图像版本尚未提供；剧情状态另按格记录。',original=fixture();
+ const files=mutate(original,'同源定稿/第901话_定稿.json',doc=>{doc['资产库'][0]['状态说明']=note;return doc;}),parsed=inspectPromptDrivenPackage(files),ref=parsed.episodes[0].segments[0].references[0];
+ const project=productionProject(parsed);ensureProjectPanelGeneration(project,[]);validateProject(project);assert.equal(ref['服装'],'');assert.equal(ref.preparationNote,note);assert.deepEqual(parsed.episodes[0].panelRecords[0].original['服装'],{});assert.equal(parsed.ledger[0].records[0]['状态说明'],note);
+ assert.deepEqual(parsed.episodes[0].segments[0].prompts,inspectPromptDrivenPackage(original).episodes[0].segments[0].prompts);
+ const explicit=inspectPromptDrivenPackage(mutate(files,'同源定稿/第901话_定稿.json',doc=>{doc['资产库'][0]['服装']='青色长衫';return doc;}));assert.equal(explicit.episodes[0].segments[0].references[0]['服装'],'青色长衫');assert.equal(explicit.episodes[0].panelRecords[0].original['服装']['合成人物'],'青色长衫');
+});
 
 test('旧完整包继续读取三模式TXT原文',()=>{
  const parsed=inspectPromptDrivenPackage(fixture());assert.equal(parsed.count.panels,1);assert.equal(parsed.count.segments,1);

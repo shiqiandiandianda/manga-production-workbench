@@ -6,6 +6,10 @@ export function characterIdentityChoices(project,assets,need){return characterId
 export function generationReferencePlan(project,assets,need,settings,defaultIds=[]){
  const get=id=>{const a=assets.find(a=>a.id===id);if(!a)throw Error('参考图已不存在，请重新选择');return a;},refs=[],ids=[];
  const add=(id,role)=>{if(!id)return;const a=get(id);if(!ids.includes(id))ids.push(id);refs.push({assetId:id,role,name:a.name||role,index:ids.indexOf(id)+1});};
+ if(settings.generationReferenceMode){
+  if(settings.generationReferenceMode==='selected'){if(!settings.generationReferenceAssetId)throw Error('请选择一张生成参考图');add(settings.generationReferenceAssetId,need.role==='character'?'人物身份':'原资产');}
+  return {referenceIds:ids,references:refs,identitySelection:{status:'manual',assetId:ids[0]||null},guidance:ids.length?'第1张参考图由用户指定。参考其人物形象或场景结构；本次变化按用户的生成要求执行。':''};
+ }
  if(need.role!=='character'){for(const id of defaultIds)add(id,'原资产');return {referenceIds:ids,references:refs,guidance:''};}
  let identity=settings.identityReferenceMode==='auto'?'':settings.identityAssetId||'',identitySelection={status:'manual',assetId:identity};
  if(settings.identityReferenceMode==='none')identity='';

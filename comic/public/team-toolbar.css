@@ -15,7 +15,6 @@
 .modern-workbench.unified-workbench #workbench-primary-nav #asset-studio-open{min-height:32px;font-size:12px;padding:6px 8px}
 .modern-workbench.unified-workbench #workbench-primary-nav .team-status{width:94px;color:#a4dcc4;overflow:hidden;text-overflow:ellipsis}
 .modern-workbench.unified-workbench #workbench-primary-nav .team-status[data-connection=offline]{color:#e6bd7e}
-.modern-workbench.unified-workbench #workbench-primary-nav #team-comms-open{width:78px;overflow:hidden;text-overflow:ellipsis}
 .modern-workbench.unified-workbench .topbar>.top-spacer{display:none}
 .modern-workbench.unified-workbench .topbar>.save-indicator{grid-area:save;display:flex;width:102px;min-width:0;margin:0;gap:4px;overflow:hidden}
 .modern-workbench.unified-workbench .topbar #save-state{display:block;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

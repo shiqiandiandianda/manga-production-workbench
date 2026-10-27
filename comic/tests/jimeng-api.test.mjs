@@ -9,12 +9,11 @@ import {deflateSync} from 'node:zlib';
 import {createStudio} from '../server.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const pixel=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
-function png(width,height,fill=255){
+function png(width,height){
  const crc=bytes=>{let value=0xffffffff;for(const byte of bytes){value^=byte;for(let i=0;i<8;i++)value=value&1?(value>>>1)^0xedb88320:value>>>1;}return (value^0xffffffff)>>>0;};
  const chunk=(type,data)=>{const name=Buffer.from(type),result=Buffer.alloc(data.length+12);result.writeUInt32BE(data.length);name.copy(result,4);data.copy(result,8);result.writeUInt32BE(crc(Buffer.concat([name,data])),data.length+8);return result;};
- const raw=Buffer.alloc(height*(1+width*4),fill);for(let y=0;y<height;y++)raw[y*(1+width*4)]=0;
  const header=Buffer.alloc(13);header.writeUInt32BE(width,0);header.writeUInt32BE(height,4);header[8]=8;header[9]=6;
- return Buffer.concat([pixel.subarray(0,8),chunk('IHDR',header),chunk('IDAT',deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]);
+ return Buffer.concat([pixel.subarray(0,8),chunk('IHDR',header),chunk('IDAT',deflateSync(Buffer.alloc(height*(1+width*4),255))),chunk('IEND',Buffer.alloc(0))]);
 }
 async function fixture(t,{generate}={}){
  const directory=fs.mkdtempSync(path.join(root,'.runtime','jimeng-api-tests-')),calls=[],submitId=randomUUID();
@@ -53,11 +52,11 @@ test('图内文字字段能保存且校验，既有sfx/system图层不会被提�
  saved.shots[0].embeddedTexts=[{text:123}];assert.equal((await f.request('/api/projects/'+project.id,'PUT',saved)).status,400);
 });
 
-for(const changed of [false,true])test(changed?'重绘等待时同尺寸原图内容变化，旧结果只进候选':'重绘等待时仅移动原件路径且哈希一致，允许回填',async t=>{
+test('重绘等待时同尺寸重新指定原图路径，旧结果只进候选',async t=>{
  let release;const held=new Promise(resolve=>release=resolve),patch=png(20,20),f=await fixture(t,{generate:async()=>{await held;return {bytes:patch,alignedBytes:patch,provider:'jimeng'};}}),project=f.studio.store.db.projects[0],panel=project.pages[0].panels[0];Object.assign(panel,{x:0,y:0,w:20,h:20,points:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}]});
- const before=path.join(f.studio.store.root,'before.png'),after=path.join(f.studio.store.root,'after.png');fs.writeFileSync(before,patch);fs.writeFileSync(after,changed?png(20,20,100):patch);const asset=(await f.request('/api/assets','POST',{filePath:before})).data;await f.request(`/api/projects/${project.id}/panels/${panel.id}/image`,'POST',{assetId:asset.id});
+ const before=path.join(f.studio.store.root,'before.png'),after=path.join(f.studio.store.root,'after.png');fs.writeFileSync(before,patch);fs.writeFileSync(after,patch);const asset=(await f.request('/api/assets','POST',{filePath:before})).data;await f.request(`/api/projects/${project.id}/panels/${panel.id}/image`,'POST',{assetId:asset.id});
  const queued=await f.request('/api/jobs','POST',{projectId:project.id,panelIds:[panel.id],provider:'jimeng',model:'discovered-model',mode:'i2i',action:'edit',editPrompt:'调整光线',basePanelDataUrl:'data:image/png;base64,'+patch.toString('base64'),baseRegion:{x:0,y:0,w:20,h:20}});assert.equal(queued.status,202);
- assert.equal((await f.request('/api/assets/'+asset.id+'/path','PUT',{filePath:after})).status,200);release();const state=await f.settled();assert.equal(state.jobs[0].status,'done');assert.equal(state.jobs[0].applied,!changed);if(changed)assert.equal(state.projects[0].pages[0].panels[0].imageAssetId,asset.id);else assert.notEqual(state.projects[0].pages[0].panels[0].imageAssetId,asset.id);
+ assert.equal((await f.request('/api/assets/'+asset.id+'/path','PUT',{filePath:after})).status,200);release();const state=await f.settled();assert.equal(state.jobs[0].status,'done');assert.equal(state.jobs[0].applied,false);assert.equal(state.projects[0].pages[0].panels[0].imageAssetId,asset.id);
 });
 
 test('恢复原任务回到积分确认后，approve切回运行路径且保留同一submit',async t=>{

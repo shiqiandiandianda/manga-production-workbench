@@ -12,8 +12,8 @@ import {writeXlsx} from '../lib/xlsx.mjs';
 import {imageInfo} from '../lib/store.mjs';
 const comicRoot=fileURLToPath(new URL('../',import.meta.url)),evidence=path.resolve(comicRoot,'../verification/storyboard-direct'),require=createRequire(import.meta.url);
 const {chromium}=require(path.join(process.env.USERPROFILE,'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));
-const {createCanvas}=require(process.env.COMIC_TEST_CANVAS_MODULE||path.resolve(comicRoot,'../../runtime/node/node_modules/@napi-rs/canvas'));
-fs.mkdirSync(evidence,{recursive:true});process.env.PROJECT_CENTER_URL='';process.env.COMIC_PYTHON_BIN||=path.resolve(comicRoot,'../../runtime/python/python.exe');
+const {createCanvas}=require(path.resolve(comicRoot,'../../runtime/node/node_modules/@napi-rs/canvas'));
+fs.mkdirSync(evidence,{recursive:true});process.env.PROJECT_CENTER_URL='';process.env.COMIC_PYTHON_BIN=path.resolve(comicRoot,'../../runtime/python/python.exe');
 const rows=[{'话数':'11','格号':'001','画面内容':'在窗边读信。','台词':'到了。','生图提示词（后期嵌字）':'窗边读信，桌面放着一封蓝色信。','直出提示词':'窗边读信，画内对白“到了。”。'},{'话数':'11','格号':'002','画面内容':'看向窗外。','台词':'','生图提示词（后期嵌字）':'人物转头看向窗外。','直出提示词':'人物看向窗外，文字“清晨”。'},{'话数':'12','格号':'001','画面内容':'空庭院。','台词':'','生图提示词（后期嵌字）':'晨光下的空庭院。','直出提示词':'空庭院，门牌“十二”。'}];
 const png=()=>{const canvas=createCanvas(1280,720),context=canvas.getContext('2d');context.fillStyle='#628ca8';context.fillRect(0,0,1280,720);context.fillStyle='#f1d5a1';context.fillRect(240,120,400,420);return canvas.toBuffer('image/png');};
 async function fixture(t,{pause=false}={}){

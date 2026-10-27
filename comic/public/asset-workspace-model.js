@@ -3,7 +3,14 @@ import {assetMetadata,assetNameKey} from './asset-metadata.js';
 import {pageEpisode} from './episode-boards.js';
 import {assetProvenance} from './asset-provenance.js';
 import {createReferenceAuditContext} from './reference-audit-context.js';
-export const assetRequirementKey=need=>JSON.stringify([need.role,assetNameKey(need.name),assetNameKey(need.state||'')]);
+import {characterRequirementState,characterPreparationNote} from './character-preparation.js';
+export const assetRequirementKey=need=>JSON.stringify([need.role,assetNameKey(need.name),assetNameKey(need.role==='character'?characterRequirementState(need.state):need.state||'')]);
+export function savedAssetRequirementSettings(project,need){
+ const settings=project.assetWorkspaceSettings||{},key=assetRequirementKey(need),rawKey=JSON.stringify([need.role,assetNameKey(need.name),assetNameKey(need.state||'')]);
+ if(settings[key])return settings[key];if(settings[rawKey])return settings[rawKey];
+ for(const [oldKey,value]of Object.entries(settings)){try{const [role,name,state]=JSON.parse(oldKey);if(assetRequirementKey({role,name,state})===key)return value;}catch{}}
+ return {};
+}
 /** Every screen, grid and UI entry uses the same audited requirement identities. */
 export function assetWorkspaceInventory(project,assets=[],{scope='episode',pageId,panelId,referenceContext,includeSources=true,audits}={}){
  if(!project)return [];
@@ -16,7 +23,8 @@ export function assetWorkspaceInventory(project,assets=[],{scope='episode',pageI
    const audit=audits?.get(panel.id)||auditPanelReferences(project,panel,assets,{referenceContext:ctx});audits?.set(panel.id,audit);
    for(const need of audit.needs){
     if(need.predecessor||!['character','scene','prop'].includes(need.role))continue;
-    const key=assetRequirementKey(need),row=rows.get(key)||{key,name:need.name,role:need.role,state:need.state||'',uses:[],sources:[],assetIds:[],availableIds:[],textDescriptions:[],required:false};
+    const key=assetRequirementKey(need),row=rows.get(key)||{key,name:need.name,role:need.role,state:need.role==='character'?characterRequirementState(need.state):need.state||'',uses:[],sources:[],assetIds:[],availableIds:[],textDescriptions:[],preparationNotes:[],required:false};
+    const note=need.role==='character'&&(need.preparationNote||characterPreparationNote(need.state));if(note&&!row.preparationNotes.includes(note))row.preparationNotes.push(note);
     row.required||=!!need.required;
     row.uses.push({panelId:panel.id,pageId:page.id,needId:need.id,episode:ep,code:panel.name||panel.id,locked:!!(page.locked||panel.locked),skipped:!!need.skipped,text:need.status==='text',missing:!['ready','text'].includes(need.status)});
     if(need.status==='text'&&!row.textDescriptions.includes(need.description))row.textDescriptions.push(need.description);

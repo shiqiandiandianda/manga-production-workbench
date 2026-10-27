@@ -1,6 +1,10 @@
 import {createAsyncCache} from './bounded-cache.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const value=v=>typeof v==='string'?v:Array.isArray(v)?v.map(value).filter(Boolean).join('\n'):v?JSON.stringify(v):'';
+export function assetPreparationMarkup(row){
+ const notes=row.preparationNotes||[];
+ return notes.length?`<details class="asset-preparation-note"><summary>资料准备说明</summary>${notes.map(note=>`<p>${esc(note)}</p>`).join('')}</details>`:'';
+}
 
 export function assetDesignEvidence(project,row){
  const versions=new Set(row.sources.map(s=>s.assetVersion).filter(Boolean)),found=new Map();

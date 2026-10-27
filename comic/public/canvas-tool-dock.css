@@ -1,9 +1,10 @@
-.canvas-work-area{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 224px;grid-column:3;grid-row:1;min-width:0;min-height:0;height:100%;overflow:hidden}
+.canvas-work-area{position:relative;display:grid;grid-template-columns:minmax(0,1fr);grid-column:3;grid-row:1;min-width:0;min-height:0;height:100%;overflow:hidden}
 .canvas-toolbar>.dock-primary-tools{display:flex;gap:3px;margin:0;flex:none}.canvas-toolbar>.dock-primary-tools button{min-width:38px!important;padding:5px 7px!important;font-size:12px!important;min-height:30px!important}.canvas-toolbar>.dock-primary-tools .ui-icon{display:none!important}
 .workspace-frame>.app-shell>.workspace-rail{grid-column:1;grid-row:1}.workspace-frame>.app-shell>.sidebar{grid-column:2;grid-row:1}.workspace-frame>.app-shell>#inspector-panel{grid-column:4;grid-row:1}
 .canvas-work-area>.editor{min-width:0;min-height:0;height:100%;grid-column:1;grid-row:1}
-.canvas-tool-dock{grid-column:2;grid-row:1;display:flex;flex-direction:column;min-height:0;min-width:0;background:#192737;border-left:1px solid #35495f;color:#cadbec;font-size:14px}
-.canvas-tool-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 13px;min-height:44px;border-bottom:1px solid #31465e;flex:none}
+.canvas-tool-dock{position:fixed;inset:auto;z-index:24;width:224px;max-width:calc(100vw - 16px);display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;background:#192737;border:1px solid #49617a;border-radius:9px;box-shadow:0 8px 30px #0006;color:#cadbec;font-size:14px}
+.canvas-tool-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 13px;min-height:44px;border-bottom:1px solid #31465e;flex:none;cursor:grab;touch-action:none;user-select:none}
+.canvas-tool-heading::before{content:'⠿';color:#8fa8c4;font-size:18px}.canvas-tool-heading strong{margin-right:auto}.canvas-tool-dock.is-dragging .canvas-tool-heading{cursor:grabbing}.canvas-tool-heading:focus-visible{outline:2px solid #9acaff;outline-offset:-3px}
 .canvas-tool-heading strong{font-size:14px;font-weight:500}.modern-workbench .canvas-tool-heading button{min-height:24px;padding:0 3px;font-size:22px;background:transparent;border:0;color:#94abc5}
 .canvas-tool-content{min-height:0;overflow:auto;scrollbar-width:thin;padding:12px;overscroll-behavior:contain}
 .dock-primary-tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-bottom:12px}
@@ -42,10 +43,10 @@
 .modern-workbench .canvas-tool-dock .tools #panel-tool-toggle,.canvas-tool-dock .tools>.workbench-menu>summary{font-size:13px;min-height:32px;padding:6px 8px;width:100%;background:#21364d;border:1px solid #3a526e;color:#c6dcf5}
 .canvas-tool-dock .tools #panel-tool-menu{position:static;width:100%;min-width:0;padding:5px;background:transparent;box-shadow:none;border:0}
 .canvas-tool-dock .tools #panel-tool-menu button{font-size:13px;min-height:32px;padding:6px}
-.canvas-work-area.tools-collapsed{grid-template-columns:minmax(0,1fr) 0}.canvas-work-area.tools-collapsed>.canvas-tool-dock{display:none}
+.canvas-work-area.tools-collapsed>.canvas-tool-dock{display:none}
 .unified-workbench #canvas-tools-toggle{font-size:14px;background:#23384f;border:1px solid #3c5772;padding:6px 11px;color:#c7dff8}
-@media(max-width:1250px) and (min-width:1001px){.repair-mode .canvas-work-area{grid-template-columns:minmax(0,1fr) 210px}.repair-mode .canvas-work-area.tools-collapsed{grid-template-columns:minmax(0,1fr) 0}.repair-mode .canvas-tool-content{padding:10px}}
-@media(max-width:700px){.canvas-work-area{grid-template-columns:minmax(0,1fr) 0}.canvas-tool-dock{position:absolute;inset:0 0 0 auto;width:min(244px,calc(100% - 25px));z-index:32;box-shadow:-15px 0 35px #0007}.unified-workbench #canvas-tools-toggle{font-size:13px;padding:6px 10px}.canvas-tool-dock .frame-options-popover{max-height:none!important}}
+@media(max-width:1250px) and (min-width:1001px){.repair-mode .canvas-tool-content{padding:10px}}
+@media(max-width:700px){.unified-workbench #canvas-tools-toggle{font-size:13px;padding:6px 10px}.canvas-tool-dock .frame-options-popover{max-height:none!important}}
 .frame-shortcuts .quick-numeric{display:flex;align-items:center;gap:4px;margin:4px 0;color:#a8bed5;min-width:0}.frame-shortcuts .quick-numeric input[type=number]{width:100%;min-width:0;box-sizing:border-box;padding:5px 6px;min-height:30px;font-size:12px}.frame-shortcuts .quick-numeric>span{flex:none;font-size:11px}.frame-shortcuts output[hidden]{display:none!important}
 .dock-frame-modes{display:flex;gap:6px;margin:8px 0}.dock-frame-modes[hidden]{display:none!important}.dock-frame-modes button{width:100%;min-height:32px}
 

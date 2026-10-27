@@ -17,7 +17,7 @@ test('inventory cache refreshes changed image metadata at the same array length 
  cache.reset();assert.notEqual(cache.read(p,assets,{scope:'work'}),second);
 });
 test('same character appears once while states and scene identities remain separate',()=>{
- const rows=['百户官服','镇抚使官服','青色家常长衫','黑色长衫'].map((state,i)=>({key:'state'+i,name:'宋玄',role:'character',state}));rows.push({key:'scene',role:'scene',name:'宋玄',state:''});
+ const rows=['百户官服','镇抚使官服','青色家常长衫','黑色长衫'].map((state,i)=>({key:'state'+i,name:'角色甲',role:'character',state}));rows.push({key:'scene',role:'scene',name:'角色甲',state:''});
  const groups=groupWorkspaceRows(rows);assert.equal(groups.length,2);assert.deepEqual(groups[0].rows.map(r=>r.state),rows.slice(0,4).map(r=>r.state));assert.equal(groups[1].role,'scene');
 });
 test('costume provenance does not mix other states in the same screen, and adaptation events are never novel quotes',async()=>{
@@ -31,6 +31,6 @@ test('costume provenance does not mix other states in the same screen, and adapt
 test('searching one character for several costumes shares catalogue pages and retains cancellation checks',async()=>{
  const p=await project(),id=randomUUID(),queries=[];let current=true;
  const search=createMokuReferenceSearch({project:p,api:async route=>{queries.push(route);return route==='/api/library/projects'?{items:[{id,name:p.title}]}:{items:[],more:false};},verify:()=>{if(!current)throw Error('switched');}});
- await search.search('宋玄');await search.search('宋玄');assert.equal(queries.filter(q=>q.includes('/api/library/assets?')).length,2); // Current project + public, fetched once each.
- current=false;await assert.rejects(search.search('宋玄'),/switched/);
+ await search.search('角色甲');await search.search('角色甲');assert.equal(queries.filter(q=>q.includes('/api/library/assets?')).length,2); // Current project + public, fetched once each.
+ current=false;await assert.rejects(search.search('角色甲'),/switched/);
 });

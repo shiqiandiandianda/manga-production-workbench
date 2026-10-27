@@ -5,7 +5,7 @@ import fs from 'node:fs';import path from 'node:path';import http from 'node:htt
 import {digest} from './code-policy.mjs';import {writeJson} from './updates.mjs';
 import {createPresence} from './presence.mjs';
 import {createReleaseNames} from './release-names.mjs';
-import {createMemberDirectory,createTeamCommunications} from './team-communications.mjs';
+import {createMemberDirectory,createTeamMemberServices} from './team-member-services.mjs';
 import {createReleaseCatalog} from './release-catalog.mjs';
 import {createPublicationPermissions} from './publication-permissions.mjs';
 import {retargetPrimaryAccess} from './primary-channel.mjs';
@@ -28,13 +28,13 @@ export async function createPublisher({root,dataDir=path.join(root,'runtime-data
  const directory=createMemberDirectory(path.join(dataDir,'member-names.local.json'));
  const getMembers=async()=>{let selfId='';try{const i=JSON.parse(fs.readFileSync(path.join(root,'runtime-data/team/identity.local.json')));selfId=createHash('sha256').update(i.machineId+':'+i.registrationKey).digest('hex').slice(0,16);}catch{}const rows=presence.members(latest?.manifest.contentId).filter(m=>!primaryContext||m.id!==selfId);if(primaryContext){let c;try{c=await primaryContext();}catch{}rows.unshift({id:'publisher',name:c?.name||'',nameSource:c?.nameSource||'',machine:os.hostname(),version:latest?.manifest.version||'主版本（本地开发）',versionStatus:'source',connection:c?'online':'unknown',project:c?.project||'',page:c?.page||'',episode:c?.episode||'',activity:c?.activity||'等待工作台上报',task:c?.task||'',lastSeen:c?Date.now():null,generationTasks:c?.generationTasks||[],editorAlive:c?.editorAlive===true});}return directory.resolve(rows).map(row=>({...row,displayVersion:row.version?releaseNames.label(row.version):''}));};
  const forcedUpgrades=createForcedUpgrades({dataDir,privateKey:state.privateKey,getLatest:()=>latest,getMembers});
- const communications=createTeamCommunications({dataDir,clients:()=>state.clients,invitation:state.enrollmentCode,ownMachine,equal,controlNonce,getMembers,directory});
- const assetGenerationLocks=createAssetGenerationLocks({file:path.join(dataDir,'asset-generations.local.json'),authenticate:communications.authenticate,getMembers});
+ const memberServices=createTeamMemberServices({dataDir,clients:()=>state.clients,invitation:state.enrollmentCode,ownMachine,equal,controlNonce,getMembers,directory});
+ const assetGenerationLocks=createAssetGenerationLocks({file:path.join(dataDir,'asset-generations.local.json'),authenticate:memberServices.authenticate,getMembers});
  const latestFile=path.join(releaseRoot,'latest.json');if(fs.existsSync(latestFile))latest=JSON.parse(fs.readFileSync(latestFile));
  const releaseNames=createReleaseNames(releaseRoot,{legacyDirectory:path.join(dataDir,'releases'),initial:latest?[latest.manifest]:[]});
  const catalog=createReleaseCatalog({root,releaseRoot,privateKey:state.privateKey,publicKey:state.publicKey,releaseNames,initial:latest,checkSyntax,getSourceAuthor:async()=>{const person=(await getMembers()).find(m=>m.id==='publisher');return {id:'publisher',name:person?.name||('主版本电脑 · '+os.hostname())};},onLatest:value=>latest=value,onError:value=>lastError=value});
  const publish=options=>catalog.publishSource(options);
- const publication=createPublicationPermissions({dataDir,clients:()=>state.clients,authenticate:communications.authenticate,ownMachine,controlNonce,getMembers,submit:catalog.submit});
+ const publication=createPublicationPermissions({dataDir,clients:()=>state.clients,authenticate:memberServices.authenticate,ownMachine,controlNonce,getMembers,submit:catalog.submit});
  async function body(req){let size=0;const parts=[];for await(const b of req){size+=b.length;if(size>16384)throw Error('请求过大');parts.push(b);}return JSON.parse(Buffer.concat(parts).toString()||'{}');}
  const requestJson=async(route,input)=>{const r=await fetch(centerUrl+route,{method:input===undefined?'GET':'POST',headers:input===undefined?{}:{'Content-Type':'application/json'},body:input===undefined?undefined:JSON.stringify(input),signal:AbortSignal.timeout(15000)}),v=await r.json();if(!r.ok)throw Error(v.error||'项目中心连接失败');return v;};
  const checkedEnvironments=new Set();
@@ -59,7 +59,7 @@ export async function createPublisher({root,dataDir=path.join(root,'runtime-data
    if(!(ownMachine(req)||equal(req.headers['x-team-invitation'],state.enrollmentCode)||publication.info(req).actor))return json(res,403,{error:'请通过已接入的团队工具查看任务'});
    return json(res,200,publicGenerationBoard(assetGenerationLocks.items,await getMembers()));
   }
-  if(await communications.handle(req,res,url))return;
+  if(await memberServices.handle(req,res,url))return;
   if(req.method==='POST'&&url.pathname==='/api/team/heartbeat'){if(req.headers.origin)return json(res,403,{error:'请由本机工具上报状态'});const input=await body(req),result=presence.heartbeat(input),upgradeCommand=forcedUpgrades.heartbeat(result.memberId,input);return json(res,200,{...result,upgradeCommand});}
   if(req.method==='GET'&&url.pathname==='/api/dashboard'){
    const authorized=ownMachine(req)||equal(req.headers['x-team-invitation'],state.enrollmentCode)||!!publication.info(req).actor,members=authorized?await getMembers():[];
@@ -77,14 +77,14 @@ export async function createPublisher({root,dataDir=path.join(root,'runtime-data
    const canvas=hub?(hub.pairing?await hub.pairing():{hubUrl:channel.collabHubUrl,pairingCode:hub.hub.state.pairingCode}):null;return json(res,200,{connection:access,canvas});
   }
   if(req.method==='POST'&&url.pathname==='/api/publish'){if(!local(req)||req.headers.origin)return json(res,403,{error:'只允许主版本本机发布'});return json(res,200,await publish({force:true}));}
-  if(req.method==='GET'&&['/','/team-dashboard.html','/team-dashboard.js','/team-dashboard.css','/team-publishing.js','/team-forced-upgrades.js','/team-comms.js','/team-chat-media.js','/team-comms.css','/team-version.js','/team-dashboard-boot.js','/team-remote-assist.js','/team-remote-input.js','/team-member-name.js','/team-instance-labels.mjs','/workbench-update-navigation.mjs','/team-local-instances.json'].includes(url.pathname)){
-   const name=url.pathname==='/'?'team-dashboard.html':url.pathname.slice(1),file=path.join(root,'comic/public',name);if(name==='team-local-instances.json'&&!fs.existsSync(file))return json(res,200,{});if(!fs.existsSync(file))return json(res,503,{error:'团队页面文件尚未就绪'});let bytes=fs.readFileSync(file);if(name.endsWith('.html'))bytes=Buffer.from(bytes.toString().replace('__TEAM_MODE__','publisher').replace('__TEAM_CONTROL__',ownMachine(req)?controlNonce:''));res.writeHead(200,{'Content-Type':name.endsWith('.html')?'text/html; charset=utf-8':name.endsWith('.css')?'text/css; charset=utf-8':name.endsWith('.json')?'application/json; charset=utf-8':'text/javascript; charset=utf-8','Cache-Control':'no-store',...(name.endsWith('.html')&&ownMachine(req)?{'Set-Cookie':'comic_team_owner_'+(/:(\d+)$/.exec(req.headers.host||'')?.[1]||'80')+'='+controlNonce+'; HttpOnly; SameSite=Strict; Path=/api/team-comms'}:{}),'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'"});return res.end(bytes);
+  if(req.method==='GET'&&['/','/team-dashboard.html','/team-dashboard.js','/team-dashboard.css','/team-publishing.js','/team-forced-upgrades.js','/team-version.js','/team-dashboard-boot.js','/team-member-name.js','/team-member-profile.js','/team-instance-labels.mjs','/workbench-update-navigation.mjs','/team-local-instances.json'].includes(url.pathname)){
+   const name=url.pathname==='/'?'team-dashboard.html':url.pathname.slice(1),file=path.join(root,'comic/public',name);if(name==='team-local-instances.json'&&!fs.existsSync(file))return json(res,200,{});if(!fs.existsSync(file))return json(res,503,{error:'团队页面文件尚未就绪'});let bytes=fs.readFileSync(file);if(name.endsWith('.html'))bytes=Buffer.from(bytes.toString().replace('__TEAM_MODE__','publisher').replace('__TEAM_CONTROL__',ownMachine(req)?controlNonce:''));res.writeHead(200,{'Content-Type':name.endsWith('.html')?'text/html; charset=utf-8':name.endsWith('.css')?'text/css; charset=utf-8':name.endsWith('.json')?'application/json; charset=utf-8':'text/javascript; charset=utf-8','Cache-Control':'no-store',...(name.endsWith('.html')&&ownMachine(req)?{'Set-Cookie':'comic_team_owner_'+(/:(\d+)$/.exec(req.headers.host||'')?.[1]||'80')+'='+controlNonce+'; HttpOnly; SameSite=Strict; Path=/api/team-members'}:{}),'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'"});return res.end(bytes);
   }
   json(res,404,{error:'接口不存在'});
  }catch(e){if(!res.headersSent)json(res,e.status||500,{error:e.message});else res.destroy(e);}});
  // Asset claims are durable coordination records. Execution belongs to the
  // colleague's manager, which independently defers its own upgrade while busy.
- return {server,channel,publish,get busy(){return catalog.busy;},get upgradeBlockers(){return catalog.busy?[{kind:'release',target:'团队代码版本',status:'正在发布',message:'正在检查、签名或打包新版本。',reason:'发布完成前需要保持版本文件完整。',nextAction:'发布结束后即可升级。'}]:[];},get latest(){return latest;},watch(ms=15000){watcher=setInterval(()=>void publish().catch(()=>{}),ms);watcher.unref?.();},async close(){clearInterval(watcher);communications.close();server.closeAllConnections();await new Promise(r=>server.close(r));}};
+ return {server,channel,publish,get busy(){return catalog.busy;},get upgradeBlockers(){return catalog.busy?[{kind:'release',target:'团队代码版本',status:'正在发布',message:'正在检查、签名或打包新版本。',reason:'发布完成前需要保持版本文件完整。',nextAction:'发布结束后即可升级。'}]:[];},get latest(){return latest;},watch(ms=15000){watcher=setInterval(()=>void publish().catch(()=>{}),ms);watcher.unref?.();},async close(){clearInterval(watcher);server.closeAllConnections();await new Promise(r=>server.close(r));}};
 }
 export async function existingCanvasHub({root,hubPort=18897,comicPort=18909,request=fetch}={}){
  let health;try{health=await request('http://127.0.0.1:'+comicPort+'/api/health',{signal:AbortSignal.timeout(1500)}).then(r=>r.json());}catch{return null;}

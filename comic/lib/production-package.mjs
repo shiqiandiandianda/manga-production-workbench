@@ -1,4 +1,5 @@
 import {PRODUCTION_PACKAGE_LIMITS as limits} from '../public/production-package-limits.js';
+import {inspectPostLetteringPackage} from './post-lettering-package.mjs';
 import {inspectPromptDrivenPackage} from './prompt-driven-package.mjs';
 import {validateLayoutDesign} from '../public/layout-design.js';
 import {productionPanelPrompts} from '../public/production-panel-prompts.js';
@@ -9,11 +10,12 @@ import {createHash} from 'node:crypto';
 import {importStoryboard} from './storyboard-import.mjs';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 export const packageDigest=bytes=>createHash('sha256').update(bytes).digest('hex');
-const allowed=/\.(json|xlsx|md|txt|csv|tsv)$/i;
+const allowed=/\.(json|xlsx|md|txt|csv|tsv|png|jpe?g|webp|svg|py|pyc)$/i;
+const fileLimit=name=>/\.(png|jpe?g|webp)$/i.test(name)?32*1024*1024:limits.fileBytes;
 export function packagePath(value){const s=String(value||'').replaceAll('\\','/');if(!s||s.startsWith('/')||/^[a-z]:/i.test(s)||s.split('/').some(p=>!p||p==='.'||p==='..')||s.includes('\0'))fail('资料相对路径无效');return s;}
 export async function loadPackageFiles(input,library){
  const files=[];let total=0;
- const add=(relativePath,bytes,origin={})=>{relativePath=packagePath(relativePath);if(path.posix.basename(relativePath).startsWith('~$')||!allowed.test(relativePath))return;if(bytes.length>8*1024*1024)fail(relativePath+' 超过8MB');total+=bytes.length;if(total>limits.bytes)fail('资料包总大小超过256MiB，请按话数分开导入');if(files.length>=limits.files)fail('资料包超过10000个文件，请缩小资料范围');files.push({relativePath,bytes,sha256:packageDigest(bytes),...origin});};
+ const add=(relativePath,bytes,origin={})=>{relativePath=packagePath(relativePath);if(path.posix.basename(relativePath).startsWith('~$')||!allowed.test(relativePath))return;if(bytes.length>fileLimit(relativePath))fail(relativePath+' 超过8MB');total+=bytes.length;if(total>limits.bytes)fail('资料包总大小超过256MiB，请按话数分开导入');if(files.length>=limits.files)fail('资料包超过10000个文件，请缩小资料范围');files.push({relativePath,bytes,sha256:packageDigest(bytes),...origin});};
  if(input.sourceType==='moku'){
   if(input.remoteProjectId!=='public'&&!/^[a-f0-9-]{36}$/i.test(input.remoteProjectId||''))fail('请选择明确的墨库项目');
   const prefix=String(input.folder||'').replaceAll('\\','/').replace(/^\/+|\/+$/g,'');
@@ -26,12 +28,12 @@ export async function loadPackageFiles(input,library){
   }
  }else if(input.directory){
   const root=fs.realpathSync(String(input.directory));if(!fs.statSync(root).isDirectory())fail('请选择资料文件夹');
-  const walk=directory=>{for(const entry of fs.readdirSync(directory,{withFileTypes:true})){if(entry.isSymbolicLink())continue;const file=path.join(directory,entry.name);if(entry.isDirectory())walk(file);else if(entry.isFile()&&allowed.test(entry.name)&&!entry.name.startsWith('~$')){if(fs.statSync(file).size>8*1024*1024)fail(entry.name+' 超过8MB');add(path.relative(root,file),fs.readFileSync(file),{sourceType:'local'});}}};walk(root);
+  const walk=directory=>{for(const entry of fs.readdirSync(directory,{withFileTypes:true})){if(entry.isSymbolicLink())continue;const file=path.join(directory,entry.name);if(entry.isDirectory())walk(file);else if(entry.isFile()&&allowed.test(entry.name)&&!entry.name.startsWith('~$')){if(fs.statSync(file).size>fileLimit(entry.name))fail(entry.name+' 超过8MB');add(path.relative(root,file),fs.readFileSync(file),{sourceType:'local'});}}};walk(root);
  }else{
   if(!Array.isArray(input.files)||input.files.length>limits.files)fail('请选择完整资料文件夹');
   let records=input.files.filter(f=>!String(f.name||f.relativePath).split(/[\\/]/).at(-1).startsWith('~$'));
   const names=records.map(f=>packagePath(String(f.relativePath||f.name).replaceAll('\\','/'))),first=names[0]?.split('/')[0];const trimRoot=names.every(n=>n.includes('/')&&n.startsWith(first+'/'));
-  for(const [i,f] of records.entries()){if(typeof f.dataBase64!=='string'||f.dataBase64.length>12*1024*1024||!/^[A-Za-z0-9+/]*={0,2}$/.test(f.dataBase64))fail('资料文件编码无效');add(trimRoot?names[i].slice(first.length+1):names[i],Buffer.from(f.dataBase64,'base64'),{sourceType:'upload'});}
+  for(const [i,f] of records.entries()){if(typeof f.dataBase64!=='string'||f.dataBase64.length>Math.ceil(fileLimit(names[i])*4/3)+4||!/^[A-Za-z0-9+/]*={0,2}$/.test(f.dataBase64))fail('资料文件编码无效');add(trimRoot?names[i].slice(first.length+1):names[i],Buffer.from(f.dataBase64,'base64'),{sourceType:'upload'});}
  }
  if(!files.length)fail('没有找到可读取的制作资料');const seen=new Set();for(const file of files){const key=file.relativePath.toLowerCase();if(seen.has(key))fail('资料包有重复相对路径：'+file.relativePath);seen.add(key);}return files.sort((a,b)=>a.relativePath.localeCompare(b.relativePath,'en'));
 }
@@ -44,15 +46,17 @@ function isStoryboardDraft(file,data){
 }
 function storyboardFilePriority(relativePath){
  const parts=String(relativePath||'').replaceAll('\\','/').normalize('NFKC').split('/'),name=parts.pop();
- if(parts.some(part=>/^分镜\s*JSON$/i.test(part)))return 3;
- return /分镜(?:\s*JSON)?\.json$/i.test(name)?2:0;
+ if(parts.some(part=>/^分镜\s*JSON$/i.test(part)))return 2;
+ return /分镜(?:\s*JSON)?\.json$/i.test(name)?1:0;
 }
 export async function inspectProductionPackage(files){
+ const postLettering=inspectPostLetteringPackage(files);if(postLettering)return postLettering;
  const promptDriven=inspectPromptDrivenPackage(files);if(promptDriven)return promptDriven;
  const issues=[],issue=(severity,message,location='')=>issues.push({severity,message,location});const episodes=[],boards=new Map(),boardSources=new Map(),screens=new Map(),layouts=new Map(),documents=[],workbooks=[];
  const text=file=>new TextDecoder('utf-8',{fatal:true}).decode(file.bytes).replace(/^\uFEFF/,'');
  for(const file of files){
   if(/\.xlsx$/i.test(file.relativePath)){const data=await importStoryboard({name:file.relativePath,dataBase64:file.bytes.toString('base64'),mode:'inspect',maxColumns:160});workbooks.push({file:file.relativePath,sheets:data.workbook||[]});continue;}
+  if(/\.(png|jpe?g|webp|pyc)$/i.test(file.relativePath))continue;
   const content=text(file);documents.push({path:file.relativePath,text:content});if(!/\.json$/i.test(file.relativePath))continue;
   let data;try{data=JSON.parse(content);}catch{fail('JSON格式无效：'+file.relativePath);}
   if(data.format?.startsWith('comic-layout-design')||/_排版布局\.json$/i.test(file.relativePath)){validateLayoutDesign(data);if(layouts.has(data.episode))fail('同一话有多个排版布局版本');layouts.set(data.episode,{data,file:file.relativePath,sha256:file.sha256});continue;}
@@ -61,7 +65,7 @@ export async function inspectProductionPackage(files){
   else if(Array.isArray(data['格'])){
    // 底稿仍保留在来源清单中，不能与正式分镜竞争同一话的生产来源。
    if(isStoryboardDraft(file,data))continue;
-   const sources=boardSources.get(data['话'])||[];sources.push({data,file:file.relativePath,priority:storyboardFilePriority(file.relativePath)||(/^分镜\s*JSON(?:\s|\d|$)/i.test(String(data['格式']||''))?1:0)});boardSources.set(data['话'],sources);
+   const sources=boardSources.get(data['话'])||[];sources.push({data,file:file.relativePath,priority:storyboardFilePriority(file.relativePath)});boardSources.set(data['话'],sources);
   }
  }
  // Only official storyboard files participate in episode matching; other JSON originals remain in the manifest.

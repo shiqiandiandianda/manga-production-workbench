@@ -103,10 +103,3 @@ body.modern-workbench.unified-workbench :is(.sidebar,#inspector-panel,dialog,.wo
 
 @media(min-width:1001px) and (max-width:1400px){.unified-workbench .topbar{gap:8px;padding:10px 12px}.unified-workbench .project-trigger{width:200px}.unified-workbench .brand>span:last-child{display:none}.unified-workbench .save-indicator{display:none}}
 @media(min-width:1001px) and (max-width:1100px){.unified-workbench .topbar{gap:6px}.unified-workbench .project-trigger{width:175px}.unified-workbench .topbar #asset-studio-open{padding-inline:9px;font-size:13px}}
-
-/* Keep zoom/history controls reachable when the editing toolbar exceeds the viewport. */
-@media(max-width:650px){
- .unified-workbench .canvas-toolbar{flex-wrap:wrap;max-width:100%;min-width:0}
- .unified-workbench .canvas-toolbar>.tools{flex:1 1 100%;max-width:100%;flex-wrap:wrap}
- .unified-workbench .canvas-toolbar>.toolbar-right{max-width:100%;flex-wrap:wrap;margin-left:auto}
-}

@@ -7,11 +7,27 @@ import {parseScript} from '../src/lib/script-structure.ts';
 import {segments,merge,promptFor,reversePromptFor,chaptersFrom} from '../src/lib/scenes.ts';
 import {applySegment,imageJobs} from '../src/lib/batch-assets.ts';
 import {IMAGE_CONCURRENCY} from '../src/lib/image-policy.ts';
+import {readGate,blockGate} from '../../../../distribution/generation-gate.mjs';
 
 export function batchPipeline({dataDir,store,analyze,image}){
   const file=path.join(dataDir,'pipeline.json');
   const state={projectId:'',running:false,phase:'idle',batch:0,part:0,parts:0,startedAt:0,updatedAt:0,projectRevision:0,analysisDone:false,analysisRunning:false,analysisPaused:true,analysisCode:'',analysisMessage:'',automaticImages:false,imagesPaused:false,pauseReason:'',pauseCode:'',imageActive:0,imageConcurrency:IMAGE_CONCURRENCY,jobs:[],message:'',code:''};
   let controller=null,stopAnalysis=true,changes=Promise.resolve(),writes=Promise.resolve(),pumping=false,retryTimer=null;
+  const gateFile=process.env.COMIC_GENERATION_GATE||'';
+  function scheduleGateResume(until){
+    if(!gateFile)return;
+    if(retryTimer){clearTimeout(retryTimer);retryTimer=null;}
+    retryTimer=setTimeout(()=>{
+      retryTimer=null;
+      if(state.pauseReason!=='quota')return;
+      const gate=readGate(gateFile);
+      if(gate.until>Date.now()){scheduleGateResume(gate.until);return;}
+      state.imagesPaused=false;state.pauseReason='';state.pauseCode='';state.code='';state.message='限流冷却结束，继续出图';
+      for(const job of state.jobs)if(job.status==='paused'&&job.pauseReason==='quota'){job.status='pending';job.pauseReason=undefined;}
+      updateActivity();void persist();schedulePump();
+    },Math.max(250,until-Date.now()+100));
+    retryTimer.unref?.();
+  }
   const active=new Map();
   function persist(){state.updatedAt=Date.now();const snapshot=structuredClone(state);const write=writes.catch(()=>{}).then(()=>atomicJson(file,snapshot));writes=write;return write;}
   function mutate(operation){const change=changes.catch(()=>{}).then(async()=>{for(let attempt=0;attempt<3;attempt++){const project=await store.load();if(project.id!==state.projectId)throw Error('项目已切换，任务已停止。');const next=operation(project);try{await store.save(next);state.projectRevision++;return next;}catch(error){if(error.code!=='project_conflict'||attempt===2)throw error;}}});changes=change;return change;}
@@ -53,7 +69,7 @@ export function batchPipeline({dataDir,store,analyze,image}){
       })}));job.status='done';
     }catch(error){if(error.code==='image_queue_full'){job.status='pending';job.retryAt=Date.now()+2000;}
       else{job.status='failed';job.error=error.message;const policy=imageFailurePolicy(error);job.errorCode=policy.code;job.diagnosticId=error.diagnosticId;
-        if(policy.pauseReason){state.code=policy.code;state.pauseCode=policy.code;state.pauseReason=policy.pauseReason;state.message='出图已暂停：'+error.message;state.imagesPaused=true;state.automaticImages=false;for(const queued of state.jobs)if(queued.status==='pending'){queued.status='paused';queued.pauseReason=policy.pauseReason;}stopAnalysis=true;state.analysisPaused=true;controller?.abort();}
+        if(policy.pauseReason){state.code=policy.code;state.pauseCode=policy.code;state.pauseReason=policy.pauseReason;state.message='出图已暂停：'+error.message;state.imagesPaused=true;state.automaticImages=false;for(const queued of state.jobs)if(queued.status==='pending'){queued.status='paused';queued.pauseReason=policy.pauseReason;}stopAnalysis=true;state.analysisPaused=true;controller?.abort();if(policy.pauseReason==='quota'&&gateFile)blockGate(gateFile,Date.now()+10*60*1000,policy.code);}
         else if(!state.imagesPaused){state.code=policy.code;state.message='此候选版本失败，剩余已选图片继续排队；失败版本可单独重试。';}
       }}
     finally{if(job.startedAt&&!job.finishedAt){job.finishedAt=Date.now();job.durationMs=Math.max(0,job.finishedAt-job.startedAt);}active.delete(job.id);updateActivity();await persist();schedulePump();}
@@ -61,6 +77,17 @@ export function batchPipeline({dataDir,store,analyze,image}){
   function schedulePump(){queueMicrotask(()=>{void pump().catch(async error=>{state.code='pipeline_failed';state.pauseCode=state.code;state.pauseReason='storage';state.message=error.message;state.imagesPaused=true;for(const job of state.jobs)if(job.status==='pending'){job.status='paused';job.pauseReason='storage';}updateActivity();await persist();});});}
   async function pump(){if(pumping)return;pumping=true;try{
     if(retryTimer){clearTimeout(retryTimer);retryTimer=null;}
+    // Another local channel (the comic editor) may have hit a Codex 429. Pause
+    // instead of generating in parallel against the same account.
+    const sharedUntil=gateFile?readGate(gateFile).until:0;
+    if(sharedUntil>Date.now()){
+      if(!state.imagesPaused){
+        state.imagesPaused=true;state.automaticImages=false;state.code='codex_usage_limit';state.pauseCode='codex_usage_limit';state.pauseReason='quota';
+        state.message='另一个生图通道触发 Codex 限流，出图已暂停到 '+new Date(sharedUntil).toLocaleTimeString('zh-CN',{hour12:false})+' 后自动继续';
+        for(const queued of state.jobs)if(queued.status==='pending'){queued.status='paused';queued.pauseReason='quota';}
+      }
+      scheduleGateResume(sharedUntil);updateActivity();await persist();return;
+    }
     while(!state.imagesPaused&&active.size<IMAGE_CONCURRENCY){
       const ready=state.jobs.filter(job=>job.status==='pending'&&(job.origin==='manual'||state.automaticImages)&&(!job.retryAt||job.retryAt<=Date.now()));
       const job=ready.find(job=>job.origin==='manual')||ready[0];if(!job)break;

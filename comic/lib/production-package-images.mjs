@@ -1,6 +1,5 @@
-import {compatibleCanvas} from './canvas-image-compat.mjs';
 import {createRequire} from 'node:module';
-const canvas=()=>compatibleCanvas(createRequire(import.meta.url)(process.env.COMIC_CANVAS_MODULE||'@napi-rs/canvas'));
+const canvas=()=>createRequire(import.meta.url)(process.env.COMIC_CANVAS_MODULE||'@napi-rs/canvas');
 export async function detectProductionRegions(file,expected){
  const {loadImage,createCanvas}=canvas(),image=await loadImage(file),scale=Math.min(1,600/image.width),w=Math.round(image.width*scale),h=Math.round(image.height*scale),c=createCanvas(w,h),ctx=c.getContext('2d');ctx.drawImage(image,0,0,w,h);const pixels=ctx.getImageData(0,0,w,h).data;
  const dark=(x,y)=>{const at=(y*w+x)*4;return pixels[at+3]>20&&Math.min(pixels[at],pixels[at+1],pixels[at+2])<242;};

@@ -5,14 +5,14 @@ test('头图尾图列表、详情和固定原件采用各自分类路由',async(
  const projectId=randomUUID(),episodeId=randomUUID(),rows=['header','footer'].map(assetType=>card(projectId,{assetType,category:assetType,episodeId})),f=fixture({rows});
  for(const item of rows){const listed=await f.read('/api/assets?projectId='+projectId+'&categoryId='+item.assetType);assert.equal(listed.items.length,1);await f.read('/api/assets/'+item.id);assert.equal(await(await f.reader.handle('/api/revisions/'+item.recommendedRevisionId+'/download')).text(),'fixed version bytes');assert.ok(f.calls.some(r=>r.includes('/'+episodeId+'/image/'+item.assetType+'/assets/'+item.id)));}
 });
-const card=(projectId,extra={})=>({id:randomUUID(),projectId,episodeId:null,assetKind:'image',assetType:'character',category:'character',name:'宋玄_黑衣.png',objectId:randomUUID(),variantName:'黑衣',recommendedRevisionId:randomUUID(),...extra});
+const card=(projectId,extra={})=>({id:randomUUID(),projectId,episodeId:null,assetKind:'image',assetType:'character',category:'character',name:'角色甲_黑衣.png',objectId:randomUUID(),variantName:'黑衣',recommendedRevisionId:randomUUID(),...extra});
 function fixture({rows=[],globals=[],detail,assets=[]}={}){
  const calls=[],reader=createMokuClassifiedReader({getAssets:()=>assets,request:async route=>{
   calls.push(route);const u=new URL(route,'http://local');
   if(u.pathname==='/api/project-library/taxonomy')return json({routeVersion:1,items:[{kind:'image',type:'character',name:'角色'}]});
   if(u.pathname==='/api/global-library/taxonomy')return json({items:[{kind:'file',type:'font',name:'字体'}]});
   if(u.pathname==='/api/projects')return json({items:[...new Set(rows.map(x=>x.projectId))].map(id=>({id}))});
-  if(u.pathname.endsWith('/subjects'))return json({items:rows.filter(x=>x.projectId===u.pathname.split('/')[3]).map(x=>({id:x.objectId,kind:'character',name:'宋玄'}))});
+  if(u.pathname.endsWith('/subjects'))return json({items:rows.filter(x=>x.projectId===u.pathname.split('/')[3]).map(x=>({id:x.objectId,kind:'character',name:'角色甲'}))});
   if(u.pathname.endsWith('/catalog')||u.pathname.startsWith('/api/global-library/')&&u.pathname.endsWith('/assets')){
    const filtered=(u.pathname.endsWith('/catalog')?rows.filter(x=>x.projectId===u.pathname.split('/')[3]):globals.filter(x=>x.assetType===u.pathname.split('/')[4])).filter(x=>!u.searchParams.has('q')||x.name.includes(u.searchParams.get('q'))).filter(x=>!u.searchParams.has('assetType')||x.assetType===u.searchParams.get('assetType'));
    const offset=Number(u.searchParams.get('offset')),limit=Number(u.searchParams.get('limit'));assert.ok(limit<=100,'new API max page size');return json({items:filtered.slice(offset,offset+limit),total:filtered.length,limit,offset});
@@ -23,8 +23,8 @@ function fixture({rows=[],globals=[],detail,assets=[]}={}){
  }});return {calls,reader,read:async route=>(await reader.handle(route)).json()};
 }
 test('classified catalogue paginates at 100 while retaining 200-row local pages and independent outfit IDs',async()=>{
- const p=randomUUID(),rows=Array.from({length:235},(_,i)=>card(p,{name:'宋玄_'+i+'.png'})),f=fixture({rows});
- const first=await f.read('/api/assets?projectId='+p+'&groupCharacters=true&limit=200');assert.equal(first.items.length,200);assert.equal(first.more,true);assert.equal(first.total,235);assert.equal(first.items[0].characterName,'宋玄');assert.equal(first.items[0].outfitName,'黑衣');
+ const p=randomUUID(),rows=Array.from({length:235},(_,i)=>card(p,{name:'角色甲_'+i+'.png'})),f=fixture({rows});
+ const first=await f.read('/api/assets?projectId='+p+'&groupCharacters=true&limit=200');assert.equal(first.items.length,200);assert.equal(first.more,true);assert.equal(first.total,235);assert.equal(first.items[0].characterName,'角色甲');assert.equal(first.items[0].outfitName,'黑衣');
  const second=await f.read('/api/assets?projectId='+p+'&limit=200&offset=200');assert.equal(second.items.length,35);assert.equal(second.more,false);assert.equal(new Set([...first.items,...second.items].map(x=>x.id)).size,235);assert.ok(f.calls.filter(x=>x.includes('/catalog')).every(x=>x.includes('scopeId=all')));assert.ok(!f.calls.some(x=>x.startsWith('/api/assets')));
 });
 test('episode-specific detail, historical versions, thumbnails and download stay on original classification',async()=>{

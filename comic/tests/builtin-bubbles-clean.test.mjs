@@ -48,7 +48,7 @@ test('实际界面离线选择系统双圆，上框移动缩放、数值修改�
  const locked=clone(b);locked.id='bubble_00000000-0000-0000-0000-000000000001';locked.locked=true;locked.y=1100;owner.bubbles.push(locked);
  const fake={close(){},status:async()=>({connected:false}),generate(){assert.fail('禁止真实生图');}};
  const studio=createStudio({dataDir:path.join(dir,'data'),seedReference:false,bridge:fake,jimengBridge:fake});ensureProjectPanelGeneration(p);studio.store.db.projects.push(p);studio.store.save();await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));
- const origin='http://127.0.0.1:'+studio.server.address().port,require=createRequire(import.meta.url),{chromium}=require('C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+ const origin='http://127.0.0.1:'+studio.server.address().port,require=createRequire(import.meta.url),{chromium}=require('playwright');
  const browser=await chromium.launch({channel:'msedge',headless:true}),page=await browser.newPage({viewport:{width:1864,height:1050}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(10000);
  t.after(async()=>{await browser.close();studio.close();studio.server.closeAllConnections();});
  await page.route('**/*',route=>{const url=new URL(route.request().url());if(url.pathname.startsWith('/api/library/'))return route.fulfill({json:{connected:false,items:[],error:'隔离验收：墨库离线'}});if(url.pathname.startsWith('/api/comic-style-library/items/'))return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="70"><text x="12" y="40" font-size="12">墨库离线</text></svg>'});return url.origin===origin||['data:','blob:'].includes(url.protocol)?route.continue():route.abort();});

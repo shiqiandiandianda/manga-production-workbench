@@ -1,4 +1,6 @@
 import {assetUnavailable} from './asset-availability.js';
+import {unknownState} from './character-states.js';
+import {characterPreparationNote} from './character-preparation.js';
 import {withRemovedReference} from './asset-workspace-removal.js';
 import {withTextAssetReference,filterTextAssetImages} from './asset-text-references.js';
 import {productionExtraNeeds,productionReferenceSubject} from './production-extra-references.js';
@@ -16,7 +18,7 @@ export function productionAssetMatch(project,ref,asset,referenceContext){
   const stem=String(asset.name||'').replace(/\.(png|jpe?g|webp|avif)$/i,'');
   const identity=!meta.identityOnly&&(cached?cached.identityKeys.has(key(ref['人物'])):[meta.name,...meta.aliases,...stem.split(/[_\s·|]+/u)].some(n=>key(n)===key(ref['人物'])));
   const outfit=referenceContext?referenceContext.outfit(ref):productionReferenceOutfit(project,ref),states=[...(meta.stateLabels||[]),...meta.parts],exact=identity&&!!outfit&&(cached?cached.stateKeys.has(key(outfit)):states.some(n=>key(n)===key(outfit)));
-  return {identity,exact,stateConflict:identity&&!!outfit&&!!meta.stateLabels?.length&&!exact};
+  return {identity,exact,stateConflict:identity&&!unknownState(outfit)&&!!meta.stateLabels?.length&&!exact};
  }
  const expected=referenceContext?referenceContext.expectedFile(ref):String(ref['说明']||'').match(/[^\s（）()]+\.(?:png|jpe?g|webp)/i)?.[0];
  return {identity:!!expected&&key(asset.name)===key(expected),exact:!!expected&&key(asset.name)===key(expected)};
@@ -36,7 +38,7 @@ export function auditProductionReferences(project,panel,assets,{referenceContext
   const confirmationNeed={id:segment.id+'@'+ref.slot,name:productionReferenceSubject(ref),role:ref['类型']==='设定卡'?'character':'other',state:outfit||''},manuallyConfirmed=asset&&manualStateReferenceConfirmed(panel,confirmationNeed,asset,referenceContext.meta(asset));
   const bad=asset&&(forbidden(asset)||productionAssetMatch(project,ref,asset,referenceContext).stateConflict&&!manuallyConfirmed),status=bad?'conflict':asset?'ready':recommendedId?'available':'missing';
   return {id:segment.id+'@'+ref.slot,slot:ref.slot,production:true,name:productionReferenceSubject(ref),role:ref['类型']==='设定卡'?'character':ref['类型'].includes('场景')?'scene':/道具/.test(ref['类型'])?'prop':'style',state:outfit||ref['说明']||ref['段ID']||'',required:!optional,optional,skipped:choice?.skip===true,predecessor:ref['类型']==='上一段成图',assetSourceId:ref.assetSourceId,assetSourceVersion:ref.assetSourceVersion,selectedIds:asset&&!bad?[asset.id]:[],conflictingIds:bad?[asset.id]:[],recommendedId,candidates,status,blocking:!!bad||!optional&&(status!=='ready'),manualStateConfirmed:!!manuallyConfirmed,reason:bad?'参考服装与本格需求冲突':manuallyConfirmed?'服装名称不同，已人工核对固定版本':exact.length>1?'同服装有多个版本，请看图指定':'按人物和服装核对'};
- }).map(need=>withTextAssetReference(panel,withRemovedReference(project,panel,need)));
+ }).map(need=>{const ref=segment.references.find(r=>r.slot===need.slot);return withTextAssetReference(panel,withRemovedReference(project,panel,{...need,preparationNote:need.role==='character'?(ref?.preparationNote||characterPreparationNote(ref?.['服装'])):''}));});
  needs.push(...productionExtraNeeds(project,panel,assets,referenceContext));
  const ids=[...new Set(needs.flatMap(n=>n.selectedIds))],missing=needs.filter(n=>n.blocking),unknown=bindings.filter(r=>r.assetId&&!byId.has(r.assetId)&&!needs.some(n=>n.slot===r.slot&&n.status==='text')).map(r=>r.assetId),additions=[...new Set(needs.filter(n=>n.status==='available').map(n=>n.recommendedId))];
  return {panelId:panel.id,needs,ids,additions,missing,unknown,coverageEnforced:true,ready:!missing.length&&!unknown.length,summary:'屏段附图：'+needs.filter(n=>n.role==='character').length+' 位人物；已绑定 '+needs.filter(n=>['ready','text'].includes(n.status)).length+'/'+needs.length+' 项'};

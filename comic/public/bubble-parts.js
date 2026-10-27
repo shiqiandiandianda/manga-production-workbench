@@ -10,7 +10,8 @@ export function editBubblePart(bubble,index,{dx=0,dy=0,resize=false,field,value}
  const next=structuredClone(bubble),p=next.assetParts[index],w=Math.max(1,bubble.w),h=Math.max(1,bubble.h);
  if(field&&['x','y','w','h'].includes(field))p[field]=value;
  else if(resize){p.w+=dx/w;p.h+=dy/h;}else{p.x+=dx/w;p.y+=dy/h;}
- p.x=clamp(p.x,-2,3);p.y=clamp(p.y,-2,3);p.w=clamp(p.w,.02,3);p.h=clamp(p.h,.02,3);return next;
+ p.x=clamp(p.x,-2,3);p.y=clamp(p.y,-2,3);p.w=clamp(p.w,.02,3);p.h=clamp(p.h,.02,3);
+ return next;
 }
 
 // The same sampled outline drives Canvas exports and the interactive SVG.

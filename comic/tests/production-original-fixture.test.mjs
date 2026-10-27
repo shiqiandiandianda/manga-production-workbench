@@ -1,9 +1,0 @@
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import {createHash} from 'node:crypto';
-import {inspectProductionPackage,loadPackageFiles} from '../lib/production-package.mjs';import {productionProject} from '../lib/production-package-document.mjs';import {ensureProjectPanelGeneration} from '../public/panel-generation.js';import {validateProject} from '../lib/store.mjs';
-const evidence=process.env.QUALITY_EVIDENCE_DIR||'verification/production-original-fixture';fs.mkdirSync(evidence,{recursive:true});const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-test('真实资料全包解析：96段、323格、364工具文字、39模型字、42底图',{timeout:30000,skip:!fs.existsSync('D:/漫画/万虫11-21话/我方制作分镜表_011-021_V1')?'Missing original production fixture; synthetic import coverage runs below':false},async()=>{
- const files=await loadPackageFiles({directory:'D:/漫画/万虫11-21话/我方制作分镜表_011-021_V1'}),before=files.map(f=>[f.relativePath,f.sha256]),source=await inspectProductionPackage(files),project=productionProject(source);ensureProjectPanelGeneration(project,[]);validateProject(project);
- assert.deepEqual(source.count,{episodes:11,segments:96,panels:323,toolTexts:364,modelTexts:39,backgrounds:42,sourceWarnings:108});assert.equal(source.issues.filter(i=>i.severity==='conflict').length,0);assert.equal(project.pages.flatMap(p=>p.panels).filter(p=>p.productionSegment).length,96);assert.equal(project.pages.flatMap(p=>p.panels).filter(p=>p.productionBackground).length,42);assert.deepEqual(files.map(f=>[f.relativePath,sha(f.bytes)]),before);
- fs.writeFileSync(path.join(evidence,'real-package-result.json'),JSON.stringify({count:source.count,sourceHash:source.hash,issues:source.issues.length,realGeneration:false},null,2));
- assert.equal(Object.keys(source.ledger.find(l=>l.name==='状态一览').records[0]).length,103);
-});

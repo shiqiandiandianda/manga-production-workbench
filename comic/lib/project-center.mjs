@@ -63,6 +63,12 @@ export function createProjectCenterSync({store,dataDir,saveProject,collabClient,
   for(const project of store.db.projects.filter(p=>!p.deletedAt)){
    const info=mapping[project.id],central=info?.projectId;if(!central)continue;
    const jobs=store.db.jobs.filter(j=>j.projectId===project.id);
+   // A delegation whose reply was lost has no remote task id and would otherwise
+   // stay "delegated" forever (not cancellable). Recover it after a grace period.
+   for(const job of jobs.filter(j=>j.status==='delegated'&&!j.remoteTaskId)){
+    if(Date.now()-(Date.parse(job.delegatedAt||job.updated||0)||0)<10*60*1000)continue;
+    job.status='recoverable';job.phase='recoverable';job.requiredAction='check_collab_task';job.updated=new Date().toISOString();job.message='协作提交状态待核实：中控未返回任务编号；请到协作页核对后取消或重试，本机没有重复生成';store.save();
+   }
    for(const job of jobs.filter(j=>j.status==='delegated'&&j.remoteTaskId)){try{const res=await fetch(apiOrigin()+'/api/collab/tasks/'+job.remoteTaskId,{signal:AbortSignal.timeout(6000)});if(!res.ok)continue;const {task}=await res.json();job.message=task.message||job.message;if(task.status==='done'&&task.apply?.status!=='pending'){job.status='done';job.applied=task.apply?.status==='applied';job.updated=new Date().toISOString();store.save();}else if(['failed','cancelled'].includes(task.status)){job.status=task.status;job.updated=new Date().toISOString();store.save();}}catch{}}
    const episodes=new Set(jobs.map(j=>project.pages.find(p=>p.panels.some(f=>f.id===j.panelId))).filter(Boolean).map(p=>pageEpisode(project,p)).filter(episode=>Number.isInteger(episode)&&episode>0));
    for(const episode of episodes){
@@ -82,14 +88,19 @@ export function createProjectCenterSync({store,dataDir,saveProject,collabClient,
  }
  async function isPolicyCurrent(policy,panelId){if(!url||!policy)return true;try{const d=await api('/api/v1/projects/'+policy.projectId);return (d.project.standardsId||null)===(policy.standardsId||null)&&!(d.artifacts||[]).some(a=>a.externalId===panelId&&a.stale);}catch{return false;}}
  async function overflow(){
+  // Team help generation removed: never hand a panel to the collaboration hub.
+  if(process.env.COMIC_TEAM_HELP!=='1')return;
   const limit=generationSlots.mainLimit();if(!url||!limit||generationSlots.snapshot().running<limit)return;
   const job=store.db.jobs.find(j=>j.status==='queued'&&j.provider==='codex'&&j.action==='generate'&&!j.kind&&j.input?.projectPolicy);if(!job)return;
   const project=store.project(job.projectId),policy=job.input.projectPolicy,d=await api('/api/v1/projects/'+policy.projectId);if(!d.project.sharePanels)return;
   if(!await isPolicyCurrent(policy,job.panelId))return;
   const panel=project.pages.flatMap(p=>p.panels).find(f=>f.id===job.panelId);if(!panel||panel.locked||panelContentKey(project,panel,store.db.assets)!==job.panelContentKey)return;
   if(!(await collabClient.status()).hubReachable)return;
+  // Several awaits above can let the local queue start this same job. Re-check
+  // the live status so one shot is never generated both locally and remotely.
+  if(job.status!=='queued'||!store.db.jobs.includes(job))return;
   // Durable handoff precedes the network POST. A lost reply must never fall back to local generation.
-  job.status='delegated';job.message='本机名额已满，任务交由协作中控分配';job.updated=new Date().toISOString();store.save();
+  job.status='delegated';job.delegatedAt=new Date().toISOString();job.message='本机名额已满，任务交由协作中控分配';job.updated=new Date().toISOString();store.save();
   try{const result=await collabClient.distribute({projectId:project.id,panelIds:[panel.id]});job.remoteTaskId=result.tasks[0]?.taskId||null;job.message=job.remoteTaskId?'已交由同事电脑执行；中控任务 '+job.remoteTaskId:'协作提交状态待核实，未重复在本机生成；'+(result.errors[0]?.error||'请查看协作任务');if(!job.remoteTaskId)job.phase='uncertain';}catch(error){job.message='协作提交状态待核实：'+error.message;job.phase='uncertain';}store.save();
  }
  async function tick(){if(busy||closed||!url)return;busy=true;try{for(const id of [...dirty]){const p=store.db.projects.find(p=>p.id===id);if(p){const revision=p.revision;await sync(structuredClone(p));if(store.project(id).revision===revision)dirty.delete(id);}}await adopt();await overflow();await progress();}catch(e){lastError=e.message;}finally{busy=false;}}

@@ -55,7 +55,7 @@ test('导入时无法解析的气泡素材引用被移除，不留下失效编�
 });
 
 test('已结束任务的生成输入被移除，可恢复的即梦任务保留，历史条数有上限',async t=>{
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'comic-review-jobs-')); // Retain isolated evidence until shutdown flush has finished.
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'comic-review-jobs-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
   const store=new Store(directory),job=(id,extra)=>({id:'job_00000000-0000-4000-8000-'+String(id).padStart(12,'0'),projectId:'project_x',created:new Date(Date.UTC(2026,0,1,0,0,id)).toISOString(),updated:new Date(Date.UTC(2026,0,1,0,0,id)).toISOString(),input:{prompt:'x'},panelContentKey:'k',...extra});
   store.db.jobs.push(job(1,{provider:'codex',status:'done'}),job(2,{provider:'jimeng',status:'failed',recovery:{submitId:'s'}}),job(3,{provider:'jimeng',status:'awaiting_confirmation'}));
   for(let i=10;i<2015;i++)store.db.jobs.push(job(i,{provider:'codex',status:'failed'}));
@@ -79,7 +79,7 @@ test('进度写盘合并为一次，状态变化与关闭时立即落盘',async 
 
 test('多窗口：只有服务端自有字段变化时沿用版本号，内容变化时载入或提示冲突',()=>{
   const base=createProject('窗口',true);base.revision=3;const baseComparable=comparableProject(base);
-  const imageOnly=structuredClone(base);imageOnly.revision=4;imageOnly.pages[0].panels[0].imageAssetId='asset_00000000-0000-4000-8000-000000000001';imageOnly.pages[0].panels[0].candidates=['asset_00000000-0000-4000-8000-000000000001'];imageOnly.updated='later';
+  const imageOnly=structuredClone(base);imageOnly.revision=4;imageOnly.pages[0].panels[0].imageAssetId='asset_00000000-0000-4000-8000-000000000001';imageOnly.pages[0].panels[0].candidates=['asset_00000000-0000-4000-8000-000000000001'];imageOnly.storyboardWorkflow={versions:[]};imageOnly.updated='later';
   const moved=structuredClone(base);moved.revision=4;moved.pages[0].panels[0].x+=40;
   for(const dirty of [false,true])assert.equal(revisionDecision({localRevision:3,server:imageOnly,baseComparable,dirty,saving:false}),'adopt-revision');
   assert.equal(revisionDecision({localRevision:3,server:moved,baseComparable,dirty:false,saving:false}),'adopt-content');
@@ -90,12 +90,12 @@ test('多窗口：只有服务端自有字段变化时沿用版本号，内容�
 });
 
 test('Codex 参考图模式：默认逐张查看，direct 直接交给生图；无效配置明确报错',()=>{
-  const p=createProject('提示',true),input={shot:p.shots[0],style:p.style,panel:p.pages[0].panels[0],referenceRoles:[{role:'character',name:'宋玄'}]};
+  const p=createProject('提示',true),input={shot:p.shots[0],style:p.style,panel:p.pages[0].panels[0],referenceRoles:[{role:'character',name:'角色甲'}]};
   assert.equal(referenceMode({}),'view');assert.equal(referenceMode({COMIC_CODEX_REFERENCE_MODE:'Direct'}),'direct');
   assert.throws(()=>referenceMode({COMIC_CODEX_REFERENCE_MODE:'fast'}),/view 或 direct/);
   const view=buildImagePrompt(input),direct=buildImagePrompt({...input,referenceMode:'direct'});
-  assert.match(view,/先读取清单中的参考图/);assert.doesNotMatch(direct,/先读取清单中的参考图/);
-  assert.match(direct,/直接使用清单中的参考图路径/);assert.match(direct,/referenced_image_paths/);assert.match(direct,/\$imagegen/);
+  assert.match(view,/先使用 view_image 读取/);assert.doesNotMatch(direct,/先使用 view_image 读取/);
+  assert.match(direct,/不需要先用 view_image 查看参考图/);assert.match(direct,/referenced_image_paths/);assert.match(direct,/\$imagegen/);
 });
 
 test('未配置并发时与启动入口一致，默认同时生成 6 张',()=>{assert.equal(DEFAULT_CONCURRENCY,6);});

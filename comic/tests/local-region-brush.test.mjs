@@ -5,7 +5,7 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {mountLocalRegionUI,localRegionError} from '../public/local-region-ui.js';
-const require=createRequire(import.meta.url),{chromium}=require('C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const require=createRequire(import.meta.url),{chromium}=require('playwright');
 const evidence=path.resolve('../verification/cutout-brush-fix-20261022');fs.mkdirSync(evidence,{recursive:true});
 test('圆形笔刷与原图直径和缩放一致，滑块与数值同步，悬停不绘图，平移隐藏光标',{timeout:30000},async t=>{
  const browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());
@@ -32,6 +32,6 @@ test('圆形笔刷与原图直径和缩放一致，滑块与数值同步，悬�
  await page.mouse.move(10,10);assert.equal(await ring.isVisible(),false);await page.locator('[data-region-tool=rect]').click();assert.equal(await canvas.evaluate(c=>c.style.cursor),'crosshair');assert.deepEqual(errors,[]);
 });
 test('只排除保留模型主体、明确保留筛选目标、缩小处理不丢小笔画及空目标提示',{timeout:30000},()=>{
- const result=spawnSync(process.env.COMIC_PYTHON_BIN||path.resolve('../runtime/python/python.exe'),['-B',path.resolve('tests/local-region-refinement.py')],{encoding:'utf8',env:{...process.env,PYTHONUTF8:'1',PYTHONDONTWRITEBYTECODE:'1'},timeout:25000});assert.equal(result.status,0,result.stdout+'\n'+result.stderr);fs.writeFileSync(path.join(evidence,'refinement-check.json'),result.stdout);
+ const result=spawnSync(path.resolve('../.runtime/image-tools/python/python.exe'),['-B',path.resolve('tests/local-region-refinement.py')],{encoding:'utf8',env:{...process.env,PYTHONUTF8:'1',PYTHONDONTWRITEBYTECODE:'1'},timeout:25000});assert.equal(result.status,0,result.stdout+'\n'+result.stderr);fs.writeFileSync(path.join(evidence,'refinement-check.json'),result.stdout);
 });
 test('旧失败任务恢复时显示可操作原因，保留任务原始报错',()=>{const raw='本地模型处理失败：Traceback\n  File "D:/test.py", line 65\nValueError: 请在要保留的人物或元素内部涂一笔\n';assert.equal(localRegionError(raw),'请在要保留的人物或元素内部涂一笔');assert.equal(localRegionError('工程已切换'),'工程已切换');});

@@ -8,15 +8,7 @@
   },
   "scripts": {
     "start": "node ../start-comic-local.mjs",
-    "test": "node quality/run.mjs --suite small",
-    "check": "node tools/check-source.mjs",
-    "test:small": "node quality/run.mjs --suite small",
-    "test:large": "node quality/run.mjs --suite large",
-    "test:core-functions": "node quality/run.mjs --suite core-functions",
-    "test:all-functions": "node quality/run.mjs --suite all-functions",
-    "test:core-flows": "node quality/run.mjs --suite core-flows",
-    "test:all-flows": "node quality/run.mjs --suite all-flows",
-    "test:changed": "node quality/changed.mjs",
-    "test:legacy": "node tools/run-tests.mjs"
+    "test": "node tools/run-tests.mjs",
+    "check": "node tools/check-source.mjs"
   }
 }

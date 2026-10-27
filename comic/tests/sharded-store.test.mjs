@@ -8,7 +8,7 @@ import {Store} from '../lib/store.mjs';
 import {createProject} from '../public/model.js';
 import {createStudio} from '../server.mjs';
 
-function folder(t){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'sharded-store-'));/* Retain isolated fixture until every store and team shutdown hook has flushed. */return dir;}
+function folder(t){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'sharded-store-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;}
 function legacyDatabase(count=3){
  const projects=Array.from({length:count},(_,i)=>{const p=createProject('合成工程 '+(i+1));p.shots[0].description='第'+(i+1)+'个工程的画面';return p;});
  return {version:1,projects,assets:[],jobs:[],layouts:[{id:'layout_x',name:'合成版式'}]};

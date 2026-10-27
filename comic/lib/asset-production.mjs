@@ -124,7 +124,7 @@ export function applyAssetProductionAction(input,action,assets=[]){
   check(Array.isArray(action.referenceIds)&&action.referenceIds.length<=3&&action.referenceIds.every(id=>assets.some(a=>a.id===id)),'资产参考无效');
   const project=clone(input);project.productionAssets||=[];
   if(project.productionAssets.some(a=>a.id===action.assetId))return project;
-  check(action.characterOutputMode===undefined||['card','components'].includes(action.characterOutputMode),'人物输出方式无效');const single=action.role==='character'&&action.characterOutputMode==='card',components=action.role==='character'?['face','views','hands','prop']:[action.role];
+  check(action.characterOutputMode===undefined||['card','components'].includes(action.characterOutputMode),'人物输出方式无效');const single=action.role==='character'&&action.characterOutputMode!=='components',components=action.role==='character'?['face','views','hands','prop']:[action.role];
   project.productionAssets.push(initializeProductionAsset({id:action.assetId,type:action.role,name:action.name,description:action.description,prompt:action.prompt||'',workflow:{version:1,kind:action.role==='character'?'simple':action.role,selection:'manual',extraReferenceIds:action.referenceIds},...characterAppearanceSettings(action),characterOutputMode:single?'card':'components',stages:single?[]:components.map(component=>({id:'component-'+component,label:({face:'脸部与发型',views:'正侧背全身',hands:'四手参考',scene:'场景主景',prop:'道具设定'})[component],component,dependencies:[],version:0,status:'pending',confirmedAssetId:null,candidates:[]}))}));
   validateProductionAssets(project.productionAssets);return project;
  }

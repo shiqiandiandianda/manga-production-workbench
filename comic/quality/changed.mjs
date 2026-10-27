@@ -1,5 +1,0 @@
-import path from 'node:path';import {fileURLToPath} from 'node:url';import {spawnSync,spawn} from 'node:child_process';
-const here=path.dirname(fileURLToPath(import.meta.url)),root=path.resolve(here,'../..');const r=spawnSync('git',['status','--porcelain','--untracked-files=all'],{cwd:root,encoding:'utf8',windowsHide:true});
-const files=r.status===0?r.stdout.split(/\r?\n/).filter(Boolean).map(s=>s.slice(3).replaceAll('\\','/')).filter(s=>!s.startsWith('verification/')&&!s.startsWith('audit-data/')):[];
-const small=files.length>0&&files.length<=5&&files.every(f=>/\.(css|md|txt)$/.test(f)||/public\/(?:.*-markup|.*-inspector-navigation)\.js$/.test(f));const suite=small?'small':'large';console.log(JSON.stringify({suite,reason:small?'small presentation or documentation change':'backend, protocol, multiple files or uncertain scope requires full suite',files},null,2));
-if(!process.argv.includes('--dry-run')){const child=spawn(process.execPath,[path.join(here,'run.mjs'),'--suite',suite,...process.argv.slice(2)],{cwd:root,stdio:'inherit',windowsHide:true});child.on('exit',c=>process.exitCode=c??1)}

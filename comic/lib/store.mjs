@@ -1,3 +1,4 @@
+import {validDialogueSegments} from '../public/bubble-dialogue-segments.js';
 import {validTextAssetBindings} from '../public/asset-text-references.js';
 import {validPromptOverrides} from '../public/prompt-source.js';
 import {validOutfitOverrides} from '../public/episode-outfit.js';
@@ -53,7 +54,12 @@ export class Store {
       for(const project of this.db.projects)this.dirty.add(project.id);
     }
     for(const asset of this.db.assets){asset.filePath||=path.resolve(this.root,'assets',asset.id+asset.extension);asset.storage='path';}
-    for(const job of this.db.jobs)if(['queued','running'].includes(job.status)){job.status=job.provider==='jimeng'&&job.recovery?.operationRef?'recoverable':'failed';job.message=job.provider==='jimeng'?'上次即梦任务被中断，请查询原任务恢复；请勿重新提交以免重复扣费。':'上次任务被中断，可重新生成；已有素材保留。';job.updated=new Date().toISOString();}
+    for(const job of this.db.jobs){
+      // A queued job never reached the provider, so keeping it queued is safe and
+      // prevents an auto-update restart from destroying the whole waiting batch.
+      if(job.status==='queued'&&job.kind!=='collab-generation'){job.phase='queued';job.requiredAction=null;job.message='服务重启前尚未开始，已保留在队列；可继续或取消';job.updated=new Date().toISOString();continue;}
+      if(job.status==='queued'||job.status==='running'){job.status=job.provider==='jimeng'&&job.recovery?.operationRef?'recoverable':'failed';job.message=job.provider==='jimeng'?'上次即梦任务被中断，请查询原任务恢复；请勿重新提交以免重复扣费。':'上次任务被中断，可重新生成；已有素材保留。';job.updated=new Date().toISOString();}
+    }
     this.save();
     if(this.lastSaveError){clearTimeout(this.retryTimer);throw new Error('工程数据无法写入：'+this.lastSaveError);}
     delete this.legacy;
@@ -167,10 +173,11 @@ export function validateProject(project) {
   function validateBubble(bubble,page,archived=false){
       unique(bubble.id);if(bubble.localReplacement!==undefined){const r=bubble.localReplacement;check(r?.version===1&&/^[a-f0-9-]{36}$/.test(r.taskId||''),'本地气泡替换记录无效');cleanId(r.patchLayerId);}check(archived||bubble.parentPanelId===undefined||page.panels.some(f=>f.id===bubble.parentPanelId),'气泡所属格子不存在');check(bubble.name===undefined||string(bubble.name,120),'图层名称无效');
       check(string(bubble.text,4000)&&BUBBLE_TYPES.includes(bubble.type)&&number(bubble.x,-page.width,page.width*2)&&safeVertical(bubble.y,bubble.h,20)&&number(bubble.w,30,page.width*2)&&number(bubble.fontSize,10,2048)&&typeof bubble.visible==='boolean','对白图层无效');
+      check(validDialogueSegments(bubble),'双圆气泡的独立台词或文字区域无效');
       const optional=(key,valid)=>bubble[key]===undefined||valid(bubble[key]);
       check(optional('shape',value=>BUBBLE_SHAPES.includes(value))&&optional('points',validBubblePoints)&&optional('assetContour',validAssetContour)&&optional('assetParts',validBubbleParts)&&optional('assetRays',validBubbleRays)&&optional('assetFrame',validBubbleFrame)&&optional('assetTailKind',value=>['straight','curved','lightning'].includes(value))&&optional('assetInsets',value=>value&&['left','right','top','bottom'].every(key=>number(value[key],0,.45))&&value.left+value.right<.95&&value.top+value.bottom<.95)&&optional('outlineWidth',value=>number(value,0,256))&&optional('outlineColor',color)&&optional('fillColor',color)&&optional('fillOpacity',value=>number(value,0,1))&&optional('textColor',color),'对白图层无效：气泡轮廓或颜色参数无效');
       if(bubble.shape==='asset')check(validAssetContour(bubble.assetContour),'素材气泡缺少有效的可编辑轮廓');
-      check(optional('lineBreakMode',value=>['auto','explicit'].includes(value))&&optional('writingMode',value=>['horizontal','vertical'].includes(value))&&optional('textDirection',value=>['ltr','rtl'].includes(value))&&optional('fontFamily',value=>typeof value==='string'&&Object.hasOwn(FONT_FAMILIES,value))&&optional('fontWeight',value=>Number.isInteger(value)&&value>=100&&value<=900&&value%100===0)&&optional('lineHeight',value=>number(value,.8,3))&&optional('letterSpacing',value=>number(value,-128,256))&&optional('textAlign',value=>BUBBLE_TEXT_ALIGNS.includes(value))&&optional('padding',value=>number(value,0,4096))&&optional('overflow',value=>['visible','expand'].includes(value))&&optional('locked',value=>typeof value==='boolean'),'对白图层无效：文字外观参数无效');
+      check(optional('lineBreakMode',value=>['auto','explicit'].includes(value))&&optional('writingMode',value=>['horizontal','vertical'].includes(value))&&optional('textDirection',value=>['ltr','rtl'].includes(value))&&optional('fontFamily',value=>typeof value==='string'&&Object.hasOwn(FONT_FAMILIES,value))&&optional('fontWeight',value=>Number.isInteger(value)&&value>=100&&value<=900&&value%100===0)&&optional('lineHeight',value=>number(value,.8,3))&&optional('letterSpacing',value=>number(value,-128,256))&&optional('textAlign',value=>BUBBLE_TEXT_ALIGNS.includes(value))&&optional('padding',value=>number(value,0,4096))&&optional('overflow',value=>['visible','fit','expand'].includes(value))&&optional('locked',value=>typeof value==='boolean'),'对白图层无效：文字外观参数无效');
       if(bubble.textBox!==undefined){const box=bubble.textBox;check(box&&number(box.x,-Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER)&&number(box.y,-Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER)&&number(box.w,1,Number.MAX_SAFE_INTEGER)&&number(box.h,1,Number.MAX_SAFE_INTEGER),'对白图层无效：独立文字框坐标无效');}
       if(bubble.tail!==undefined){
         const canonical=canonicalBubbleTail(bubble);if(canonical)bubble.tail=canonical;

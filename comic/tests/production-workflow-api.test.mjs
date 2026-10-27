@@ -16,7 +16,7 @@ import {createAssetProductionHandler} from '../lib/asset-production-api.mjs';
 const projectRoot=fileURLToPath(new URL('../',import.meta.url));
 const ownRoot=path.resolve(projectRoot,'.test-temp','production-workflow-api');
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
-const pythonBin=process.env.COMIC_PYTHON_BIN||'C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe';
+const pythonBin=process.env.COMIC_PYTHON_BIN||'python';
 function syntheticPng(width,height,transparent=false){
  const crc=bytes=>{let value=0xffffffff;for(const byte of bytes){value^=byte;for(let i=0;i<8;i++)value=(value>>>1)^((value&1)?0xedb88320:0);}return (value^0xffffffff)>>>0;};
  const chunk=(name,data)=>{const type=Buffer.from(name),size=Buffer.alloc(4),checksum=Buffer.alloc(4);size.writeUInt32BE(data.length);checksum.writeUInt32BE(crc(Buffer.concat([type,data])));return Buffer.concat([size,type,data,checksum]);};

@@ -91,7 +91,7 @@ BASE_SETTINGS = {
     'codexPath': str(RUNTIME_ROOT / 'Codex/codex.exe'),
     'pythonPath': str(RUNTIME_ROOT / 'python/python.exe'),
     'runtimeMode': 'bundled',
-    'maxConcurrentJobs': 8,
+    'maxConcurrentJobs': 2,
     'resourceControl':__import__('resource_control').DEFAULTS.copy(),
     'dailyFaces': {'enabled': False, 'time': '09:00', 'style': '国漫', 'instructions': ''},
 }
@@ -232,9 +232,61 @@ def asset_url(p):
     return '/files/' + p.resolve().relative_to(DATA.resolve()).as_posix()
 
 
+def _generation_gate_file():
+    return os.environ.get('COMIC_GENERATION_GATE') or ''
+
+
+def _generation_gate_until():
+    file = _generation_gate_file()
+    if not file:
+        return 0
+    try:
+        return float(json.loads(Path(file).read_text(encoding='utf-8')).get('until') or 0)
+    except Exception:
+        return 0
+
+
+def _block_generation_gate(delay_ms=10 * 60 * 1000, reason='codex_rate_limited'):
+    file = _generation_gate_file()
+    if not file:
+        return
+    try:
+        atomic_json(Path(file), {
+            'until': time.time() * 1000 + max(1000, delay_ms),
+            'reason': reason,
+            'updatedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        })
+    except Exception:
+        pass
+
+
+def _clear_generation_gate():
+    file = _generation_gate_file()
+    if not file:
+        return
+    try:
+        Path(file).unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def _wait_generation_gate(update=None):
+    """Wait for the account-wide 429 gate written by any local image channel."""
+    until = _generation_gate_until()
+    if until <= time.time() * 1000:
+        return
+    if update:
+        update(phase='image_wait', message='另一个生图通道触发 Codex 限流，等待到 '
+               + time.strftime('%H:%M', time.localtime(until / 1000)) + ' 后继续')
+    while until > time.time() * 1000:
+        time.sleep(min(2.0, max(0.25, (until - time.time() * 1000) / 1000)))
+        until = _generation_gate_until()
+
+
 def _turn(client,directory,prompt,refs=(),schema=None,update=None,image=False):
     if not image:
         return _turn_native(client,directory,prompt,refs,schema,update,False)
+    _wait_generation_gate(update)
     # One global image permit covers only a native image turn, including waiting
     # for its result. Text checks and outer project jobs never hold this gate.
     if hasattr(IMAGE_GATE,'configure'):
@@ -249,7 +301,13 @@ def _turn(client,directory,prompt,refs=(),schema=None,update=None,image=False):
             else:update()
     try:
         if update: update()
-        return _turn_native(client,directory,prompt,refs,schema,update,True)
+        result = _turn_native(client,directory,prompt,refs,schema,update,True)
+        _clear_generation_gate()
+        return result
+    except Exception as error:
+        if re.search(r'429|too many requests|rate[ _-]?limit|usage[ _-]?limit|\bquota\b', str(error), re.I):
+            _block_generation_gate()
+        raise
     finally:
         IMAGE_GATE.release()
 

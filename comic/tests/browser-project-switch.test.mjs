@@ -65,10 +65,10 @@ test('从已有正文、封面、关闭状态新建工程可立即编辑，切�
  }
  const first=await create('合成新工程 · 从正文创建');await page.screenshot({path:path.join(evidence,'01-new-from-comic.png')});
  await page.reload();await page.waitForFunction(value=>document.querySelector('#project-select').value===value,first.id);await page.locator('#stage [data-panel="'+first.pages[0].panels[0].id+'"]').first().waitFor();
- await choose(original.id);await page.locator('#canvas-scroll').evaluate(el=>el.scrollTop=0);await page.locator('#stage [data-fixed-board="cover"]').click();await page.locator('[data-board-meta="episodeTitle"]').waitFor({state:'visible'});assert.equal(await page.locator('#episode-board-editor').count(),0);
+ await choose(original.id);await page.locator('#canvas-scroll').evaluate(el=>el.scrollTop=0);await page.locator('#stage [data-fixed-board="cover"]').click();await page.locator('#episode-board-editor').waitFor({state:'visible'});
  await create('合成新工程 · 从封面创建');
  await page.locator('#project-trigger').click();await page.locator('#close-project').click();await page.waitForFunction(()=>document.querySelector('#project-label').textContent==='选择 / 新建漫画');await create('合成新工程 · 从关闭状态创建');
- await choose(original.id);await page.locator('#zoom').selectOption('page');await create('合成新工程 · 从整页预览创建');
+ await choose(original.id);await page.locator('#view-mode').selectOption('page');await create('合成新工程 · 从单页创建');
  await create('合成新工程 · 打开失败只重试一次',{retry:true});
  await choose(original.id);assert.deepEqual(studio.store.project(original.id).pages,before.pages);assert.deepEqual(studio.store.project(original.id).shots,before.shots);assert.equal(aiCalls,0);assert.deepEqual(errors,[]);
  await page.screenshot({path:path.join(evidence,'02-original-preserved.png')});fs.writeFileSync(path.join(evidence,'report.json'),JSON.stringify({ok:true,synthetic:true,realAI:false,createRequests,browserErrors:errors,originalContentPreserved:true,retryReusesCreatedProject:true},null,2));

@@ -1,0 +1,60 @@
+{
+  "items": [
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "name": "空白双层漫画对话气泡-7_上圆可调.png",
+      "assetKind": "image",
+      "assetType": "bubble",
+      "projectId": null,
+      "recommendedRevisionId": "00000000-0000-4000-8000-000000000011"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000020",
+      "name": "斜角闪电尾空白漫画气泡-6_可编辑.png",
+      "assetKind": "image",
+      "assetType": "bubble",
+      "projectId": null,
+      "recommendedRevisionId": "00000000-0000-4000-8000-000000000021"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "name": "空白尖刺爆发式漫画气泡-5_可编辑.png",
+      "assetKind": "image",
+      "assetType": "bubble",
+      "projectId": null,
+      "recommendedRevisionId": "00000000-0000-4000-8000-000000000031"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000040",
+      "name": "空白云朵思考气泡-4_可编辑.png",
+      "assetKind": "image",
+      "assetType": "bubble",
+      "projectId": null,
+      "recommendedRevisionId": "00000000-0000-4000-8000-000000000041"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000050",
+      "name": "竖向空白漫画气泡-3_可编辑.png",
+      "assetKind": "image",
+      "assetType": "bubble",
+      "projectId": null,
+      "recommendedRevisionId": "00000000-0000-4000-8000-000000000051"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000060",
+      "name": "圆角漫画内心气泡框.png",
+      "assetKind": "image",
+      "assetType": "bubble",
+      "projectId": null,
+      "recommendedRevisionId": "00000000-0000-4000-8000-000000000061"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000070",
+      "name": "白底黑刺漫画独白气泡-2.png",
+      "assetKind": "image",
+      "assetType": "bubble",
+      "projectId": null,
+      "recommendedRevisionId": "00000000-0000-4000-8000-000000000071"
+    }
+  ]
+}

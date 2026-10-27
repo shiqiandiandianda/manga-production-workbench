@@ -22,11 +22,13 @@ export function normalizeImageConcurrency(value = DEFAULT_CONCURRENCY) {
 // One coordinator lives in the comic service. Its durable leases also cover
 // detached repair workers after either Node service is restarted.
 export class GenerationSlots {
-  constructor({directory, limit = DEFAULT_CONCURRENCY, platforms, onChange=()=>{}, isAlive = alive, pollMs = 150} = {}) {
+  constructor({directory, limit = DEFAULT_CONCURRENCY, platforms, onChange=()=>{}, isAlive = alive, pollMs = 150, remoteTtlMs = 2*60*60*1000} = {}) {
     if (!directory) throw new Error('生成队列需要数据目录');
     this.limit = normalizeImageConcurrency(limit);
     this.platforms = platforms ? validatePlatformConcurrency(platforms) : null;
     if(this.platforms)this.limit=this.platforms.main;
+    this.providerLimits=null;
+    this.remoteTtlMs=Number.isFinite(Number(remoteTtlMs))&&Number(remoteTtlMs)>0?Number(remoteTtlMs):2*60*60*1000;
     this.waiters=new Map();this.onChange=onChange;this.notificationPending=false;
     this.isAlive = isAlive;
     this.pollMs = pollMs;
@@ -35,7 +37,7 @@ export class GenerationSlots {
     try { this.state = JSON.parse(readFileSync(this.file, 'utf8')); }
     catch (error) { if (error.code !== 'ENOENT') throw failure('生成队列记录损坏，已停止启动以避免重复生成', 500); this.state = {version:1, leases:[], requests:{}}; }
     if (this.state.version !== 1 || !Array.isArray(this.state.leases) || !this.state.requests || typeof this.state.requests !== 'object') throw failure('生成队列记录格式不正确', 500);
-    for (const lease of this.state.leases) if (typeof lease.key!=='string' || lease.key.length>481 || !validId(lease.ownerId) || !validId(lease.requestId) || lease.key!==`${lease.ownerId}:${lease.requestId}` || !/^[a-f0-9]{64}$/.test(lease.token) || !validPid(lease.ownerPid) || !Array.isArray(lease.workerPids) || lease.workerPids.some(pid => !validPid(pid)) || !Number.isFinite(lease.createdAt) || (lease.claimedPid!==null && !validPid(lease.claimedPid))) throw failure('生成队列记录格式不正确', 500);
+    for (const lease of this.state.leases) if (typeof lease.key!=='string' || lease.key.length>481 || !validId(lease.ownerId) || !validId(lease.requestId) || lease.key!==`${lease.ownerId}:${lease.requestId}` || !/^[a-f0-9]{64}$/.test(lease.token) || !validPid(lease.ownerPid) || !Array.isArray(lease.workerPids) || lease.workerPids.some(pid => !validPid(pid)) || !Number.isFinite(lease.createdAt) || (lease.claimedPid!==null && !validPid(lease.claimedPid)) || (lease.provider!==undefined && lease.provider!==null && (typeof lease.provider!=='string' || lease.provider.length>40))) throw failure('生成队列记录格式不正确', 500);
     const keys = new Set(this.state.leases.map(lease=>lease.key)), tokens = new Set(this.state.leases.map(lease=>lease.token));
     if(keys.size!==this.state.leases.length || tokens.size!==this.state.leases.length || this.state.leases.some(lease=>this.state.requests[lease.key]?.status!=='active') || Object.entries(this.state.requests).some(([key,request])=>request?.status==='active' && !keys.has(key)))throw failure('生成队列记录不完整，已停止启动以避免重复生成',500);
     this.reap();
@@ -77,7 +79,14 @@ export class GenerationSlots {
     this.state.leases = this.state.leases.filter(lease => {
       // A CLI can exit while its submitted cloud image is still running. A
       // remote lease needs an explicit result/query; local PID death is no proof.
-      if (lease.remoteUnknown === true) return true;
+      // It still expires eventually: a crashed/stale remote reservation must not
+      // consume a slot forever.
+      if (lease.remoteUnknown === true) {
+        if (Date.now() - lease.createdAt <= this.remoteTtlMs) return true;
+        this.state.requests[lease.key] = {status:'abandoned', endedAt:Date.now()};
+        changed = true;
+        return false;
+      }
       const workersAlive = lease.workerPids.some(pid => this.isAlive(pid));
       const reservationExpired = !lease.workerPids.length && Date.now() - lease.createdAt > 30000;
       if (workersAlive || (!lease.releaseRequested && !reservationExpired && this.isAlive(lease.ownerPid))) return true;
@@ -88,8 +97,9 @@ export class GenerationSlots {
     if (changed) this.save();
     return this.state.leases.length;
   }
-  tryAcquire({ownerId, ownerPid = process.pid, requestId = ownerId, recoveryOnly = false} = {}) {
+  tryAcquire({ownerId, ownerPid = process.pid, requestId = ownerId, recoveryOnly = false, provider = null} = {}) {
     if (!validId(ownerId) || !validId(requestId) || !validPid(ownerPid)) throw failure('生成请求编号或进程编号不正确');
+    if (provider !== null && provider !== undefined && (typeof provider !== 'string' || provider.length > 40)) throw failure('生成渠道编号不正确');
     this.reap();
     const key = `${ownerId}:${requestId}`;
     const previous = this.state.requests[key];
@@ -102,7 +112,7 @@ export class GenerationSlots {
       remote.key=key;remote.requestId=requestId;remote.ownerPid=ownerPid;
       // Old callbacks cannot clear or register against a recovery attempt.
       remote.token=randomBytes(32).toString('hex');
-      remote.claimedPid=null;remote.releaseRequested=false;
+      remote.claimedPid=null;remote.releaseRequested=false;remote.provider=provider||remote.provider||null;
       this.state.requests[key] = {status:'active', createdAt:Date.now()};
       this.save();
       return this.lease(remote.token);
@@ -120,10 +130,16 @@ export class GenerationSlots {
       }
       const ceiling=platform==='repair'?this.platforms.repair:this.mainLimit();
       if(this.state.leases.length>=this.limit||this.state.leases.filter(lease=>this.platform(lease.ownerId)===platform).length>=ceiling)return null;
+      // The user-facing per-provider limit must also cover side paths
+      // (asset center, effects, collaboration), not just the main job queue.
+      if(platform==='main'&&provider&&this.providerLimits?.get(provider)){
+        const used=this.state.leases.filter(lease=>this.platform(lease.ownerId)==='main'&&lease.provider===provider).length;
+        if(used>=this.providerLimits.get(provider))return null;
+      }
       if(platform==='repair'&&this.waiters.keys().next().value!==key)return null;
     }else if (this.state.leases.length >= this.limit) return null;
     if (!this.isAlive(ownerPid)) throw failure('生成所属进程已退出', 409);
-    const item = {key, ownerId, requestId, ownerPid, token:randomBytes(32).toString('hex'), workerPids:[], claimedPid:null, releaseRequested:false, remoteUnknown:false, createdAt:Date.now()};
+    const item = {key, ownerId, requestId, ownerPid, provider:provider||null, token:randomBytes(32).toString('hex'), workerPids:[], claimedPid:null, releaseRequested:false, remoteUnknown:false, createdAt:Date.now()};
     this.state.leases.push(item);
     this.waiters.delete(key);
     this.state.requests[key] = {status:'active', createdAt:item.createdAt};
@@ -197,6 +213,17 @@ export class GenerationSlots {
   listRemote() { return this.state.leases.filter(lease=>lease.remoteUnknown===true).map(({ownerId,token})=>({ownerId,token})); }
   lease(token) { return {token, trackPid:pid => this.track(token, pid), keepRemote:()=>this.keepRemote(token), release:options => this.release(token, options)}; }
   setLimit(value) { if(!this.platforms)this.limit=normalizeImageConcurrency(value); return this.snapshot(); }
+  setProviderLimits(limits) {
+    if (!limits || typeof limits !== 'object' || Array.isArray(limits)) { this.providerLimits = null; return this.snapshot(); }
+    const next = new Map();
+    for (const [name, value] of Object.entries(limits)) {
+      const count = Number(value);
+      if (typeof name === 'string' && name.length > 0 && name.length <= 40 && Number.isFinite(count) && count >= 1) next.set(name, Math.min(MAX_CONCURRENCY, Math.floor(count)));
+    }
+    this.providerLimits = next.size ? next : null;
+    this.notify();
+    return this.snapshot();
+  }
   platform(ownerId){return ownerId.startsWith('repair:')?'repair':'main';}
   setPlatforms(value){this.platforms=validatePlatformConcurrency(value);this.limit=this.platforms.main;this.notify();return this.snapshot();}
   snapshot() {

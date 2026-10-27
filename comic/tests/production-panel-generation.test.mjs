@@ -21,7 +21,7 @@ import {remapProductionPackage} from '../lib/production-package-portable.mjs';
 import {panel} from '../public/model.js';
 
 const require=createRequire(import.meta.url),{createCanvas}=require(process.env.COMIC_TEST_CANVAS_MODULE);
-const {chromium}=require('C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const {chromium}=require('playwright');
 const evidence=fileURLToPath(new URL('../../verification/single-panel-generation-20261022/',import.meta.url));
 fs.mkdirSync(evidence,{recursive:true});
 const empty='空泡单镜头原文\n甲在庭院持木剑。只画这一格；画空白对白泡，不画文字。';
@@ -59,6 +59,35 @@ async function fixture(t){
 }
 async function until(predicate){for(let i=0;i<240;i++){if(predicate())return;await new Promise(resolve=>setTimeout(resolve,25));}throw Error('合成任务未在限时内完成');}
 
+test('源服装为空时采用本格已核对的人物参考；候选、串人物和冲突不能代替已选图',()=>{
+ const record={original:{出现角色:['宋茜'],服装:{},当前场景:'林家大院',出现道具:[]}},need={role:'character',name:'宋茜',status:'ready',blocking:false,selectedIds:['asset_chosen'],conflictingIds:[]};
+ assert.deepEqual(productionPanelDataIssues(record,{referenceAudit:{needs:[need]}}),[]);
+ for(const changed of [{status:'available',selectedIds:[]},{name:'角色甲'},{status:'conflict',blocking:true,conflictingIds:['asset_wrong']},{status:'text',selectedIds:[]}])assert.ok(productionPanelDataIssues(record,{referenceAudit:{needs:[{...need,...changed}]}}).includes('人物服装未对应：宋茜'));
+ assert.deepEqual(record.original.服装,{},'不能把参考图衣装倒写为原分镜事实');
+ assert.ok(productionPanelDataIssues({original:{...record.original,'角色状态（服装/形态）':'小宋茜:黑衣'}}).includes('人物服装未对应：宋茜'));
+});
+
+test('已选人物图且原服装为空：页面可重做、单格与整屏逐格均可提交；取消选图仍拦截',{timeout:60000},async t=>{
+ const f=await fixture(t),segment=f.project.productionPackage.episodes[0].segments[0],records=f.project.productionPackage.episodes[0].panelRecords.filter(r=>r.segmentId===segment.id);
+ for(const r of records){r.original.服装={};delete r.original['角色状态（服装/形态）'];}
+ f.studio.store.save();
+ const prepared=await f.action('panels',{prepareOnly:true});assert.equal(prepared.panelIds.length,2);
+ for(const [index,record] of records.entries()){const frame=findProductionPanel(f.project,segment.id,record.id);frame.referenceIds=[...new Set([...frame.referenceIds,f.assets[index].id])];frame.assetReferenceBinding={mode:'manual',managedIds:[]};}
+ f.studio.store.save();await f.action('panels',{mode:'clean'});
+ const first=findProductionPanel(f.project,segment.id,records[0].id),browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());
+ const context=await browser.newContext({viewport:{width:1864,height:949}});await context.addInitScript(()=>localStorage.setItem('comic-generation-provider','codex'));
+ await context.route('**/api/library/**',route=>route.fulfill({json:{connected:false,items:[]}}));const view=await context.newPage(),errors=[];view.on('pageerror',error=>errors.push(error.message));
+ await view.goto(f.origin+'/?project='+f.project.id);await view.waitForSelector('#canvas-tool-dock');if(!await view.locator('[data-production-unit]').isVisible())await view.locator('[data-rail-tab=production]').click();await view.locator('[data-production-unit]').selectOption('panel');
+ await view.locator('[data-production-generate-one]').waitFor();assert.equal(await view.locator('[data-production-generate-one]').isEnabled(),true);assert.doesNotMatch(await view.locator('#production-tab').innerText(),/人物服装未对应/);
+ await view.screenshot({path:path.join(evidence,'selected-reference-empty-source-costume.png')});
+ await view.locator('[data-production-generate-one]').click();await until(()=>f.studio.store.db.jobs.at(-1)?.status==='done');assert.equal(f.calls.length,1);assert.ok(f.calls[0].referenceRoles.some(r=>r.assetId===f.assets[0].id));assert.equal(f.calls[0].shot.productionPrompt,clean);
+ await f.action('panels',{mode:'clean'});await f.api('/api/jobs',{projectId:f.project.id,panelIds:prepared.panelIds,provider:'codex',expectedRevision:f.project.revision});await until(()=>f.studio.store.db.jobs.length===3&&f.studio.store.db.jobs.every(j=>j.status==='done'));assert.equal(f.calls.length,3);
+ const unselected=findProductionPanel(f.project,segment.id,records[0].id);unselected.referenceIds=unselected.referenceIds.filter(id=>id!==f.assets[0].id);unselected.assetReferenceBinding={mode:'manual',managedIds:[]};f.studio.store.save();
+ const rejected=await f.request('/api/jobs',{projectId:f.project.id,panelIds:[first.id],provider:'codex',expectedRevision:f.project.revision});assert.equal(rejected.status,400);assert.match(rejected.body.error,/人物服装未对应：甲/);assert.equal(f.calls.length,3);
+ const batch=await f.request('/api/projects/'+f.project.id+'/production/panels',{expectedRevision:f.project.revision,segmentId:segment.id,mode:'clean'});assert.equal(batch.status,400);assert.match(batch.body.error,/人物服装未对应：甲/);
+ assert.ok(records.every(r=>Object.keys(r.original.服装).length===0));assert.deepEqual(errors,[]);
+});
+
 test('本屏全部单格一次准备与提交，逐格保留原文、参考和回填；缺项整批拒绝且不改工程',{timeout:30000},async t=>{
  const f=await fixture(t),original=structuredClone(productionFrame(f.project,'E011-S001'));
  const prepared=await f.action('panels',{mode:'clean'});assert.deepEqual(prepared.gridIds,['E011-001','E011-002']);assert.equal(prepared.panelIds.length,2);
@@ -71,7 +100,7 @@ test('本屏全部单格一次准备与提交，逐格保留原文、参考和�
 });
 
 test('浏览器点击一次生成本屏全部单格，两格各自显示成图，其他屏段不生成',{timeout:60000},async t=>{
- const f=await fixture(t),browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());const context=await browser.newContext({viewport:{width:1864,height:949}});await context.addInitScript(()=>localStorage.setItem('comic-generation-provider','codex'));await context.route('**/api/library/**',route=>route.fulfill({json:{connected:false,items:[]}}));const view=await context.newPage(),errors=[];view.on('pageerror',e=>errors.push(e.message));await view.goto(f.origin+'/?project='+f.project.id);if(!await view.locator('#canvas-tool-dock').isVisible())await view.getByRole('button',{name:'常用工具',exact:true}).click();await view.waitForSelector('#canvas-tool-dock');if(!await view.locator('[data-production-unit]').isVisible())await view.locator('[data-rail-tab=production]').click();await view.locator('[data-production-unit]').selectOption('panel');await view.waitForFunction(()=>document.querySelector('[data-production-generate]')?.textContent.includes('全部单格'));assert.equal(f.calls.length,0);assert.equal(f.project.pages.flatMap(p=>p.panels).filter(f=>f.productionGrid).length,2);await view.locator('[data-production-generate]').click();await until(()=>f.studio.store.db.jobs.length===2&&f.studio.store.db.jobs.every(j=>j.status==='done'));for(const gridId of ['E011-001','E011-002']){const frame=findProductionPanel(f.project,'E011-S001',gridId);await view.locator('[data-production-grid]').selectOption(gridId);await view.waitForFunction(({id,asset})=>[...document.querySelectorAll('[data-panel="'+id+'"] image')].some(i=>(i.getAttribute('href')||'').includes(asset)),{id:frame.id,asset:frame.imageAssetId},{timeout:5000}).catch(async error=>{fs.writeFileSync(path.join(evidence,'batch-ui-debug.json'),JSON.stringify({gridId,frame,panels:await view.locator('[data-panel]').evaluateAll(nodes=>nodes.map(n=>({id:n.dataset.panel,images:[...n.querySelectorAll('image')].map(i=>i.getAttribute('href'))}))),errors},null,2));await view.screenshot({path:path.join(evidence,'batch-ui-debug.png')});throw error;});}assert.equal(f.calls.length,2);assert.ok(f.calls.every(c=>c.shot.productionPrompt.includes('无泡')));assert.equal(findProductionPanel(f.project,'E011-S002','E011-003'),undefined);assert.deepEqual(errors,[]);await view.screenshot({path:path.join(evidence,'screen-all-single-panels.png')});
+ const f=await fixture(t),browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());const context=await browser.newContext({viewport:{width:1864,height:949}});await context.addInitScript(()=>localStorage.setItem('comic-generation-provider','codex'));await context.route('**/api/library/**',route=>route.fulfill({json:{connected:false,items:[]}}));const view=await context.newPage(),errors=[];view.on('pageerror',e=>errors.push(e.message));await view.goto(f.origin+'/?project='+f.project.id);await view.waitForSelector('#canvas-tool-dock');if(!await view.locator('[data-production-unit]').isVisible())await view.locator('[data-rail-tab=production]').click();await view.locator('[data-production-unit]').selectOption('panel');await view.waitForFunction(()=>document.querySelector('[data-production-generate]')?.textContent.includes('全部单格'));assert.equal(f.calls.length,0);assert.equal(f.project.pages.flatMap(p=>p.panels).filter(f=>f.productionGrid).length,2);await view.locator('[data-production-generate]').click();await until(()=>f.studio.store.db.jobs.length===2&&f.studio.store.db.jobs.every(j=>j.status==='done'));for(const gridId of ['E011-001','E011-002']){const frame=findProductionPanel(f.project,'E011-S001',gridId);await view.locator('[data-production-grid]').selectOption(gridId);await view.waitForFunction(({id,asset})=>[...document.querySelectorAll('[data-panel="'+id+'"] image')].some(i=>(i.getAttribute('href')||'').includes(asset)),{id:frame.id,asset:frame.imageAssetId},{timeout:5000}).catch(async error=>{fs.writeFileSync(path.join(evidence,'batch-ui-debug.json'),JSON.stringify({gridId,frame,panels:await view.locator('[data-panel]').evaluateAll(nodes=>nodes.map(n=>({id:n.dataset.panel,images:[...n.querySelectorAll('image')].map(i=>i.getAttribute('href'))}))),errors},null,2));await view.screenshot({path:path.join(evidence,'batch-ui-debug.png')});throw error;});}assert.equal(f.calls.length,2);assert.ok(f.calls.every(c=>c.shot.productionPrompt.includes('无泡')));assert.equal(findProductionPanel(f.project,'E011-S002','E011-003'),undefined);assert.deepEqual(errors,[]);await view.screenshot({path:path.join(evidence,'screen-all-single-panels.png')});
 });
 
 test('单格两套原文独立读取；旧无泡原文可用，缺空泡不得借用或改写',()=>{
@@ -106,16 +135,16 @@ test('无整屏成图也可生成单格：人物、服装、场景、道具只�
 
 test('本格排字仅加入对应台词：空泡仅文字、无泡可编辑框；重复加入保留人工位置',{timeout:30000},async t=>{
  const f=await fixture(t);await f.action('mode',{gridId:'E011-001',mode:'empty'});await f.action('panel',{gridId:'E011-001'});const first=findProductionPanel(f.project,'E011-S001','E011-001');first.imageAssetId=f.assets[0].id;f.studio.store.save();
- const added=await f.action('panel-lettering',{gridId:'E011-001',confirmed:true});assert.equal(added.created,1);const bubble=f.project.pages.flatMap(p=>p.bubbles).find(b=>b.productionGridId==='E011-001');assert.equal(bubble.text,'测试台词1');assert.equal(bubble.speaker,'甲');assert.equal(bubble.shape,'none');assert.equal(bubble.parentPanelId,first.id);
+ const added=await f.action('panel-lettering',{gridId:'E011-001',confirmed:true});assert.equal(added.created,0);assert.equal(added.skipped,1);const bubble=f.project.pages.flatMap(p=>p.bubbles).find(b=>b.productionGridId==='E011-001');assert.equal(bubble.text,'测试台词1');assert.equal(bubble.speaker,'甲');assert.equal(bubble.shape,'none');assert.equal(bubble.parentPanelId,first.id);
  bubble.x=87;bubble.y=193;bubble.locked=true;const manual=structuredClone(bubble);f.studio.store.save();const again=await f.action('panel-lettering',{gridId:'E011-001',confirmed:true});assert.equal(again.created,0);assert.equal(again.skipped,1);assert.deepEqual(f.project.pages.flatMap(p=>p.bubbles).find(b=>b.id===manual.id),manual);
  await f.action('mode',{gridId:'E011-002',mode:'clean'});await f.action('panel',{gridId:'E011-002'});findProductionPanel(f.project,'E011-S001','E011-002').imageAssetId=f.assets[1].id;f.studio.store.save();await f.action('panel-lettering',{gridId:'E011-002',confirmed:true});const second=f.project.pages.flatMap(p=>p.bubbles).find(b=>b.productionGridId==='E011-002');assert.equal(second.text,'测试台词2');assert.equal(second.shape,'oval');assert.equal(second.fillOpacity,1);
 });
 
-test('已有裁格优先复用，父整屏锁定不影响独立单格；缺服装明确拒绝而不提交任务',{timeout:30000},async t=>{
+test('已有裁格优先复用，父整屏锁定不影响独立单格；缺服装且未选人物图时拒绝提交',{timeout:30000},async t=>{
  const f=await fixture(t),root=productionFrame(f.project,'E011-S001'),owner=f.project.pages.find(p=>p.panels.includes(root)),cropped=panel('',44,88,530,672);root.locked=true;
  Object.assign(cropped,{imageAssetId:f.assets[0].id,imageTransform:{x:13,y:17,scale:3},points:[{x:.1,y:0},{x:1,y:.2},{x:.8,y:1},{x:0,y:.8}],panelSlice:{version:1,panelId:'E011-001',segmentId:'E011-S001',rootPanelId:root.id,sourceAssetId:f.assets[0].id,sourceHash:'a'.repeat(64),key:'b'.repeat(64),region:{x:0,y:0,w:1,h:1}}});owner.panels.push(cropped);f.studio.store.save();const before=structuredClone(cropped);
  const result=await f.action('panel',{gridId:'E011-001'}),reused=findProductionPanel(f.project,'E011-S001','E011-001');assert.equal(result.panelId,cropped.id);for(const key of ['x','y','w','h','points','imageAssetId','imageTransform'])assert.deepEqual(reused[key],before[key]);
- delete f.project.productionPackage.episodes[0].panelRecords[0].original['服装']['甲'];f.studio.store.save();const rejected=await f.request('/api/jobs',{projectId:f.project.id,panelIds:[reused.id],provider:'codex'});assert.equal(rejected.status,400);assert.match(rejected.body.error,/人物服装未对应：甲/);assert.equal(f.calls.length,0);
+ delete f.project.productionPackage.episodes[0].panelRecords[0].original['服装']['甲'];reused.referenceIds=reused.referenceIds.filter(id=>id!==f.assets[0].id);reused.assetReferenceBinding={mode:'manual',managedIds:[]};f.studio.store.save();const rejected=await f.request('/api/jobs',{projectId:f.project.id,panelIds:[reused.id],provider:'codex'});assert.equal(rejected.status,400);assert.match(rejected.body.error,/人物服装未对应：甲/);assert.equal(f.calls.length,0);
 });
 
 test('本格处理中允许准备另一格，禁止改动处理中那一格的提示词，原结果仍能回填',{timeout:30000},async t=>{
@@ -158,6 +187,6 @@ test('浏览器可切屏段与单格，逐格选择空泡/无泡生成；缺词�
  await page.locator('[data-production-grid]').selectOption('E011-004');assert.equal(await page.locator('[data-production-generate-one]').isDisabled(),true);assert.match(await page.locator('#production-tab').innerText(),/本格尚缺空泡提示词/);
  await page.waitForFunction(()=>document.querySelector('.panel-active-prompt')?.value==='');assert.equal(f.calls.length,2,'缺词时不得借用整屏提示词提交任务');
  await page.screenshot({path:path.join(evidence,'single-panel-missing-prompts.png')});
- await page.reload();if(!await page.locator('#canvas-tool-dock').isVisible())await page.getByRole('button',{name:'常用工具',exact:true}).click();await page.waitForSelector('#canvas-tool-dock');if(!await page.locator('[data-production-unit]').isVisible())await page.locator('[data-rail-tab="production"]').click();
+ await page.reload();await page.waitForSelector('#canvas-tool-dock');if(!await page.locator('[data-production-unit]').isVisible())await page.locator('[data-rail-tab="production"]').click();
  assert.equal(await page.locator('[data-production-unit]').inputValue(),'panel');assert.deepEqual(errors,[]);
 });

@@ -1,6 +1,17 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {characterRole,characterAppearancePrompt,characterAppearanceSettings} from '../lib/character-appearance.mjs';
+import {characterRole,characterAppearancePrompt,characterAppearanceSettings,characterGenerationMode} from '../lib/character-appearance.mjs';
 import {assetStagePrompt,initializeProductionAsset,prepareAssetGeneration,applyAssetProductionAction,applyAssetResult} from '../lib/asset-production.mjs';
+test('角色默认一次生成整张角色卡，只有显式选择分组件才拆图',()=>{
+ assert.equal(characterGenerationMode({type:'character',characterRole:'lead'}),'card');
+ assert.equal(characterGenerationMode({type:'character',characterRole:'background'}),'card');
+ assert.equal(characterGenerationMode({type:'character',characterOutputMode:'components'}),'components');
+ assert.equal(characterAppearanceSettings({characterOutputMode:'card'}).characterOutputMode,'card');
+ assert.throws(()=>characterAppearanceSettings({characterOutputMode:'many'}),/生成方式/);
+ const project={revision:1,productionAssets:[]},base={revision:1,type:'create-editable-card',assetId:'C-card',name:'林玄',role:'character',description:'黑衣青年',referenceIds:[]};
+ const card=applyAssetProductionAction(project,base,[]).productionAssets[0];
+ assert.equal(card.characterOutputMode,'card');
+ assert.deepEqual(card.stages.map(stage=>stage.id),['role-card']);
+});
 test('普通路人与主要人物分开判断，职业与简单流程不会使有名主角降级',()=>{
  for(const name of ['预备杂役弟子','围观弟子甲','围观弟子乙','路人甲','守卫乙'])assert.equal(characterRole({name,type:'character'}),'background',name);
  for(const name of ['叶麟','宋凌天','杂役弟子叶麟'])assert.equal(characterRole({name,type:'character',workflow:{kind:'simple'}}),'auto',name);

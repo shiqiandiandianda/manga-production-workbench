@@ -1,9 +1,0 @@
-import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';
-export const root=path.dirname(fileURLToPath(import.meta.url));
-export const runtime=path.resolve(process.env.WORKBENCH_RUNTIME_ROOT||path.join(root,'runtime'));
-export const dataRoot=path.resolve(process.env.WORKBENCH_RELEASE_DATA_ROOT||path.join(root,'runtime-data'));
-const defaults={COMIC_DATA_DIR:path.join(dataRoot,'comic'),COMIC_SLOT_DIR:path.join(dataRoot,'slot'),COMIC_PYTHON_BIN:path.join(runtime,'python/python.exe'),COMIC_CANVAS_MODULE:path.join(runtime,'node/node_modules/@napi-rs/canvas'),ASSET_CANVAS_MODULE:path.join(runtime,'node/node_modules/@napi-rs/canvas'),ASSET_CENTER_CANVAS_MODULE:path.join(runtime,'node/node_modules/@napi-rs/canvas'),COMIC_CODEX_BIN:path.join(runtime,'codex/codex.exe'),SCENE_CODEX_PATH:path.join(runtime,'codex/codex.exe'),COMIC_JIMENG_BIN:path.join(runtime,'jimeng/dreamina-canvas.exe'),WORKBENCH_DATA_DIR:path.join(dataRoot,'center'),WORKBENCH_NODE_PATH:process.execPath,WORKBENCH_PYTHON_PATH:path.join(runtime,'python/python.exe'),ASSET_STUDIO_DATA_DIR:path.join(dataRoot,'asset-studio'),COMIC_MAIN_MAX_CONCURRENT:'2',COMIC_REPAIR_MAX_CONCURRENT:'2',PROJECT_CENTER_URL:'http://127.0.0.1:8790',ASSET_STUDIO_URL:'http://127.0.0.1:8796',ASSET_EDITOR:'http://127.0.0.1:18909',PRODUCTION_INTEGRATION_ROOT:root,PYTHONDONTWRITEBYTECODE:'1',PYTHONUTF8:'1'};
-for(const [key,value]of Object.entries(defaults))process.env[key]||=value;
-process.env.COLLAB_CLIENT_CONFIG||=path.join(process.env.COMIC_DATA_DIR,'collab/client-config.json');process.env.ASSET_MOKU_SESSION_FILE||=path.join(process.env.COMIC_DATA_DIR,'library-session.local.json');
-process.env.COMIC_SERVICE_FILE||=path.join(dataRoot,'comic-service.local.json');
-if(!fs.existsSync(process.env.COMIC_PYTHON_BIN)||!fs.existsSync(process.env.COMIC_CANVAS_MODULE))throw Error('请先双击“安装并接入.cmd”自动恢复墨库运行环境、三个本地模型和字体。');

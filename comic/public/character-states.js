@@ -1,7 +1,9 @@
+import {characterPreparationNote} from './character-preparation.js';
 export const CHARACTER_STATE_FIELDS=Object.freeze({sourceLocation:'原著位置',characterStates:'角色状态',propStates:'道具状态'});
 export const UNKNOWN_CHARACTER_STATE='未知（待确认）';
 export const stateKey=value=>String(value??'').normalize('NFKC').trim().toLowerCase().replace(/[\s·・，,、。]/gu,'');
-export const unknownState=value=>!String(value??'').trim()||/未知|待确认|待核实|待设计|未指定|不明确/u.test(String(value));
+export const libraryStatePlaceholder=value=>/^待与(?:项目)?主库对应/u.test(String(value??'').trim());
+export const unknownState=value=>!String(value??'').trim()||/未知|待确认|待核实|待设计|未指定|不明确/u.test(String(value))||libraryStatePlaceholder(value)||!!characterPreparationNote(value);
 
 const sourceKey=value=>String(value).normalize('NFKC').replace(/\s/gu,'');
 const sourceValue=(row,keys)=>{for(const key of keys){const found=Object.keys(row||{}).find(name=>sourceKey(name)===sourceKey(key)),value=found===undefined?'':String(row[found]??'').trim();if(value)return value;}return '';};

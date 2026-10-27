@@ -19,7 +19,7 @@ function fixture(){return {id:'novelversion_synthetic_329',created:'2026-10-14T0
 
 test('329格真实浏览器：分话阅读搜索、单格编辑、失败保留、保存和关闭确认',{timeout:60000},async t=>{
   const require=createRequire(import.meta.url),modules=path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'),{chromium}=require(path.join(modules,'playwright'));
-  const qaRoot='D:/生图平台/升级工作/分镜工作区_20261014/qa';fs.mkdirSync(qaRoot,{recursive:true});const directory=fs.mkdtempSync(path.join(qaRoot,'run-')),evidence=path.join(directory,'evidence');fs.mkdirSync(evidence);
+  const qaRoot='../verification/synthetic-browser';fs.mkdirSync(qaRoot,{recursive:true});const directory=fs.mkdtempSync(path.join(qaRoot,'run-')),evidence=path.join(directory,'evidence');fs.mkdirSync(evidence);
   const server=createServer((req,res)=>{if(req.url==='/novel-storyboard-workspace.js'){res.writeHead(200,{'content-type':'text/javascript; charset=utf-8'});res.end(fs.readFileSync(path.join(root,'public','novel-storyboard-workspace.js')));}else {res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>合成分镜工作区测试</title><body></body></html>');}});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   let context;t.after(async()=>{await context?.close();await new Promise(resolve=>server.close(resolve));});
   context=await chromium.launchPersistentContext(path.join(directory,'browser-profile'),{channel:'msedge',headless:true,args:['--disable-gpu'],viewport:{width:1500,height:1000},env:{...process.env,TEMP:directory,TMP:directory}});

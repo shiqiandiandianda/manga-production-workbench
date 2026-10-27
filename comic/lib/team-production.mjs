@@ -15,6 +15,20 @@ const text=(v,n=240)=>String(v??'').slice(0,n);
 const sameMachine=(name,machine)=>name===machine||name===machine+' 漫画节点';
 
 export function createTeamProduction({root,dataDir,store,collabClient,body,json,fetcher=fetch,nodeConfigFile=null}){
+  // Team help generation is removed by default. The old module stays behind this
+  // flag so an installation can be restored explicitly with COMIC_TEAM_HELP=1.
+  if(process.env.COMIC_TEAM_HELP!=='1') return {
+    disabled:true,
+    snapshot:async()=>({disabled:true,connection:{reachable:false,configured:false,message:'团队帮忙生图功能已移除'},nodes:[],tasks:[],projects:[],members:[]}),
+    dispatch:async()=>{throw Object.assign(new Error('团队帮忙生图功能已移除；请使用本机生图'),{status:410});},
+    assertAvailable(){},
+    refreshReservations:async()=>{},
+    close(){},
+    async handle(req,res,url){
+      if(!url.pathname.startsWith('/api/production-center/'))return false;
+      json(res,410,{error:'团队帮忙生图功能已移除；请使用本机生图'});return true;
+    }
+  };
   const codeRoot=path.resolve(root,'..'),nodeFile=nodeConfigFile||path.join(codeRoot,'runtime-data/team/canvas-node.local.json');
   const journalFile=path.join(dataDir,'team-production/requests.local.json');
   let journal=read(journalFile)||{version:1,items:[]},pendingSnapshot=null,cached=null,cachedAt=0;

@@ -24,7 +24,7 @@ import {GenerationSlotsClient} from '../lib/generation-slots.mjs';
 import {ProjectBundles} from './project-bundle.mjs';
 import {TextReviewService,TEXT_REVIEW_STATUSES,requiresTextReview} from './text-review-service.mjs';
 
-export async function createRepairEngine({dataDir,apiOrigin,localTools,concurrency=2}) {
+export async function createRepairEngine({dataDir,apiOrigin,localTools}) {
 const codeRoot=path.dirname(fileURLToPath(import.meta.url));
 process.env.COMIC_REPAIR_CODE_ROOT=codeRoot;
 const root=dataDir;
@@ -42,7 +42,7 @@ const activeRepairs = new Map();
 const sharedGenerationSlots = new GenerationSlotsClient({origin});
 const repairStartLocks = new Map();
 const acceptingAttempts = new Set();
-const repairQueue = new RepairQueue(concurrency, error => console.error('后台修图任务异常：', error.message));
+const repairQueue = new RepairQueue(IMAGE_GENERATION_CONCURRENCY, error => console.error('后台修图任务异常：', error.message));
 const storage = new ArchiveStorage(root);
 await storage.init();
 const projects=new ProjectStore(root,storage);
@@ -489,5 +489,5 @@ const handle=async (req,res)=>{
     else res.end();
   }
 };
-return {handle,setConcurrency(value){if(!Number.isInteger(value)||value<0||value>20)throw Error('修图并发无效');repairQueue.limit=value;repairQueue.drain();},running:()=>repairQueue.running.size+repairQueue.waiting.size+textReviews.queue.running.size+textReviews.queue.waiting.size,close(){},projects,root};
+return {handle,running:()=>repairQueue.running.size+repairQueue.waiting.size+textReviews.queue.running.size+textReviews.queue.waiting.size,close(){},projects,root};
 }

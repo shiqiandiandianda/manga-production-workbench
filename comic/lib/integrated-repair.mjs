@@ -11,7 +11,7 @@ export function rebaseRepairSessions(dataDir,before,after){
   const shifted={...next,y:old.y};if(frameStamp(shifted)!==frameStamp(old))continue;const backup=path.join(dataDir,'backups','screen-boards','repair-sessions');fs.mkdirSync(backup,{recursive:true});const target=path.join(backup,name);if(!fs.existsSync(target))fs.copyFileSync(file,target);session.frameStamp=frameStamp(next);fs.writeFileSync(file,JSON.stringify(session));
  }
 }
-export function createIntegratedRepair({dataDir,store,body,json,saveProject,addAsset,apiOrigin,localTools,getRepairConcurrency=()=>2}){
+export function createIntegratedRepair({dataDir,store,body,json,saveProject,addAsset,apiOrigin,localTools}){
  const root=path.join(dataDir,'repair'),sessionsDir=path.join(root,'sessions');fs.mkdirSync(sessionsDir,{recursive:true});let pending,engine;
  const historyFile=path.join(root,'hd-image-history.json');let imageHistory=[];try{imageHistory=JSON.parse(fs.readFileSync(historyFile,'utf8'));}catch{}
  function rememberImage(panel,from,to,projectId){imageHistory.push({projectId,layerId:panel.id,parentPanelId:panel.cutoutLayer.parentPanelId,sourceAssetId:panel.cutoutLayer.sourceAssetId,from,to});fs.writeFileSync(historyFile+'.tmp',JSON.stringify(imageHistory));fs.renameSync(historyFile+'.tmp',historyFile);}
@@ -23,7 +23,7 @@ export function createIntegratedRepair({dataDir,store,body,json,saveProject,addA
    const asset=store.db.assets.find(a=>a.id===layer.imageAssetId),source=store.db.assets.find(a=>a.id===ref.sourceAssetId);if(asset&&source&&seen.has(asset.id)&&ref.width===asset.width&&ref.height===asset.height&&ref.scale===asset.width/source.width)allowed.add(layer.id);
   }return allowed;
  }
- const ensure=()=>pending||=(createRepairEngine({dataDir:root,apiOrigin:apiOrigin(),localTools,concurrency:getRepairConcurrency()}).then(value=>engine=value));
+ const ensure=()=>pending||=(createRepairEngine({dataDir:root,apiOrigin:apiOrigin(),localTools}).then(value=>engine=value));
  async function handle(req,res,{pathname,method,url}){
   if(pathname.startsWith('/repair/')||pathname==='/repair'){const editor=await ensure(),previous=req.url;req.url=req.url.replace(/^\/repair/,'')||'/';try{await editor.handle(req,res);}finally{req.url=previous;}return true;}
   if(!pathname.startsWith('/api/integrated-repair'))return false;
@@ -71,5 +71,5 @@ export function createIntegratedRepair({dataDir,store,body,json,saveProject,addA
   }
   check(false,'修图操作不存在',404);
  }
- return {handle,restorableImages,setConcurrency:value=>engine?.setConcurrency(value),running:()=>!!engine?.running()||localTools.running(),close:()=>engine?.close()};
+ return {handle,restorableImages,running:()=>!!engine?.running()||localTools.running(),close:()=>engine?.close()};
 }

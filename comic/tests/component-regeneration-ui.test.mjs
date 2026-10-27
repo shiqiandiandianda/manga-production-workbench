@@ -1,4 +1,3 @@
-import {teamChannelFixture} from './helpers/team-channel-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -12,7 +11,7 @@ import {createProject} from '../public/model.js';
 import {migrateLayerDocument} from '../public/layers.js';
 
 const require=createRequire(import.meta.url),canvas=require(process.env.COMIC_TEST_CANVAS_MODULE);
-const {chromium}=require('C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const {chromium}=require('playwright');
 const evidence=path.resolve('../verification/component-regeneration');fs.mkdirSync(evidence,{recursive:true});
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(check,message){for(let n=0;n<100;n++){const value=await check();if(value)return value;await pause(80);}throw Error(message);}
@@ -32,11 +31,11 @@ test('组件失败不停止其他组件；手部可重生、重复点击复用�
  const project=migrateLayerDocument(createProject('组件重新生成验收')).project;studio.store.db.projects.push(project);studio.store.save();
  fs.writeFileSync(path.join(data,'asset-studio.json'),JSON.stringify({projectId:project.id,mainProjectId:project.id,title:project.title}));
  await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));const comic='http://127.0.0.1:'+studio.server.address().port,origin='http://127.0.0.1:'+port;
- const channel=await teamChannelFixture(t,dir);const child=spawn(process.execPath,[path.resolve('../asset-studio/app/roles/assets.mjs'),'--port',String(port)],{cwd:path.resolve('..'),windowsHide:true,env:{...process.env,...channel.env,ASSET_EDITOR:comic,ASSET_STUDIO_DATA_DIR:data,ASSET_CANVAS_MODULE:process.env.COMIC_TEST_CANVAS_MODULE},stdio:['ignore','pipe','pipe']});let logs='';child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);
+ const child=spawn(process.execPath,[path.resolve('../asset-studio/app/roles/assets.mjs'),'--port',String(port)],{cwd:path.resolve('..'),windowsHide:true,env:{...process.env,ASSET_EDITOR:comic,ASSET_STUDIO_DATA_DIR:data,ASSET_CANVAS_MODULE:process.env.COMIC_TEST_CANVAS_MODULE},stdio:['ignore','pipe','pipe']});let logs='';child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);
  let browser;t.after(async()=>{releaseHands();await browser?.close();child.kill();await studio.close();fs.writeFileSync(path.join(evidence,'service.log'),logs);});
  await until(async()=>{try{return (await fetch(origin+'/api/health')).ok;}catch{return false;}},'资产服务未启动');
  const request=async(route,body)=>{const res=await fetch(origin+route,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});const value=await res.json();assert.ok(res.ok,JSON.stringify(value));return value;};
- const created=await request('/api/production-records',{requestId:randomUUID(),type:'character',characterRole:'lead',source:{work:{projectId:project.id,title:project.title}},name:'回归角色',outfit:'白衣',prompt:'合成图片验收，不调用真实AI',referenceIds:[]}),route='/api/production-records/'+created.id;
+ const created=await request('/api/production-records',{requestId:randomUUID(),type:'character',name:'回归角色',outfit:'白衣',prompt:'合成图片验收，不调用真实AI',referenceIds:[]}),route='/api/production-records/'+created.id;
  let record=await until(async()=>{const r=await request(route);return r.status==='failed'&&r.finished.length===3&&r;},'初始部分失败状态未回填');
  assert.equal(calls.length,4);const originalHands=record.jobs.hands;
  browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1864,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));

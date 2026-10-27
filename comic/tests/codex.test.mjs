@@ -36,6 +36,14 @@ function fixture(t,handler=async payload=>produce(payload),options={}){
   return {bridge,task,workers,requests,commands,directory};
 }
 
+test('文字修订使用独立动作并复用连接，返回提示词，不走生图动作',async t=>{
+ const f=fixture(t,async payload=>{assert.equal(payload.action,'rewrite-prompt');return {prompt:'按意见修改的完整提示词'};});
+ const result=await f.bridge.rewritePrompt(f.task('rewrite'),{},{});assert.equal(result.prompt,'按意见修改的完整提示词');assert.equal(f.requests.length,1);assert.equal(f.commands.length,0);
+});
+test('文字修订返回空结果时失败，取消信号可中断等待',async t=>{
+ const f=fixture(t,async()=>({prompt:''}));await assert.rejects(f.bridge.rewritePrompt(f.task('invalid'),{},{}),/有效/);
+ const wait=gate(),g=fixture(t,()=>wait.promise),controller=new AbortController(),promise=g.bridge.rewritePrompt(g.task('cancel'),{},{signal:controller.signal});await tick();controller.abort();await assert.rejects(promise,/取消/);wait.release({prompt:'迟到结果'});
+});
 test('连续镜头复用持久 worker，generate 不重复执行状态和CLI检查',async t=>{
   const f=fixture(t);
   for(let i=0;i<5;i++){const result=await f.bridge.generate(f.task('shot-'+i),input,[]);assert.deepEqual(result.bytes,png);assert.equal(result.imageToolSeen,true);}

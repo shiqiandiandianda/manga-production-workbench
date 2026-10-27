@@ -18,9 +18,11 @@ export function applyProductionStyle(bubble,style){
  for(const key of PRODUCTION_FONT_FIELDS)if(style[key]!==undefined)bubble[key]=style[key];const kind=productionStyleKind(bubble),box=style.boxes?.[kind];if(!box)return bubble;const cleared=clearBubbleMaterial(bubble);for(const key of ['assetContour','assetInsets','assetParts','assetTailKind','assetRays','assetFrame','comicStyleId','comicStyleLabel','styleTextureId','styleTextureAssetId','materialOutlineWidth'])delete bubble[key];Object.assign(bubble,cleared);bubble.productionBoxKind=kind;delete bubble.productionMaterialVersion;
  if(box.styleId==='none'){bubble.shape='none';bubble.fillOpacity=0;bubble.outlineWidth=0;bubble.tail={...bubble.tail,visible:false};return bubble;}
  bubble.fillColor='#ffffff';bubble.fillOpacity=1;bubble.outlineColor||='#171b20';bubble.outlineWidth=2.8;bubble.materialVisibilityVersion=1;
+ if(kind==='speech')bubble.tail={side:'bottom',base:.54,...bubble.tail,visible:true};
  if(box.styleId==='default'){bubble.shape=kind==='thought'?'burst':['person','location','time','narration'].includes(kind)?'rounded-rect':'oval';return bubble;}
  const d=builtinBubbleStyle(box.styleId)||box.definition;if(!d?.contour)return bubble;Object.assign(bubble,{shape:'asset',assetContour:copy(d.contour),assetInsets:copy(d.insets||{left:.12,right:.12,top:.12,bottom:.12}),comicStyleId:box.styleId,comicStyleLabel:d.label,materialOutlineWidth:2.8});
  if(d.parts)bubble.assetParts=copy(d.parts);if(d.rays)bubble.assetRays=copy(d.rays);if(d.frame)bubble.assetFrame=copy(d.frame);applyFramePreset(bubble,d.preset);if(d.tailKind)bubble.assetTailKind=d.tailKind;if(d.tailPreset)bubble.tail=copy(d.tailPreset);
+ if(kind==='speech'&&d.tailPreset?.visible!==false)bubble.tail={side:'bottom',base:.54,...bubble.tail,visible:true};
  if(d.texture){bubble.styleTextureId=box.styleId;bubble.styleTextureAssetId=box.localAssetId;bubble.outlineWidth=Number.isFinite(bubble.tail?.anchorT)?2.8:0;}bubble.productionMaterialVersion={styleId:box.styleId,assetId:box.assetId,revisionId:box.revisionId};return bubble;
 }
 export function productionStyleRecords(project){const c=project.productionLetteringStyles;return c?[c.global,...Object.values(c.episodes||{}),...Object.values(c.segments||{})].filter(Boolean):[];}

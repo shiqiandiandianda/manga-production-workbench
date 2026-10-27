@@ -1,10 +1,10 @@
 """Offline masked inpainting / target-guided extraction. Never writes the source."""
 import argparse,json,sys,hashlib
 from pathlib import Path
-runtime=Path(__file__).resolve().parents[2]/'.runtime/image-tools'
-sys.path.insert(0,str(runtime/'extras'))
 import numpy as np
 from PIL import Image,ImageOps,ImageDraw,ImageChops
+runtime=Path(__file__).resolve().parents[2]/'.runtime/image-tools'
+sys.path.insert(0,str(runtime/'extras'))
 import cv2
 
 def roi_pixels(selection,size):

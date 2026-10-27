@@ -1,5 +1,5 @@
 import {auditPanelReferences} from '../public/panel-reference-audit.js';
-import {assetRequirementKey} from '../public/asset-workspace-model.js';
+import {savedAssetRequirementSettings} from '../public/asset-workspace-model.js';
 import {assetWorkspaceSettings} from '../public/asset-workspace-settings.js';
 import {automaticCharacterIdentity} from '../public/character-identity-reference.js';
 import {libraryProjectScopes} from '../public/library-project-scope.js';
@@ -11,8 +11,8 @@ import {check} from './store.mjs';
 export async function discoverGenerationIdentity(store,library,input){
  const project=store.project(input.projectId);check(project.revision===input.expectedRevision,'工程已变化，请保存后重试',409);
  const panel=project.pages.flatMap(p=>p.panels).find(p=>p.id===input.panelId),need=panel&&auditPanelReferences(project,panel,store.db.assets).needs.find(n=>n.id===input.needId);check(need,'人物需求已变化，请重新打开',409);
- const settings=assetWorkspaceSettings({...project.assetWorkspaceSettings?.[assetRequirementKey(need)],...input.settings}),mode=settings.identityReferenceMode||'auto';
- if(need.role!=='character'||mode==='none'||mode==='selected'||settings.identityAssetId&&mode!=='auto')return {status:'manual',assetId:settings.identityAssetId||null,reason:'保留已指定的身份来源。'};
+ const settings=assetWorkspaceSettings({...savedAssetRequirementSettings(project,need),...input.settings}),mode=settings.identityReferenceMode||'auto';
+ if(settings.generationReferenceMode||need.role!=='character'||mode==='none'||mode==='selected'||settings.identityAssetId&&mode!=='auto')return {status:'manual',assetId:settings.identityAssetId||null,reason:'保留已指定的身份来源。'};
  const verify=()=>{check(store.project(input.projectId).revision===input.expectedRevision,'工程已变化，请重新检查人物参考',409);};
  const options={defaultIds:[...(need.selectedIds||[]),need.recommendedId].filter(Boolean),appearanceNotes:settings.appearanceNotes},local=automaticCharacterIdentity(project,store.db.assets,need,options);
  if(local.assetId)return {...local,asset:store.asset(local.assetId)};

@@ -44,7 +44,7 @@ const episodeFiles = fs.readdirSync(episodesDir)
   .filter(name => /^E\d+\.json$/.test(name))
   .sort();
 const episodes = episodeFiles.map(name => JSON.parse(fs.readFileSync(path.join(episodesDir, name), 'utf8')));
-const title = args.title || `开局神戒，召唤万虫 第${episodes[0].episode}-${episodes.at(-1).episode}话 V005`;
+const title = args.title || `示例作品 第${episodes[0].episode}-${episodes.at(-1).episode}话 V005`;
 
 const project = buildProject(episodes, title);
 

@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto';
 const uuid=value=>typeof value==='string'&&/^[a-f0-9-]{36}$/i.test(value);
 const projectTypes=new Set(['storyboard','production_table','novel','comic_project','character','scene','prop','pet','comic_panel','episode_strip','header','footer']);
 const globalTypes=[['image','bubble'],['image','nameplate'],['image','sfx_text'],['file','font']];
@@ -93,19 +92,7 @@ export function createMokuClassifiedReader({request,getAssets=()=>[]}){
   if(value.id!==item.id)throw failure('墨库返回的资产身份不一致',502);
   return (await normalize([{...item,...value}]))[0];
  }
- async function appendTags(assetId,labels){
-  if(!uuid(assetId)||!Array.isArray(labels)||!labels.length||labels.length>100||labels.some(t=>typeof t!=='string'||!t.trim()||t.trim().length>100))throw failure('标签必须为1到100个非空文本，每项最多100字',400);
-  if(!await supported())throw failure('当前墨库不支持分类标签修改，请升级墨库',409);
-  const ticket=accountEpoch,wanted=[...new Set(labels.map(t=>t.normalize('NFKC').trim()))];
-  for(let attempt=0;attempt<3;attempt++){
-   const item=await detail(await locate(assetId));unchanged(ticket);
-   const tags=[...new Set([...(item.tags||[]),...wanted])];if(tags.length>100)throw failure('追加后超过墨库100个标签上限',400);
-   if(tags.length===(item.tags||[]).length)return item;
-   try{const value=await request(context(item)+'/assets/'+assetId,{method:'PATCH',body:JSON.stringify({objectVersion:item.objectVersion,tags,tagDecision:'provided'}),headers:{'Idempotency-Key':randomUUID()}}).then(r=>r.json());unchanged(ticket);if(value.id!==assetId)throw failure('标签更新返回了其他资产',502);pending.clear();return remember({...item,...value});}
-   catch(e){unchanged(ticket);if(e.status!==409||attempt===2)throw e;}
-  }
- }
- return {supported,remember,appendTags,clear(){accountEpoch++;capability=null;assets.clear();revisions.clear();pending.clear();},async handle(route,options={}){
+ return {supported,remember,clear(){accountEpoch++;capability=null;assets.clear();revisions.clear();pending.clear();},async handle(route,options={}){
   const ticket=accountEpoch;
   if((options.method||'GET')!=='GET')return null;
   const url=new URL(route,'http://local'),history=url.pathname.match(/^\/api\/assets\/([a-f0-9-]{36})\/revisions(?:\/([a-f0-9-]{36}))?$/i),match=url.pathname.match(/^\/api\/(assets\/([a-f0-9-]{36})|revisions\/([a-f0-9-]{36})\/(download|references|preview\/[a-zA-Z0-9_.-]+))$/i);

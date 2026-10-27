@@ -24,7 +24,7 @@ const rows=['之前逃命时我曾说过，','若能逃出来就来','大人这�
 async function imported(){
  const files=syntheticFiles(),raw=JSON.parse(files[1].bytes);
  Object.assign(raw['文字'][0],{'文本':content,'分行':rows,'说话人':'岳不群'});
- raw['文字'].splice(1,0,{...raw['文字'][0],'文字ID':'E011-T004','文本':'另一位人物的台词，不能合并。','分行':['另一位人物的台词，','不能合并。'],'说话人':'宋玄'});
+ raw['文字'].splice(1,0,{...raw['文字'][0],'文字ID':'E011-T004','文本':'另一位人物的台词，不能合并。','分行':['另一位人物的台词，','不能合并。'],'说话人':'角色甲'});
  files[1].bytes=Buffer.from(JSON.stringify(raw));delete files[1].sha256;
  return productionProject(await inspectProductionPackage(files));
 }
@@ -43,7 +43,7 @@ test('整屏和裁格共用排字使用连贯原文，不合并说话人，来�
  const b=p.pages.flatMap(p=>p.bubbles).find(b=>b.productionTextId==='E011-T001');
  assert.equal(b.text,content);assert.equal(b.lineBreakMode,'auto');assert.equal(b.speaker,'岳不群');
  assert.deepEqual(b.productionOriginal['分行'],rows);
- assert.equal(p.pages.flatMap(p=>p.bubbles).find(b=>b.productionTextId==='E011-T004').speaker,'宋玄');
+ assert.equal(p.pages.flatMap(p=>p.bubbles).find(b=>b.productionTextId==='E011-T004').speaker,'角色甲');
  const edited=bubbleFieldChange(b,'bubble','text','手工第一行，\n手工第二行。');Object.assign(b,edited);
  applyProductionLettering(p,'E011-S001',options);assert.equal(b.text,'手工第一行，\n手工第二行。');
  assert.deepEqual(p.productionPackage.episodes[0].texts,original);
@@ -68,7 +68,7 @@ test('浏览器旧对白合并可撤销、保存重开，顶部状态变化不�
  const p=createProject('对白连贯导入与固定工具栏验收',true),pg=p.pages[0],frame=pg.panels[0],b=pg.bubbles[0];p.pages=[pg];pg.panels=[frame];pg.bubbles=[b];
  Object.assign(pg,{width:1280,height:1600});Object.assign(frame,{x:60,y:100,w:1100,h:1100});Object.assign(b,{text:rows.join('\n'),speaker:'岳不群',productionTextId:'E011-T001',productionOriginal:{'文本':content,'分行':rows},parentPanelId:frame.id,shotId:frame.shotId,x:120,y:160,w:600,h:400,fontSize:36,shape:'oval',lineBreakMode:'auto',textFlowVersion:1,visible:true,locked:false});normalizeLayerOrder(p);studio.store.db.projects.push(migrateLayerDocument(p).project);studio.store.save();
  await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));
- const {chromium}=createRequire(import.meta.url)('C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'),browser=await chromium.launch({channel:'msedge',headless:true}),page=await browser.newPage({viewport:{width:1864,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const {chromium}=createRequire(import.meta.url)('playwright'),browser=await chromium.launch({channel:'msedge',headless:true}),page=await browser.newPage({viewport:{width:1864,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  t.after(async()=>{await browser.close();studio.close();studio.server.closeAllConnections();});
  await page.route('**/api/team-release/status',r=>r.fulfill({json:{role:'publisher',current:'2026-10-24 V124',latest:'2026-10-24 V124',controlUrl:'http://127.0.0.1:18913/',available:false}}));
  await page.goto('http://127.0.0.1:'+studio.server.address().port+'/?project='+p.id);await page.waitForFunction(()=>document.querySelector('#save-state').textContent==='已保存到本机');await page.locator('#workbench-primary-nav').waitFor();await page.waitForTimeout(700);

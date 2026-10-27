@@ -30,7 +30,10 @@ export class GenerationSettings {
   }
   updatePlatforms(value){
     const platforms=validatePlatformConcurrency(value);
-    const limits={codex:Math.max(this.limits.codex,Math.min(platforms.main,8)),jimeng:Math.max(this.limits.jimeng,platforms.main)};
+    // The shared "total concurrency" control is the only concurrency control in the
+    // UI. Provider limits follow it deterministically instead of only ever rising,
+    // so lowering the slider really lowers what the queue may start.
+    const limits={codex:Math.min(platforms.main,8),jimeng:platforms.main};
     this.save(limits,platforms);return this.platformSnapshot();
   }
 }

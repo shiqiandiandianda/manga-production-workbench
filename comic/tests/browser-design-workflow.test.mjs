@@ -12,7 +12,7 @@ import {ensureProjectPanelGeneration} from '../public/panel-generation.js';
 import {ensureLayoutHistory} from '../public/layout-history.js';
 const root=fileURLToPath(new URL('../',import.meta.url)),require=createRequire(import.meta.url),modules=path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'),{chromium}=require(path.join(modules,'playwright'));
 test('AI design actual UI: import, real390 preview, apply, independent bubble edit, undo and reopen',{timeout:90000},async t=>{
- const qaRoot=path.resolve('D:/生图平台/升级工作/AI设计版_合入封面尾图_20261014/qa/browser-design-workflow');fs.mkdirSync(qaRoot,{recursive:true});
+ const qaRoot=path.resolve('../verification/synthetic-browser');fs.mkdirSync(qaRoot,{recursive:true});
  const directory=fs.mkdtempSync(path.join(qaRoot,'design-browser-')),evidence=path.join(root,'merge-audit','ai-design',String(Date.now())+'-'+process.pid);fs.mkdirSync(evidence,{recursive:true});
  const fake={status:async()=>({connected:false,installed:false,needsLogin:false,message:'synthetic'}),models:async()=>({items:[]}),close(){},generate:async()=>{throw Error('No image generation allowed in synthetic browser test');}};
  const project=migrateLayerDocument(createProject('合成AI设计浏览器测试',true)).project;ensureProjectPanelGeneration(project,[]);ensureLayoutHistory(project);const original=clone(project),bubble=project.pages[0].bubbles[0],frame=project.pages[0].panels.find(f=>f.id===bubble.parentPanelId);

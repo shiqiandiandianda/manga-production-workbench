@@ -9,19 +9,10 @@ export function generationPromptChoices(panel,project){
  if(original.productionPromptVariants===1){const empty=read(['生图提示词(空泡)']);return PROMPT_SOURCES.map(option=>({...option,label:option.value==='imported'?'单格空泡原文':option.value==='post-lettering'?'单格无泡原文':'直出提示词（本格未提供）',...(option.value==='imported'?empty:option.value==='post-lettering'?post:{text:'',column:null})}));}
  const content=read(['画面内容','画面描述','description','画面','分镜内容','分镜','画面内容描述']);
  const imported=explicit.text?explicit:post.text?post:direct.text?direct:content.text?content:{text:original.productionPrompt||original.description||generation.prompt||'',column:null};
- return PROMPT_SOURCES.map(option=>({...option,...(original.productionSegment?{label:option.value==='imported'?'屏段空泡原文':option.value==='post-lettering'?'屏段无泡原文':'直出提示词（本包未提供）'}:{}),...(option.value==='direct'?direct:option.value==='post-lettering'?post:imported)}));
-}
-// Preserve explicit edits saved by pre-override workbenches before refreshing source snapshots.
-export function legacyPromptOverrides(generation={}){
- const overrides={...generation.promptOverrides};
- if(generation.promptEditVersion===1||Object.hasOwn(overrides,'imported')||typeof generation.prompt!=='string')return overrides;
- const original=generation.sourceSnapshot?.original;
- if(original&&typeof (original.productionPrompt||original.description)==='string'&&generation.prompt!==(original.productionPrompt||original.description))overrides.imported=generation.prompt;
- else if(!original&&generation.promptSource==='current')overrides.imported=generation.prompt;
- return overrides;
+ return PROMPT_SOURCES.map(option=>({...option,...(original.productionSegment?{label:option.value==='imported'?'屏段空泡原文':option.value==='post-lettering'?'屏段无泡原文':direct.text?'单格带字原文':'直出提示词（本包未提供）'}:{}),...(option.value==='direct'?direct:option.value==='post-lettering'?post:imported)}));
 }
 export function generationPromptSelection(panel,project){
- const source=promptSource(panel?.generation?.promptSource),original=generationPromptChoices(panel,project).find(option=>option.value===source),overrides=legacyPromptOverrides(panel?.generation);
+ const source=promptSource(panel?.generation?.promptSource),original=generationPromptChoices(panel,project).find(option=>option.value===source),overrides=panel?.generation?.promptOverrides;
  const edited=!!overrides&&Object.hasOwn(overrides,source)&&typeof overrides[source]==='string';
  const text=effectiveOutfitPrompt(project,panel,edited?overrides[source]:original.text);
  return {...original,source,originalText:original.text,edited:edited||text!==original.text,text};

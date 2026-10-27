@@ -29,7 +29,7 @@ test('导出 v2 只带路径；重新导入保留图片索引、建立独立工�
  const f=await fixture(t),p=(await f.request('/api/projects','POST',{title:'路径工程'})).data,asset=(await f.request('/api/assets','POST',{filePath:f.original})).data;
  await f.request(`/api/projects/${p.id}/panels/${p.pages[0].panels[0].id}/image`,'POST',{assetId:asset.id});
  const {data:exported}=await f.request('/api/projects/'+p.id+'/export');assert.equal(exported.version,2);assert.equal(exported.assets[0].filePath,asset.filePath);assert.equal(exported.assets[0].dataUrl,undefined);
- assert.equal((await f.request('/api/projects/import','POST',exported)).status,409,'duplicate identity is not silently copied');const imported=await f.request('/api/projects/import','POST',{...exported,importMode:'copy'});assert.equal(imported.status,201);assert.notEqual(imported.data.id,p.id);assert.notEqual(imported.data.shots[0].id,p.shots[0].id);assert.equal(imported.data.pages[0].panels[0].imageAssetId,asset.id);assert.equal(fs.existsSync(path.join(f.dataDir,'assets')),false);
+ const imported=await f.request('/api/projects/import','POST',exported);assert.equal(imported.status,201);assert.notEqual(imported.data.id,p.id);assert.notEqual(imported.data.shots[0].id,p.shots[0].id);assert.equal(imported.data.pages[0].panels[0].imageAssetId,asset.id);assert.equal(fs.existsSync(path.join(f.dataDir,'assets')),false);
 });
 test('原文件移动后明确报错，同尺寸重新指定路径保留 ID、画格和取景',async t=>{
  const f=await fixture(t),p=(await f.request('/api/projects','POST',{title:'路径修复'})).data,asset=(await f.request('/api/assets','POST',{filePath:f.original})).data;

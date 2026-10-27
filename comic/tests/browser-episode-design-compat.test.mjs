@@ -13,7 +13,7 @@ import {ensureEpisodeBoards,resolveBoard} from '../public/episode-boards.js';
 
 const require=createRequire(import.meta.url),modules=path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules');
 const {chromium}=require(path.join(modules,'playwright')),graphics=require(path.join(modules,'@napi-rs/canvas'));
-const qaRoot=path.resolve('D:/生图平台/升级工作/AI设计版_合入封面尾图_20261014/qa/browser-episode-design-compat');
+const qaRoot=path.resolve('../verification/synthetic-browser');
 const outline={version:1,sourceKey:'synthetic-browser-design-compat',workTitle:'合成兼容作品',episodes:[{episode:1,title:'第一话自动话名'},{episode:2,title:'第二话自动话名'}]};
 
 function fixture(episode=1){

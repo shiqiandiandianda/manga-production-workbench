@@ -33,11 +33,12 @@ export function applyBubbleMaterial(bubble,styleId,textureAssetId){
  if(!next.tail||next.tail.visible===undefined)next.tail={...DEFAULT_TAIL,...(next.tail||{})};
  delete next.styleTextureId;delete next.styleTextureAssetId;
  delete next.styleLibrary;
- if(style.assetId&&style.revisionId)next.styleLibrary={assetId:style.assetId,revisionId:style.revisionId,styleId:style.id,assetType:style.assetType||'bubble',assetKind:'image',projectId:null,scopeId:'global',definitionSha256:style.definitionSha256};
+ if(style.assetId&&style.revisionId)next.styleLibrary={assetId:style.assetId,revisionId:style.revisionId,styleId:style.id,definitionSha256:style.definitionSha256,assetType:style.assetType||'bubble',assetKind:'image',projectId:null,scopeId:'global'};
  delete next.assetParts;delete next.assetTailKind;delete next.assetRays;delete next.assetFrame;
  if(style.parts)next.assetParts=structuredClone(style.parts);if(style.rays)next.assetRays=structuredClone(style.rays);
  if(style.tailKind)next.assetTailKind=style.tailKind;
  if(style.tailPreset)next.tail=structuredClone(style.tailPreset);if(style.frame)next.assetFrame=structuredClone(style.frame);applyFramePreset(next,style.preset);
+ if(next.type==='speech'&&style.tailPreset?.visible!==false)next.tail={...DEFAULT_TAIL,...next.tail,visible:true};
  if(style.texture){next.styleTextureId=style.id;if(textureAssetId)next.styleTextureAssetId=textureAssetId;}
  return next;
 }

@@ -113,6 +113,3 @@ body{height:100vh;height:100dvh;display:grid;grid-template-rows:auto minmax(0,1f
 .project-manager-actions{display:flex;gap:6px;flex:none}.danger-button{color:var(--danger)}.project-trash{margin-top:20px}.project-trash summary{cursor:pointer;color:var(--muted);padding:6px 0}
 .empty-project{position:absolute;inset:0;z-index:1;display:grid;place-content:center;gap:12px;text-align:center;color:var(--muted);padding:24px;line-height:1.7}.empty-project strong{font-size:17px;color:var(--text)}
 @media(max-width:650px){.topbar #manage-projects{padding:5px 7px;font-size:11px}.project-manager-row{gap:8px}.project-manager-actions{gap:3px}.project-manager-actions button{padding:6px 8px}}
-
-/* Formal engineering versions: comparisons stay readable without hiding confirmations. */
-.formal-version-state,.formal-history-item,.formal-conflict{padding:12px;margin:10px 0;border:1px solid var(--line,#555);border-radius:8px}.formal-conflict pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto}.formal-version-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.formal-history-item button{margin:4px}.formal-conflict select{width:100%}

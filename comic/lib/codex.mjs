@@ -102,10 +102,10 @@ export class CodexBridge {
       slot=await this._acquire(signal);if(signal.aborted)throw cancelledError();
       const worker=this._getWorker(slot);
       if(Number.isInteger(worker.child?.pid))options.onWorkerPid?.(worker.child.pid);
-      const result=await worker.request({action,...payload},{timeout:action==='generate'?960000:130000,signal,onEvent:options.onEvent});
+      const result=await worker.request({action,...payload},{timeout:action==='generate'?960000:action==='rewrite-prompt'?260000:130000,signal,onEvent:options.onEvent});
       if(action==='generate'||action==='probe'&&result.sessionReady===true){this.lastConnectionFailure=null;this.sessionReady=true;this.statusCache=null;}
       return result;
-    }catch(error){const connectionFailure=/^(system_memory_low|app_server_closed|app_server_timeout|workspace_routing_timeout|worker_closed|worker_start_failed|worker_ipc_timeout|worker_timeout|worker_protocol_error)$/.test(error.code||'');if(connectionFailure){this.lastConnectionFailure={message:error.message,code:error.code,stage:error.stage,at:this.now()};this.sessionReady=false;this.statusCache=null;}if((action==='generate'||connectionFailure)&&slot){slot.retire=true;slot.worker?.close();}throw error;}finally{done=true;if(key&&this.operations.get(key)===operation)this.operations.delete(key);if(slot)this._release(slot);}
+    }catch(error){const connectionFailure=/^(system_memory_low|app_server_closed|app_server_timeout|workspace_routing_timeout|worker_closed|worker_start_failed|worker_ipc_timeout|worker_timeout|worker_protocol_error)$/.test(error.code||'');const rateLimited=error.code==='account_rate_limited';if(connectionFailure){this.lastConnectionFailure={message:error.message,code:error.code,stage:error.stage,at:this.now()};this.sessionReady=false;this.statusCache=null;}if((action==='generate'&&!rateLimited||connectionFailure)&&slot){slot.retire=true;slot.worker?.close();}throw error;}finally{done=true;if(key&&this.operations.get(key)===operation)this.operations.delete(key);if(slot)this._release(slot);}
   }
   async imageCapabilities({assets=[],force=false}={}){return codexImageCapabilities({status:await this.status({force}),assets});}
  async _metadata(){
@@ -168,6 +168,11 @@ export class CodexBridge {
     check(roots.some(base=>inside(base,resolved)),'结果图片超出本次任务或 Codex 原生生图目录',502);
     check(fs.existsSync(resolved)&&!fs.lstatSync(resolved).isSymbolicLink()&&fs.statSync(resolved).isFile(),'结果图片不存在或不是普通文件',502);
     check(roots.filter(base=>fs.existsSync(base)).some(base=>inside(fs.realpathSync(base),fs.realpathSync(resolved))),'结果图片真实路径超出允许目录',502);return fs.realpathSync(resolved);
+  }
+  async rewritePrompt(directory,input,{signal}={}){
+    check(!this.closed,'Codex 连接池已关闭',409);check(this.command&&this.python,'请先配置官方 Codex 和 Python',409);
+    const result=await this._request('rewrite-prompt',{directory:path.resolve(directory)},{signal});
+    check(typeof result?.prompt==='string'&&result.prompt.trim()&&result.prompt.length<=20000,'Codex 没有返回有效的完整提示词',502);return {prompt:result.prompt};
   }
   async generate(directory,input,referenceFiles,{onChild,onProgress,onWorkerPid,signal,globalSlot}={}){
     if(signal?.aborted)throw cancelledError();check(!this.closed,'生图连接池已关闭',409);check(this.command&&this.python,'请先配置官方 Codex 和 Python',409);

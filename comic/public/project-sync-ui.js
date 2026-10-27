@@ -31,12 +31,12 @@ export function mountProjectSyncUI({getProject,getJobs=()=>null,api,toast,openLi
     if(connected===false){set({kind:'off',text:'墨库未登录',title:'点击直接输入墨库账号和密码'});return;}
     if(!project){set({kind:'idle',text:'墨库',title:'打开工程后，保存会自动上传工程快照'});return;}
     if(busy){set({kind:'busy',text:'上传中…',title:'正在把当前工程快照上传到墨库'});return;}
-    if(state.setupRequired){set({kind:'pending',text:'选择墨库归属',title:'本机已保存；点击选择项目与具体话；角色和场景为可选关联'});return;}
+    if(state.setupRequired){set({kind:'pending',text:'选择墨库归属',title:'本机已保存；点击选择项目、角色或场景并首次共享工程'});return;}
     if(state.error){set({kind:'error',text:'墨库同步失败',title:summary(state.error)+'（点击重试）'});return;}
     if(state.pending){set({kind:'pending',text:'墨库待上传',title:'本次保存的快照等待上传；点击立即上传'});return;}
     if(state.syncedAt){
       const target=state.target?.name?' · '+state.target.name:'';
-      set({kind:'synced',text:'墨库快照 '+clock(state.syncedAt),title:'工程历史快照已保存到墨库'+target+'；此回执不代表项目某话的正式最新版。点击提交当前快照'});
+      set({kind:'synced',text:'墨库 '+clock(state.syncedAt),title:'工程快照已同步到墨库'+target+'；点击立即上传最新版本'});
       return;
     }
     set({kind:'idle',text:'墨库未同步',title:'点击把当前工程快照上传到墨库'});
@@ -73,7 +73,7 @@ export function mountProjectSyncUI({getProject,getJobs=()=>null,api,toast,openLi
     try{
       const result=await api('/api/project-sync/push','POST',{projectId:project.id});
       state=result.state||state;
-      toast?.(result.status==='generating'?'生成中，已暂停上传；生成结束后继续同步':result.status==='unchanged'?'此内容已有相同墨库快照':`已上传工程快照到墨库${result.target?.name?' · '+result.target.name:''}`);
+      toast?.(result.status==='generating'?'生成中，已暂停上传；生成结束后继续同步':result.status==='unchanged'?'墨库已有最新工程快照':`已上传工程快照到墨库${result.target?.name?' · '+result.target.name:''}`);
     }catch(error){try{const latest=await api('/api/project-sync/status?projectId='+encodeURIComponent(project.id));state=latest;if(latest.setupRequired&&openSetup)await openSetup();else toast?.('上传墨库失败：'+(latest.error||error.message),true);}catch{toast?.('上传墨库失败：'+error.message,true);}}
     finally{busy=false;await refresh({force:true});}
   });

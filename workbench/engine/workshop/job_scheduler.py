@@ -78,8 +78,8 @@ def merge_project_delta(baseline,updated,live):
 
 
 def concurrency_limit(settings):
-    value=settings.get('maxConcurrentJobs',8)
-    if isinstance(value,bool) or not isinstance(value,int) or not 1<=value<=8:return 8
+    value=settings.get('maxConcurrentJobs',2)
+    if isinstance(value,bool) or not isinstance(value,int) or not 1<=value<=8:return 2
     return value
 
 

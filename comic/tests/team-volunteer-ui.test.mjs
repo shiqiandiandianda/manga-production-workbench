@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import {createRequire} from 'node:module';
 const root=path.resolve(import.meta.dirname,'../..'),out=path.join(root,'verification/team-volunteer-20261026');fs.mkdirSync(out,{recursive:true});
-const {chromium}=createRequire(import.meta.url)('C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const {chromium}=createRequire(import.meta.url)('playwright');
 test('主动帮忙界面：只列可领取任务、暂停时手动帮一次、双击一次请求、忙碌与空列表提示、窄屏对齐',{timeout:25000},async t=>{
  const data={updatedAt:Date.now(),self:{nodeId:'self',manualHelp:{available:true,slots:1,supported:true,message:'可主动帮忙 1 项'}},connection:{reachable:true},projects:[],members:[],nodes:[{id:'self',name:'本机',machine:'SYNTHETIC',mine:true,online:true,enabled:false,freeSlots:0,concurrency:1}],tasks:[
   {id:'waiting',kind:'collaboration',name:'合成画格 <img src=x onerror=alert(1)>',work:'合成作品',owner:'同事甲',status:'queued',canVolunteer:true,createdAt:Date.now(),updatedAt:Date.now()},

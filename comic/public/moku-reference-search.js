@@ -1,3 +1,4 @@
+import {fuzzyAssetCandidates} from './asset-fuzzy-search.js';
 import {assetUnavailable} from './asset-availability.js';
 import {isCollaborationFile} from './collaboration-files.js';
 import {libraryProjectScopes} from './library-project-scope.js';
@@ -22,7 +23,7 @@ export function createMokuReferenceSearch({api,project,assets=[],verify=()=>{}})
   async function worker(){for(;;){const index=cursor++;if(index>=scopes.length)return;const projectId=scopes[index],items=[];try{
    for(let page=0;page<maxPages;page++){
     check();onProgress('搜索墨库 · '+(names.get(projectId)||'项目库'));
-    const result=await cachedPage('/api/library/assets?'+new URLSearchParams({projectId,kind:'image',groupCharacters:'true',q:query.trim(),limit:'200',offset:String(page*200)}));check();
+    const result=await cachedPage('/api/library/assets?'+new URLSearchParams({projectId,kind:'image',groupCharacters:'false',q:'',limit:'200',offset:String(page*200)}));check();
     const rows=result.items||[];items.push(...rows.filter(usableMokuImage).map(item=>({...item,projectId:item.projectId||projectId,projectName:names.get(projectId)||'项目库'})));
     if(result.more===false||result.more===undefined&&rows.length<200)break;
     if(!rows.length||page===maxPages-1){complete=false;notes.push((names.get(projectId)||'项目库')+' 结果过多，请补充名称或服装关键词');break;}
@@ -30,6 +31,6 @@ export function createMokuReferenceSearch({api,project,assets=[],verify=()=>{}})
   }catch(error){check();complete=false;notes.push((names.get(projectId)||'项目库')+'：'+error.message);}pages[index]=items;}}
   await Promise.all(Array.from({length:Math.min(4,scopes.length)},worker));check();
   const items=[...new Map(pages.flat().filter(Boolean).map(item=>[item.id+'@'+mokuRevision(item),item])).values()];
-  return {items,complete,notes,searched:scopes.length};
+  return {items:fuzzyAssetCandidates(items,query),complete,notes,searched:scopes.length};
  }};
 }

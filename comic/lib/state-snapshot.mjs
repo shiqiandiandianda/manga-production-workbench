@@ -35,7 +35,7 @@ export function createStateSnapshot({store,publicJob,projectView=project=>projec
   const jobs=liveJobs(),membership=trackJobs(jobs),assetsStamp=digest(JSON.stringify(store.db.assets));
   const stamps={s:instance,p:Object.fromEntries(projects.map(p=>[p.id,store.changed?.(p)?digest(JSON.stringify(p)):store.projectStamp?.(p.id)||null])),a:assetsStamp,j:jobClock,jm:membership};
   const known=parseKnown(searchParams.get('known'));
-  if(!known||known.s!==instance)return {projects:projects.map(projectView),deletedProjects,assets:store.db.assets,jobs,layouts:[],...extra,stamps};
+  if(!known||known.s!==instance)return {projects:projects.map(projectView),deletedProjects,assets:store.db.assets,jobs,layouts:store.db.layouts||[],...extra,stamps};
   const knownProjects=known.p&&typeof known.p==='object'?known.p:{};
   const since=Number.isFinite(known.j)?known.j:-1;
   return {
@@ -44,8 +44,9 @@ export function createStateSnapshot({store,publicJob,projectView=project=>projec
    deletedProjects,
    ...(known.a===assetsStamp?{assetsUnchanged:true}:{assets:store.db.assets}),
    jobs:jobs.filter(job=>jobState.get(job.id).clock>since),
+   layouts:store.db.layouts||[],
    ...(known.jm===membership?{}:{jobIds:jobs.map(job=>job.id)}),
-   layouts:[],...extra,stamps
+   ...extra,stamps
   };
  };
 }

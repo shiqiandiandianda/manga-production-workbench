@@ -52,9 +52,3 @@ body.modern-workbench.unified-workbench #inspector-panel .bubble-properties :is(
 body.modern-workbench.unified-workbench #inspector-panel .bubble-properties button{font-size:12px}
 @media(max-height:800px){.modern-workbench #inspector-panel:has([data-bubble-properties]) .inspector-title{padding-top:10px;padding-bottom:8px}.bubble-properties-pane{gap:8px}.bubble-properties .field-grid{gap:7px 9px}.bubble-properties input:not([type=checkbox]):not([type=range]),.bubble-properties select{height:32px;min-height:32px}}
 @media(max-height:740px){.bubble-properties .bubble-content-field textarea{height:58px;min-height:48px}}
-@media(max-height:800px){
- .bubble-properties{padding-top:4px}
- .bubble-properties .bubble-content-field textarea{height:52px;min-height:48px;margin-bottom:4px}
- .modern-workbench .bubble-style-shortcut{min-height:40px;padding:5px 8px;margin-bottom:5px}
- .bubble-properties-pane{padding-top:6px;gap:6px}
-}

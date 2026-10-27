@@ -3,10 +3,11 @@ export {characterRole} from '../public/character-role.js';
 const text=value=>typeof value==='string'?value.trim():'';
 export const CHARACTER_APPEARANCE_VERSION=1;
 export const CHARACTER_ROLES=['auto','lead','background'];
-export const characterGenerationMode=asset=>characterRole(asset)==='background'?'card':'components';
+export const characterGenerationMode=asset=>asset?.characterOutputMode==='components'?'components':'card';
 export function characterAppearanceSettings(input){
  const result={};
  if(input.characterRole!==undefined){if(!CHARACTER_ROLES.includes(input.characterRole))throw Error('人物定位无效');result.characterRole=input.characterRole;}
+ if(input.characterOutputMode!==undefined){if(!['card','components'].includes(input.characterOutputMode))throw Error('人物生成方式无效');result.characterOutputMode=input.characterOutputMode;}
  if(input.appearanceNotes!==undefined){if(typeof input.appearanceNotes!=='string'||input.appearanceNotes.length>1600)throw Error('人物外观补充格式无效或过长');result.appearanceNotes=input.appearanceNotes.trim();}
  return result;
 }

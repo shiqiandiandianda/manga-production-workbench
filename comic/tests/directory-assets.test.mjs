@@ -22,12 +22,12 @@ async function fixture(t){
  return {studio,directory,source,dataDir,write,request};
 }
 test('递归识别中文和空格路径，分类子目录；相同文件名保留两条路径',async t=>{
- const f=await fixture(t);f.write('01_角色/版本A/宋玄.png');f.write('01_角色/版本B/宋玄.png');f.write('02_场景/公堂.PNG');f.write('03_道具与特效/剑.png');f.write('04_参考资料/画风.png');f.write('根图.png');f.write('说明.txt',Buffer.from('说明'));
- const scan=await scanImageDirectory('"'+f.source+'"');assert.equal(scan.count,6);assert.equal(scan.ignored.unsupported,1);assert.equal(scan.files.filter(x=>x.name==='宋玄.png').length,2);assert.equal(scan.files.find(x=>x.name==='剑.png').role,'prop');assert.equal(scan.files.find(x=>x.name==='公堂.PNG').role,'scene');assert.ok(scan.files.every(x=>path.isAbsolute(x.filePath)));
+ const f=await fixture(t);f.write('01_角色/版本A/角色甲.png');f.write('01_角色/版本B/角色甲.png');f.write('02_场景/公堂.PNG');f.write('03_道具与特效/剑.png');f.write('04_参考资料/画风.png');f.write('根图.png');f.write('说明.txt',Buffer.from('说明'));
+ const scan=await scanImageDirectory('"'+f.source+'"');assert.equal(scan.count,6);assert.equal(scan.ignored.unsupported,1);assert.equal(scan.files.filter(x=>x.name==='角色甲.png').length,2);assert.equal(scan.files.find(x=>x.name==='剑.png').role,'prop');assert.equal(scan.files.find(x=>x.name==='公堂.PNG').role,'scene');assert.ok(scan.files.every(x=>path.isAbsolute(x.filePath)));
  const direct=await scanImageDirectory(pathToFileURL(f.source).href,{recursive:false});assert.equal(direct.count,1);assert.equal(direct.files[0].name,'根图.png');assert.equal(f.studio.store.db.assets.length,0);
 });
 test('顶层资产分类优先，混合资产包子目录名称不覆盖道具特效和版式分类',()=>{
- assert.equal(inferAssetRole('01_资产/03_道具与特效/大周玄衣卫_资产包2_场景道具与资料/特效.png'),'prop');
+ assert.equal(inferAssetRole('01_资产/03_道具与特效/示例项目_资产包2_场景道具与资料/特效.png'),'prop');
  assert.equal(inferAssetRole('01_资产/05_标题头图与版式/场景资料/标题.png'),'style');
  assert.equal(inferAssetRole('03_道具与特效/版本B/图.png'),'prop');
  assert.equal(inferAssetRole('01_角色/场景版/人物.png'),'character');

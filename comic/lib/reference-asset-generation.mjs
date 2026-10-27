@@ -8,7 +8,7 @@ import {unknownState} from '../public/character-states.js';
 import {deriveSceneReference,sceneSpaceEvidence} from '../public/reference-scene-source.js';
 import {sceneFrontPrompt,sceneAssetSpec,propAssetPrompt} from './scene-asset-prompts.mjs';
 import {assetProvenance} from '../public/asset-provenance.js';
-import {assetRequirementKey} from '../public/asset-workspace-model.js';
+import {savedAssetRequirementSettings} from '../public/asset-workspace-model.js';
 import {assetWorkspaceSettings} from '../public/asset-workspace-settings.js';
 import {characterAppearancePrompt} from './character-appearance.mjs';
 import {CHARACTER_CARD_LAYOUT_RULES} from '../public/hand-card-rules.js';
@@ -26,8 +26,8 @@ export function referenceAssetGenerationRequest(project,input,assets){
  check(need&&['character','scene','prop'].includes(need.role),'本格参考需求已变化，请重新打开参考窗口',409);
  const defaultReferenceIds=[...new Set([...need.selectedIds,...(!panel.productionSegment?[need.recommendedId]:[])].filter(id=>id&&!removedReferenceIds(project,panel.id,need.id).includes(id)))];
  // Never silently choose one of several identity/state variants.
- if(need.role!=='character')check(defaultReferenceIds.length<=1,'此项已有多个参考版本，请先明确选用一个版本再重新生成',409);
- const settings=assetWorkspaceSettings({...project.assetWorkspaceSettings?.[assetRequirementKey(need)],...input.settings}),referencePlan=generationReferencePlan(project,assets,need,settings,defaultReferenceIds),referenceIds=referencePlan.referenceIds;
+ if(need.role!=='character'&&!input.settings?.generationReferenceMode)check(defaultReferenceIds.length<=1,'此项已有多个参考版本，请先明确选用一个版本再重新生成',409);
+ const settings=assetWorkspaceSettings({...savedAssetRequirementSettings(project,need),...input.settings}),referencePlan=generationReferencePlan(project,assets,need,settings,defaultReferenceIds),referenceIds=referencePlan.referenceIds;
  const image=assets.find(a=>a.id===referenceIds[0]),meta=image&&assetMetadata(image),unspecified=!need.state||unknownState(need.state);
  const state=need.role==='scene'?'':unspecified?(meta?.state||'未指定（原创候选，待确认）'):need.state;
  const provenance=assetProvenance(project,panel,need),evidence=provenance[0];
@@ -44,5 +44,5 @@ export function referenceAssetGenerationRequest(project,input,assets){
  const prompt=need.role==='scene'?sceneFrontPrompt(sceneRecord,project):need.role==='prop'?propAssetPrompt({name:need.name,prompt:sourcePrompt,referenceIds},project):'';
  const episode=pageEpisode(project,page);
  const characterPrompt=need.role==='character'?buildCharacterAssetPrompt({project,need,settings,referencePlan,provenance,sourceDescription:sourcePrompt}):null;
- return {need,panel,referenceIds,scene,sceneMeta,payload:{identityReference:referencePlan.identitySelection||null,role:need.role,name:need.name,state,prompt:characterPrompt?.prompt||[prompt,settings.assetBrief&&'本资产补充要求：'+settings.assetBrief].filter(Boolean).join('\n'),...(characterPrompt?{originalAssetPrompt:characterPrompt.originalPrompt,assetPromptSource:characterPrompt.baseSource,assetPromptSha256:characterPrompt.baseSha256,promptFrameworkVersion:characterPrompt.version}:{}),settings,provenance,originalPrompt,newCandidate:true,clientRequestId:'reference-'+project.id+'-'+input.requestId,requester:'漫画工作台 · 本格参考',episode,scene,sceneMeta,usages:[{tool:'comic',episode,unitId:panel.name||shot.code||panel.id,shotId:panel.shotId,targetId:panel.id}]}};
+ return {need,panel,referenceIds,scene,sceneMeta,payload:{identityReference:referencePlan.identitySelection||null,role:need.role,name:need.name,state,prompt:characterPrompt?.prompt||[prompt,referencePlan.guidance,settings.assetBrief&&'本资产补充要求：'+settings.assetBrief].filter(Boolean).join('\n'),...(characterPrompt?{originalAssetPrompt:characterPrompt.originalPrompt,assetPromptSource:characterPrompt.baseSource,assetPromptSha256:characterPrompt.baseSha256,promptFrameworkVersion:characterPrompt.version}:{}),settings,provenance,originalPrompt,newCandidate:true,clientRequestId:'reference-'+project.id+'-'+input.requestId,requester:'漫画工作台 · 本格参考',episode,scene,sceneMeta,usages:[{tool:'comic',episode,unitId:panel.name||shot.code||panel.id,shotId:panel.shotId,targetId:panel.id}]}};
 }

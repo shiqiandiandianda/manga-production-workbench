@@ -6,7 +6,7 @@ import {uid,check} from './store.mjs';
 import {sendFile} from './send-file.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)),customCache=process.env.COMIC_STYLE_LIBRARY_DIR?path.resolve(process.env.COMIC_STYLE_LIBRARY_DIR):null;
 const catalogueRoot=(()=>{const value=comicStyles.find(item=>typeof item.filePath==='string')?.filePath||'',parts=value.split(/[\\/]/),index=parts.lastIndexOf('漫画素材');return index>=0&&path.isAbsolute(value)?path.resolve(parts.slice(0,index+1).join(path.sep)):null;})();
-const bundledCache=path.join(root,'materials','漫画素材');
+const bundledCache=path.join(root,'public','comic-materials','漫画素材');
 // The catalogue records the original D: paths. COMIC_STYLE_LIBRARY_DIR points at a copy of the
 // 漫画素材 folder on another computer; the same relative path is looked up there.
 export function comicStyleSourcePath(item){const parts=String(item.filePath||'').split(/[\\/]/),index=parts.lastIndexOf('漫画素材');if(index<0)return '';const relative=parts.slice(index+1);if(customCache)return path.join(customCache,...relative);if(item.filePath&&fs.existsSync(item.filePath))return item.filePath;return path.join(bundledCache,...relative);}

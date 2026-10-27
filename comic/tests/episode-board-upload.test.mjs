@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 import {createStudio} from '../server.mjs';
 import {createProject} from '../public/model.js';
 import {ensureEpisodeBoards,resolveBoard} from '../public/episode-boards.js';
-const require=createRequire(import.meta.url),runtime=process.env.COMIC_TEST_NODE_MODULES||'C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules';
+const require=createRequire(import.meta.url),runtime=process.env.COMIC_TEST_NODE_MODULES||(process.env.CODEX_TEST_NODE_MODULES || 'node_modules');
 const {createCanvas}=require(process.env.COMIC_TEST_CANVAS_MODULE||path.join(runtime,'@napi-rs/canvas'));
 const proof=path.resolve(import.meta.dirname,'../../verification/board-upload-20261023');fs.mkdirSync(proof,{recursive:true});
 const hash=b=>createHash('sha256').update(b).digest('hex');

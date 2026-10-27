@@ -9,9 +9,9 @@ export function productionProject(source,title,{legacy=false}={}){
   const page={id:id('page'),name:`第${episode.episode}话`,width:1280,height:episode.segments.length*3840,background:'#ffffff',panels:[],bubbles:[],storyboard:{episode:episode.episode,projection:'production-segments'}};
   let screenTop=0;
   for(const segment of episode.segments){
-   const screenHeight=segment.imagePlan?1280*segment.imagePlan.height/segment.imagePlan.width:3840;segment.documentY=screenTop;
-   const shot={id:id('shot'),episode:episode.episode,code:segment.id,title:segment.localId+' · '+segment.scene,description:segment.scene||segment.localId,dialogue:'',referenceIds:[],sourceFields:{'生图提示词':segment.prompts['空泡'],'生图提示词（后期嵌字）':segment.prompts['无泡']},productionPrompt:segment.prompts['空泡'],sourceLocation:segment.source.file,productionSegment:segment.id};
-   const frame=panel(shot.id,0,screenTop,1280,screenHeight);Object.assign(frame,{name:segment.localId+' · '+segment.scene,border:0,feather:0,productionSegment:segment.id,referenceIds:[]});frame.generation={version:1,promptSource:segment.prompts['无泡']?.trim()?'post-lettering':'imported',referenceRoles:[]};
+   const screenHeight=segment.imagePlan?Math.round(1280*segment.imagePlan.height/segment.imagePlan.width):3840;segment.documentY=screenTop;
+   const shot={id:id('shot'),episode:episode.episode,code:segment.id,title:segment.localId+' · '+segment.scene,description:segment.scene||segment.localId,dialogue:'',referenceIds:[],sourceFields:segment.singleMode&&segment.mode==='direct'?{'直出提示词':segment.prompts['带字']}:{'生图提示词':segment.prompts['空泡'],'生图提示词（后期嵌字）':segment.prompts['无泡']},productionPrompt:segment.singleMode&&segment.mode==='direct'?segment.prompts['带字']:segment.prompts['无泡']||segment.prompts['空泡'],sourceLocation:segment.source.file,productionSegment:segment.id};
+   const frame=panel(shot.id,0,screenTop,1280,screenHeight);Object.assign(frame,{name:segment.localId+' · '+segment.scene,border:0,feather:0,productionSegment:segment.id,referenceIds:[]});frame.generation={version:1,promptSource:segment.singleMode&&segment.mode==='direct'?'direct':segment.prompts['无泡']?.trim()?'post-lettering':'imported',referenceRoles:[]};
    segment.panelId=frame.id;segment.shotId=shot.id;delete segment.prompts;project.shots.push(shot);page.panels.push(frame);screenTop+=screenHeight;page.height=screenTop;
   }
   for(const segment of episode.segments.filter(s=>s.background['方式']==='本段出图')){

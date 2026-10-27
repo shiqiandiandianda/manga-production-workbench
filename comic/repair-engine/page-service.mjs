@@ -163,7 +163,7 @@ export async function adoptPage(root,id,body,decodePng){
 }
 export async function setPageRevision(root,id,revision){return locked(id,async()=>{const meta=await sourceMetadata(root,id);sourceFile(root,meta,revision);meta.revision=revision;await jsonFile(path.join(root,'sources',id,'metadata.json'),meta);return meta;});}
 export async function exportPage(root,body,{automatic=false}={}){
-  const mode=body.exportMode||'repaired';if(!['repaired','original'].includes(mode))throw new Error('导出模式无效');const original=mode==='original',meta=await sourceMetadata(root,body.sourceId);if(!original&&(!Number.isSafeInteger(body.sourceRevision)||body.sourceRevision<0||body.sourceRevision>(meta.lastRevision??meta.revision)))throw Object.assign(new Error('原图版本不存在，请刷新后选择有效版本'),{statusCode:409});const file=sourceFile(root,meta,original?0:body.sourceRevision);
+  const mode=body.exportMode||'repaired';if(!['repaired','original'].includes(mode))throw new Error('导出模式无效');const original=mode==='original',meta=await sourceMetadata(root,body.sourceId),file=sourceFile(root,meta,original?0:body.sourceRevision);
   if(meta.deletedAt)throw new Error('漫画项目已删除');const label=meta.name.replace(/\.[^.]+$/,'').replace(/[^\p{L}\p{N} _-]/gu,'-').slice(0,80)||'漫画';
   const name=automatic?`${label}-自动合成-${meta.id}.png`:`${label}-${original?'原图':'修复'}-${Date.now()}.png`,target=path.join(root,'exports',name),temporary=target+'.'+randomUUID()+'.tmp';
   try{await composeLayers(root,file,temporary,original?[]:body.layers||[],6,original?[]:normalizePageGaps(body.pageGaps||[],meta.height),!original&&body.sectionMode?normalizeSections(body.pageSections||[],meta.height,meta.width):null,meta.id);await replaceFile(temporary,target);}finally{await rm(temporary,{force:true});}

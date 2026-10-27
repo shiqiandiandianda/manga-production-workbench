@@ -217,7 +217,7 @@ class ProjectLibrary:
 
     def generate(self,script,job_id,on_finish,version=None,reasoning_effort='high'):
         project=self.ensure_registered(script['projectId']);version=version or project.get('candidateVersion') or project.get('activeVersion')
-        if not version:raise ValueError('请先添加本项目参考并学习，不能借用大周或其他项目的风格')
+        if not version:raise ValueError('请先添加本项目参考并学习，不能借用其他项目的风格')
         bundle=self.version_folder(project['id'],version)
         folder=self.data/'runs'/job_id;folder.mkdir(parents=True,exist_ok=True)
         save(folder/'job.json',{'id':job_id,'status':'running','phase':'layout','message':'正在使用本项目学习版本自动试排：'+version})

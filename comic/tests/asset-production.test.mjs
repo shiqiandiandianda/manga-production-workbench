@@ -4,7 +4,7 @@ import {assetWorkflowKind,initializeProductionAsset,mergeProductionAssets,valida
 
 const imageId=n=>'asset_00000000-0000-4000-8000-'+String(n).padStart(12,'0');
 const images=Array.from({length:12},(_,i)=>({id:imageId(i+1),name:'参考'+(i+1),filePath:'D:/synthetic-tests/image-'+(i+1)+'.png',width:2048,height:1024}));
-const asset=(fields={})=>({id:'C001',name:'宋玄',type:'character',aliases:[],description:'青年男子，黑色长发束起，沉稳坚定。',prompt:'古风青年角色，原创新脸。',episodeNumbers:[11,12,13],appearanceScopeStatus:'production-observed',sourceRefs:[],...fields});
+const asset=(fields={})=>({id:'C001',name:'角色甲',type:'character',aliases:[],description:'青年男子，黑色长发束起，沉稳坚定。',prompt:'古风青年角色，原创新脸。',episodeNumbers:[11,12,13],appearanceScopeStatus:'production-observed',sourceRefs:[],...fields});
 const project=(fields={})=>({id:'project_00000000-0000-4000-8000-000000000001',title:'角色工作流测试',revision:4,style:'二维古风漫画，清晰墨线和赛璐璐阴影',references:[{assetId:imageId(12),role:'style',name:'已确认画风'}],productionAssets:[asset()],...fields});
 const action=(p,type,stageId,imageAssetId,extra={})=>applyAssetProductionAction(p,{revision:p.revision,assetId:'C001',type,stageId,imageAssetId,...extra},images);
 function confirm(p,stageId,id){return action(action(p,'bind-candidate',stageId,id),'confirm',stageId,id);}

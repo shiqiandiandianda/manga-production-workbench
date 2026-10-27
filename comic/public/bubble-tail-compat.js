@@ -8,3 +8,15 @@ export function canonicalBubbleTail(bubble){
  const x=bubble.x+t.x*bubble.w,y=bubble.y+t.y*bubble.h;
  return Number.isSafeInteger(Math.trunc(x))&&Number.isSafeInteger(Math.trunc(y))?{...t,mode:'absolute',x,y}:null;
 }
+
+/** Missing source tail metadata used to turn off ordinary production dialogue. */
+export function bubbleTailVisible(bubble){
+ const tail=bubble.tail;
+ if(tail?.visible!==false)return !!tail||bubble.type==='speech';
+ return bubble.type==='speech'&&bubble.shape!=='none'&&!!bubble.productionOriginal
+  &&!Object.hasOwn(bubble.productionOriginal,'泡尾')&&!bubble.comicStyleId&&!bubble.styleTextureId
+  &&!tail.visibilityExplicit&&!Number.isFinite(tail.x)&&!Number.isFinite(tail.y);
+}
+export function productionTailVisible(text,type){
+ return Object.hasOwn(text||{},'泡尾')?!!text['泡尾']:type==='speech';
+}

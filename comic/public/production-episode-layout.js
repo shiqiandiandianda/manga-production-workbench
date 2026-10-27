@@ -2,37 +2,89 @@ import {rectangle,id} from './model.js';
 import {generationPlans} from './unified-layout-rules.js';
 import {validateAssistantGeometry} from './assistant-layout-geometry.js';
 import {validateLayoutDesign} from './layout-design.js';
-import {prepareProductionPanel,productionPanelSource} from './production-panel-generation.js';
+import {prepareProductionPanel,productionPanelSource,ensureProductionSegmentLettering} from './production-panel-generation.js';
 import {productionFrame} from './production-package-model.js';
 
 const fail=message=>{throw Object.assign(Error(message),{status:409});};
 export const productionEpisodeUnit=(project,episode)=>project?.productionEpisodeViews?.[episode]?.unit||project?.productionPackage?.generationUnit||'screen';
 const episodePages=(project,episode)=>project.pages.filter(p=>p.storyboard?.episode===episode&&!p.designEpisodeRole);
 
-/** Visibility is stored separately from the user's hide/show choice, including children. */
+/**
+ * 生成单位是每个屏段自己的状态：新选中的屏段默认整屏，用户为该屏段选择
+ * 单格后才转换。旧工程没有逐段记录时，已有单格画格的屏段保持单格，其余整屏。
+ */
+export function productionSegmentUnit(project,episode,segmentId){
+ const view=project?.productionEpisodeViews?.[episode],explicit=view?.segments?.[segmentId];
+ if(explicit==='panel'||explicit==='screen')return explicit;
+ const page=project?.pages.find(p=>p.storyboard?.segmentId===segmentId&&!p.designEpisodeRole);
+ if(page?.productionUnit==='panel'||page?.productionUnit==='screen')return page.productionUnit;
+ const hasPanel=project?.pages.some(p=>p.storyboard?.segmentId===segmentId&&!p.designEpisodeRole&&p.panels.some(f=>productionPanelSource(f)));
+ return hasPanel?'panel':'screen';
+}
+function pagePriorUnit(project,page){
+ if(page?.productionUnit==='panel'||page?.productionUnit==='screen')return page.productionUnit;
+ const episode=page?.storyboard?.episode,segment=page?.storyboard?.segmentId;
+ return episode!==undefined&&segment?productionSegmentUnit(project,episode,segment):'screen';
+}
+function switchPageUnit(project,page,unit,previousOverride=null){
+ const views=page.productionLayoutViews,previous=previousOverride||pagePriorUnit(project,page);
+ if(views){
+  views[previous]||={height:page.height,background:page.background};
+  views[unit]||={height:page.height,background:page.background};
+  views[previous].height=page.height;views[previous].background=page.background;
+  page.height=views[unit].height;page.background=views[unit].background||page.background;
+ }
+ // Older crops hid their source without recording a mode flag. A deliberate
+ // switch back to screen restores that source; never replace its image.
+ if(unit==='screen'&&previous==='panel')for(const root of page.panels){
+  if(root.productionSegment&&root.imageAssetId&&root.visible===false&&page.panels.some(f=>f.panelSlice?.rootPanelId===root.id)){if(root.productionModeHidden===true)root.productionModeVisible=true;else root.visible=true;}
+ }
+ const frames=new Map(page.panels.map(f=>[f.id,f]));
+ const family=(item,seen=new Set())=>{
+  if(!item||seen.has(item.id))return null;seen.add(item.id);
+  if(productionPanelSource(item))return 'panel';
+  const parent=item.cutoutLayer?.parentPanelId||item.parentPanelId||item.breakoutForeground?.backgroundPanelId;
+  if(parent)return family(frames.get(parent),seen);
+  if(item.productionGridId)return 'panel';
+  if(item.productionSegment||item.productionBackground||item.productionBackgroundInstance)return unit==='panel'&&!page.panels.some(f=>productionPanelSource(f))?null:'screen';
+  return null;
+ };
+ for(const item of [...page.panels,...page.bubbles]){
+  const mode=family(item);if(!mode)continue;
+  if(mode!==unit){if(item.productionModeHidden!==true){item.productionModeVisible=item.visible!==false;item.productionModeHidden=true;}item.visible=false;}
+  else if(item.productionModeHidden===true){item.visible=item.productionModeVisible!==false;delete item.productionModeHidden;delete item.productionModeVisible;}
+ }
+ page.productionUnit=unit;
+}
+function switchGradients(project,episode,unit){
+ for(const g of project.gradients||[])if(g.assistantLayoutAnchor?.episode===episode){if(unit==='screen'){if(!g.productionModeHidden){g.productionModeVisible=g.visible;g.productionModeHidden=true;}g.visible=false;}else if(g.productionModeHidden){g.visible=g.productionModeVisible!==false;delete g.productionModeHidden;delete g.productionModeVisible;}}
+}
+/** Switch one screen segment only. This is what the "生成单位" select uses. */
+export function switchProductionSegmentUnit(project,segmentId,unit,{ensureLettering=true}={}){
+ if(!['screen','panel'].includes(unit))fail('请选择屏段或单格');
+ const pages=project.pages.filter(p=>p.storyboard?.segmentId===segmentId&&!p.designEpisodeRole);
+ if(!pages.length)fail('屏段不存在或尚未生成画板');
+ for(const page of pages)switchPageUnit(project,page,unit);
+ if(unit==='panel'&&ensureLettering)ensureProductionSegmentLettering(project,segmentId);
+ const episode=pages[0].storyboard?.episode;
+ if(Number.isInteger(episode)){
+  const view=project.productionEpisodeViews?.[episode]||{};
+  project.productionEpisodeViews||={};
+  project.productionEpisodeViews[episode]={...view,unit,segments:{...(view.segments||{}),[segmentId]:unit}};
+ }
+ return project;
+}
+/** Bulk switch kept for layout import/reflow, where every segment becomes single panels. */
 export function switchProductionEpisodeUnit(project,episode,unit){
  if(!['screen','panel'].includes(unit))fail('请选择屏段或单格');
  const pages=episodePages(project,episode),previous=productionEpisodeUnit(project,episode);
- for(const page of pages){
-  const views=page.productionLayoutViews;
-  if(views){views[previous].height=page.height;views[previous].background=page.background;page.height=views[unit].height;page.background=views[unit].background||page.background;}
-  const frames=new Map(page.panels.map(f=>[f.id,f]));
-  const family=(item,seen=new Set())=>{
-   if(!item||seen.has(item.id))return null;seen.add(item.id);
-   if(productionPanelSource(item)||item.productionGridId)return 'panel';
-   const parent=item.cutoutLayer?.parentPanelId||item.parentPanelId||item.breakoutForeground?.backgroundPanelId;
-   if(parent)return family(frames.get(parent),seen);
-   if(item.productionSegment||item.productionBackground||item.productionBackgroundInstance)return unit==='panel'&&!page.panels.some(f=>productionPanelSource(f))?null:'screen';
-   return null;
-  };
-  for(const item of [...page.panels,...page.bubbles]){
-   const mode=family(item);if(!mode)continue;
-   if(mode!==unit){if(item.productionModeHidden!==true){item.productionModeVisible=item.visible!==false;item.productionModeHidden=true;}item.visible=false;}
-   else if(item.productionModeHidden===true){item.visible=item.productionModeVisible!==false;delete item.productionModeHidden;delete item.productionModeVisible;}
-  }
- }
- for(const g of project.gradients||[])if(g.assistantLayoutAnchor?.episode===episode){if(unit==='screen'){if(!g.productionModeHidden){g.productionModeVisible=g.visible;g.productionModeHidden=true;}g.visible=false;}else if(g.productionModeHidden){g.visible=g.productionModeVisible!==false;delete g.productionModeHidden;delete g.productionModeVisible;}}
- project.productionEpisodeViews||={};project.productionEpisodeViews[episode]={...project.productionEpisodeViews[episode],unit};
+ for(const page of pages)switchPageUnit(project,page,unit,previous);
+ switchGradients(project,episode,unit);
+ const episodeData=project.productionPackage?.episodes.find(e=>e.episode===episode);
+ const view={...(project.productionEpisodeViews?.[episode]||{}),unit,segments:{}};
+ for(const segment of episodeData?.segments||[])view.segments[segment.id]=unit;
+ if(unit==='panel')for(const segment of episodeData?.segments||[])ensureProductionSegmentLettering(project,segment.id);
+ project.productionEpisodeViews||={};project.productionEpisodeViews[episode]=view;
  return project;
 }
 

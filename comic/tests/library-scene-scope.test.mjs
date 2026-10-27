@@ -9,7 +9,7 @@ import {planPanelReferenceProcessing,processPanelReferences} from '../public/ref
 import {auditPanelReferences} from '../public/panel-reference-audit.js';
 
 test('墨库范围优先已链接库，旧工程只匹配唯一作品名，不跨作品搜索',()=>{
- const project=createProject('开局神戒，召唤万虫 第11-21话 V005'),target={id:randomUUID(),name:'召唤万虫'},foreign={id:randomUUID(),name:'大周玄衣卫'};
+ const project=createProject('开局神戒，召唤万虫 第11-21话 V005'),target={id:randomUUID(),name:'召唤万虫'},foreign={id:randomUUID(),name:'示例项目'};
  assert.deepEqual(libraryProjectScopes(project,[],[foreign,target]).ids,[target.id]);
  assert.deepEqual(libraryProjectScopes(project,[],[foreign]).ids,['public']);
  assert.deepEqual(libraryProjectScopes(project,[],[target,{...target,id:randomUUID()}]).ids,['public']);
@@ -20,7 +20,7 @@ test('墨库范围优先已链接库，旧工程只匹配唯一作品名，不�
 test('训练场主景与细节同库时只取唯一主景，固定推荐版本并保留原有参考；再次处理不重复取图',async()=>{
  const project=createProject('开局神戒，召唤万虫 第11-21话 V005'),panel=project.pages[0].panels[0],shot=project.shots.find(s=>s.id===panel.shotId);
  Object.assign(shot,{participants:'无',location:'训练场',props:'无'});project.references=[];project.assetLibrary={version:1,assetIds:[]};ensureProjectPanelGeneration(project,[]);setPanelReferences(panel,[],{project,assets:[]});
- const main={id:randomUUID(),name:'006_预备杂役宿舍_训练场_主景.png',category:'scene',recommendedRevisionId:randomUUID()},detail={id:randomUUID(),name:'006_预备杂役宿舍_训练场_细节.png',category:'scene',recommendedRevisionId:randomUUID()},scope={id:randomUUID(),name:'召唤万虫'},foreign={id:randomUUID(),name:'大周玄衣卫'},calls=[],before=clone(project);
+ const main={id:randomUUID(),name:'006_预备杂役宿舍_训练场_主景.png',category:'scene',recommendedRevisionId:randomUUID()},detail={id:randomUUID(),name:'006_预备杂役宿舍_训练场_细节.png',category:'scene',recommendedRevisionId:randomUUID()},scope={id:randomUUID(),name:'召唤万虫'},foreign={id:randomUUID(),name:'示例项目'},calls=[],before=clone(project);
  let assets=[];const imported={id:id('asset'),name:main.name,filePath:'D:/synthetic/training.png',library:{projectId:scope.id,assetId:main.id,revisionId:main.recommendedRevisionId,category:'scene'}};
  const options={project,panel,getAssets:()=>assets,onAssets:items=>{for(const a of items)if(!assets.some(x=>x.id===a.id))assets.push(a);},api:async(route,method,body)=>{
   calls.push({route,method,body});if(route==='/api/library/status')return {connected:true};if(route==='/api/library/projects')return {items:[foreign,scope]};

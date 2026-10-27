@@ -32,11 +32,11 @@ export function defaultSettings() {
     workshop: {
       port: 8892,
       autostart: true,
-      maxConcurrentJobs: 4,
+      maxConcurrentJobs: 2,
       pythonPath: ''
     },
     intake: {
-      maxConcurrentJobs: 4,
+      maxConcurrentJobs: 2,
       maxItemsPerJob: 20,
       jobTimeoutSeconds: 5400,
       callbackRetries: 5,
@@ -193,8 +193,11 @@ export function createConfig() {
     },
     async update(patch) {
       const current = await read();
-      const combined={...current,...patch};
-      for(const group of ['scene','workshop','intake','naming'])if(patch[group])combined[group]={...current[group],...patch[group]};
+      // `undefined` means "not provided" (e.g. an env var that is not set). It must
+      // never erase a value the user saved in the settings file.
+      const defined = value => Object.fromEntries(Object.entries(value || {}).filter(([, item]) => item !== undefined));
+      const combined={...current,...defined(patch)};
+      for(const group of ['scene','workshop','intake','naming'])if(patch[group])combined[group]={...current[group],...defined(patch[group])};
       const next = validateSettings(combined);
       next.settingsVersion = SETTINGS_VERSION;
       await atomicJson(files.settings, next, {backup: true});

@@ -249,7 +249,7 @@ body.modern-workbench.compact-workbench {grid-template-rows: max-content max-con
 .panel-info-layer .panel-shot-info.panel-mode-info {box-sizing: border-box; display: flex; flex-direction: column; gap: 5px; padding: 7px 9px; min-width: 0px; max-width: none; max-height: none; overflow: hidden; contain: layout paint; transform: none; background: #f4f9fc; color: rgb(36, 59, 76); border: 1px solid rgb(178, 196, 209); border-radius: 5px; font-size: 13px; line-height: 1.6; box-shadow: rgba(23, 44, 59, 0.125) 0px 1px 4px; pointer-events: auto;}
 #panel-info-layer .panel-mode-heading {flex: 0 0 auto; font-size: 12px; font-weight: 600; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
 #panel-info-layer .panel-mode-content {flex: 1 1 auto; min-height: 0px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; font-size: 13px; line-height: 1.65; overscroll-behavior: contain; text-align: left;}
-#panel-info-layer .panel-mode-info[data-panel-display-mode="technical"] {justify-content: center; gap: 1px; padding: 2px 3px; background: transparent; border: 0px; box-shadow: none; text-align: center; font-size: 12px; pointer-events: none;}
+#panel-info-layer .panel-mode-info[data-panel-display-mode="technical"] {justify-content: center; gap: 1px; padding: 2px 3px; background: transparent; border: 0px; box-shadow: none; text-align: center; font-size: 12px;}
 #panel-info-layer .panel-info-dimensions {font-size: 12px; line-height: 1.4; overflow-wrap: anywhere;}
 @media (max-width: 760px) {
 .modern-workbench #panel-display-mode {width: 115px; font-size: 11px;}

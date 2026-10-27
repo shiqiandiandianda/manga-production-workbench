@@ -1,4 +1,3 @@
-import {compatibleCanvas} from './canvas-image-compat.mjs';
 import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import {createRequire} from 'node:module';import {createHash,randomUUID} from 'node:crypto';
 import {mountedImageIO} from './mounted-io.mjs';
 const require=createRequire(import.meta.url);
@@ -17,6 +16,20 @@ function completeCachedPng(bytes){
  }
  return false;
 }
+// C2PA PNG metadata may contain an SVG preview that the native decoder mistakes
+// for the image itself. Omit only that metadata from the in-memory thumbnail input.
+// The original PNG and its color/transparency chunks remain untouched.
+function thumbnailBytes(bytes){
+ if(bytes.length<20||!bytes.subarray(0,8).equals(pngSignature))return bytes;
+ const chunks=[bytes.subarray(0,8)];let offset=8,removed=false;
+ while(offset+12<=bytes.length){
+  const length=bytes.readUInt32BE(offset),end=offset+length+12;if(end>bytes.length)return bytes;
+  const type=bytes.toString('ascii',offset+4,offset+8);
+  if(type==='caBX')removed=true;else chunks.push(bytes.subarray(offset,end));
+  offset=end;if(type==='IEND'){chunks.push(bytes.subarray(offset));return removed?Buffer.concat(chunks):bytes;}
+ }
+ return bytes;
+}
 export function createImageThumbnails(directory){
  const pending=new Map();let canvas=null,active=0;const waiters=[];
  const acquire=async()=>{if(active<3){active++;return;}await new Promise(resolve=>waiters.push(resolve));};
@@ -25,9 +38,9 @@ export function createImageThumbnails(directory){
   const stat=await mountedImageIO(asset.filePath,()=>fs.promises.stat(asset.filePath)),key=createHash('sha256').update(asset.filePath+':'+stat.size+':'+stat.mtimeMs).digest('hex'),file=path.join(directory,key+'.png');
   if(pending.has(key))return pending.get(key);
   const work=(async()=>{await acquire();let temporary;try{
-   canvas||=compatibleCanvas(require(process.env.COMIC_CANVAS_MODULE||path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/@napi-rs/canvas')));
+   canvas||=require(process.env.COMIC_CANVAS_MODULE||path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/@napi-rs/canvas'));
    if(fs.existsSync(file)){try{const cached=await fs.promises.readFile(file);if(completeCachedPng(cached)){await canvas.loadImage(cached);return file;}}catch{/* Rebuild an incomplete or damaged cache from its original path. */}}
-   const bytes=await mountedImageIO(asset.filePath,()=>fs.promises.readFile(asset.filePath)),image=await canvas.loadImage(bytes),scale=Math.min(1,480/image.width,280/image.height),width=Math.max(1,Math.round(image.width*scale)),height=Math.max(1,Math.round(image.height*scale)),output=canvas.createCanvas(width,height);
+   const bytes=await mountedImageIO(asset.filePath,()=>fs.promises.readFile(asset.filePath)),image=await canvas.loadImage(thumbnailBytes(bytes)),scale=Math.min(1,480/image.width,280/image.height),width=Math.max(1,Math.round(image.width*scale)),height=Math.max(1,Math.round(image.height*scale)),output=canvas.createCanvas(width,height);
    output.getContext('2d').drawImage(image,0,0,width,height);await fs.promises.mkdir(directory,{recursive:true});temporary=file+'.'+randomUUID()+'.tmp';
    await fs.promises.writeFile(temporary,output.toBuffer('image/png'));await fs.promises.rename(temporary,file);return file;
   }finally{if(temporary)await fs.promises.rm(temporary,{force:true}).catch(()=>{});release();}})().finally(()=>pending.delete(key));pending.set(key,work);return work;

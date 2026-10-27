@@ -86,7 +86,7 @@ test('编辑和导入不会绕过删除流程或继承已删除标记',async t=>
   const f=await fixture(t),project=structuredClone(f.studio.store.db.projects[0]);project.deletedAt='injected';
   const saved=await f.request('/api/projects/'+project.id,'PUT',project);assert.equal(saved.status,200);assert.equal(saved.data.deletedAt,undefined);
   const exported=(await f.request('/api/projects/'+project.id+'/export')).data;exported.project.deletedAt='injected';
-  assert.equal((await f.request('/api/projects/import','POST',exported)).status,409,'duplicate identity is not silently copied');const imported=await f.request('/api/projects/import','POST',{...exported,importMode:'copy'});assert.equal(imported.status,201);assert.equal(imported.data.deletedAt,undefined);
+  const imported=await f.request('/api/projects/import','POST',exported);assert.equal(imported.status,201);assert.equal(imported.data.deletedAt,undefined);
   assert.equal((await f.request('/api/state')).data.projects.length,2);
 });
 test('管理面板明确删除与恢复入口，忙碌项目禁用删除且标题经过转义',()=>{

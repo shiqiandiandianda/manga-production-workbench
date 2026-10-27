@@ -10,6 +10,7 @@
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {atomicJson, readJson, safeName, ensureDir} from './store.mjs';
+import {readGate} from '../../distribution/generation-gate.mjs';
 import {files, paths} from './paths.mjs';
 import {ASSET_TYPES} from './naming.mjs';
 
@@ -24,6 +25,7 @@ export function createJobManager({config, archive, scene, workshop, logger}) {
   let loaded = false;
   let saving = Promise.resolve();
   let pumpScheduled = false;
+  let gateTimer = null;
   const waiters = new Map();
 
   function nowIso() {
@@ -298,6 +300,18 @@ export function createJobManager({config, archive, scene, workshop, logger}) {
     const settings = settingsRef.value || (await config.read());
     settingsRef.value = settings;
     const limit = Math.max(1, settings.intake.maxConcurrentJobs);
+    // Respect the account-wide 429 gate written by the comic editor / scene engine.
+    const gateFile = process.env.COMIC_GENERATION_GATE;
+    if (gateFile) {
+      const until = readGate(gateFile).until;
+      if (until > Date.now()) {
+        if (!gateTimer) {
+          gateTimer = setTimeout(() => { gateTimer = null; schedulePump(); }, Math.max(500, Math.min(30000, until - Date.now() + 50)));
+          gateTimer.unref?.();
+        }
+        return;
+      }
+    }
     while (running.size < limit) {
       const next = order.map(id => jobs.get(id)).find(job => job && (job.status === 'queued' || job.status === 'partial') && !running.has(job.id));
       if (!next) break;

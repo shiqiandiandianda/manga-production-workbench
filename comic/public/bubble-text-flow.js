@@ -6,10 +6,10 @@ export function saveBubbleTextFlow(bubble){if(bubble.productionTextId&&bubble.te
 const layoutFields=['fontFamily','fontSize','fontWeight','fontStyle','letterSpacing','lineHeight','textAlign','writingMode','textDirection'];
 export const bubbleTextLayoutKey=(bubble,style)=>JSON.stringify([String(bubble.text??''),...layoutFields.map(k=>style[k]),bubbleLineBreakMode(bubble)]);
 /** Store the rendered rows relative to the independent text frame, not to the contour. */
-export function freezeBubbleTextLayout(bubble,layout){
+export function freezeBubbleTextLayout(bubble,layout,requestedStyle){
  if(!layout?.textBox||!Array.isArray(layout.lines))return bubble;
  const box=layout.textBox;saveBubbleTextFlow(bubble);bubble.textBox={...box};
- bubble.textLayout={version:1,key:layout.textLayoutStyleKey||bubbleTextLayoutKey(bubble,layout),w:box.w,h:box.h,lineHeight:layout.lineHeight,lines:layout.lines.map(line=>({...line,x:line.x-box.x,y:line.y-box.y,left:line.left-box.x,right:line.right-box.x,glyphs:line.glyphs?.map(g=>({...g,x:g.x-box.x,y:g.y-box.y}))||null}))};return bubble;
+ bubble.textLayout={version:1,key:layout.textLayoutStyleKey||bubbleTextLayoutKey(bubble,layout),...(requestedStyle?{requestKey:bubbleTextLayoutKey(bubble,requestedStyle),effectiveFontSize:layout.fontSize,effectiveLetterSpacing:layout.letterSpacing}:{}),w:box.w,h:box.h,lineHeight:layout.lineHeight,lines:layout.lines.map(line=>({...line,x:line.x-box.x,y:line.y-box.y,left:line.left-box.x,right:line.right-box.x,glyphs:line.glyphs?.map(g=>({...g,x:g.x-box.x,y:g.y-box.y}))||null}))};return bubble;
 }
 export function frozenBubbleTextRows(bubble,style,box){
  const saved=bubble.textLayout;if(!saved||saved.version!==1||saved.key!==bubbleTextLayoutKey(bubble,style)||saved.w!==box.w||saved.h!==box.h||!Array.isArray(saved.lines)||saved.lines.length>2000)return null;

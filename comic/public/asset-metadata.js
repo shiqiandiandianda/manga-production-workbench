@@ -12,6 +12,6 @@ export function assetMetadata(asset){
  const named=asset.libraryName||groupedName||words.join(' · ')||stem;
  const state=asset.libraryState||asset.library?.outfitName||asset.outfitName||(role==='character'||body.includes('|')?words.slice(1).join(' · '):'');
  const name=asset.libraryName||groupedName||(role==='character'||body.includes('|')?words[0]:named);
- const aliases=[...new Set([...(Array.isArray(asset.libraryAliases)?asset.libraryAliases:String(asset.libraryAliases||'').split(/[、,，;；]+/).filter(Boolean)),...(Array.isArray(asset.library?.tags)?asset.library.tags:[])])];
- return {name:name||file,state,stateExplicit:!!(asset.libraryState||asset.library?.outfitName||asset.outfitName),role,kind,version,file,parts:words,aliases,keys:[name,...aliases,...(role==='scene'?words:[])].map(assetNameKey).filter(Boolean)};
+ const aliases=Array.isArray(asset.libraryAliases)?asset.libraryAliases:String(asset.libraryAliases||'').split(/[、,，;；]+/).filter(Boolean);
+ return {name:name||file,state,role,kind,version,file,parts:words,aliases,keys:[name,...aliases,...(role==='scene'?words:[])].map(assetNameKey).filter(Boolean)};
 }

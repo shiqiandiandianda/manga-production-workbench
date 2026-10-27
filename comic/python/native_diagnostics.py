@@ -75,17 +75,23 @@ class TurnDiagnostics:
             classification = "native_image_returned"
         elif error_code == "native_image_failed":
             classification = "native_image_failed"
+        elif error_code == "account_rate_limited":
+            # The provider returned 429/quota before accepting turn/start: nothing was
+            # submitted, so this must not be reported as an unknown remote state.
+            classification = "rate_limited_not_started"
         elif self.turn_status in ("failed", "interrupted"):
             classification = "turn_" + self.turn_status
         elif completed:
             classification = "completed_without_image" if not self.image_started and not self.image_completed else "image_event_without_saved_path"
         else:
             classification = "remote_state_unknown"
+        rate_limited = error_code == "account_rate_limited"
         return {"classification": classification, "finalReply": self.final_reply, "lastAgentReply": self.last_reply,
                 "replyPhase": self.reply_phase, "finalReplyExplicit": self.final_reply_explicit, "replyCount": self.reply_count,
                 "lastError": self.last_error, "turnStatus": self.turn_status,
                 "imageStarted": self.image_started, "imageCompleted": self.image_completed,
                 "imageSaved": self.image_saved, "referenceViews": self.reference_views,
                 "remoteEnded": completed,
-                "retry": {"automatic": False, "action": "review_and_explicit_resubmit" if completed and not self.image_saved else "inspect_existing_job_and_remote_state",
-                          "note": "保留原图；先核对当前镜头、参考、原任务和候选。明确结束且没有结果才人工重新提交；不保证推理未计费。"}}
+                "retry": {"automatic": False,
+                          "action": "retry_after_cooldown" if rate_limited else ("review_and_explicit_resubmit" if completed and not self.image_saved else "inspect_existing_job_and_remote_state"),
+                          "note": "账号限流或额度用尽，本次没有提交生成；队列暂停冷却后自动继续，不要重复提交。" if rate_limited else "保留原图；先核对当前镜头、参考、原任务和候选。明确结束且没有结果才人工重新提交；不保证推理未计费。"}}

@@ -1,4 +1,4 @@
-// 《大周玄衣卫》专属模板已整体下线：新排版只用通用模板；旧工程照常打开、重排和生图，提示词里不再出现专属规则。
+// 《示例项目》专属模板已整体下线：新排版只用通用模板；旧工程照常打开、重排和生图，提示词里不再出现专属规则。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -40,7 +40,7 @@ test('源码里没有任何文件再引用已删除的专属模板模块',()=>{
 test('旧工程已保存的专属规则行在生图前被清掉，本格描述照常保留',()=>{
  const {p,f}=legacyUnitPanel();ensurePanelGeneration(p,f);
  f.generation.narrativePromptVersion='1.4.0';
- f.generation.prompt='甲抬眼，严肃开口。\n大周玄衣卫叙事取景规则 1.4.0；只绘制当前阅读单元，不把相邻单元合进一张图。\n本层表达职责：response；视觉重点：甲。\n构图表达目的：甲的表情与目光\n当前可见人物与画面横向位置：甲 20%。其余源人物不自动补入本镜头。\n脸部/上身特写直接生成可读细节，不先画全景再强放大；动作镜头保留必要的手、脚、道具及通道。';
+ f.generation.prompt='甲抬眼，严肃开口。\n示例项目叙事取景规则 1.4.0；只绘制当前阅读单元，不把相邻单元合进一张图。\n本层表达职责：response；视觉重点：甲。\n构图表达目的：甲的表情与目光\n当前可见人物与画面横向位置：甲 20%。其余源人物不自动补入本镜头。\n脸部/上身特写直接生成可读细节，不先画全景再强放大；动作镜头保留必要的手、脚、道具及通道。';
  for(const prompt of prompts(p,f)){assert.match(prompt,/甲抬眼，严肃开口/);assert.doesNotMatch(prompt,RETIRED_TEXT);}
 });
 

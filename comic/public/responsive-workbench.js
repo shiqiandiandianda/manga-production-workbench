@@ -1,4 +1,5 @@
 import {mountInspectorShortcut} from './inspector-shortcut.js';
+import {mountFloatingCanvasTools} from './floating-canvas-tools.js';
 
 // Move the existing controls, preserving their listeners and editing semantics.
 export function mountResponsiveWorkbench({onOpenInspector,getInspectorState,onAddNode,onDeleteNode}={}){
@@ -25,10 +26,11 @@ export function mountResponsiveWorkbench({onOpenInspector,getInspectorState,onAd
  const group=document.createElement('div');group.className='inline-frame-tools';group.dataset.placement='dock';move(edit,'#page-settings');
  $('#select-all-trigger').hidden=true;
  const view=menu(toolbar,'display-menu','视图');
- move(view,'#panel-notes-toggle','#panel-display-mode','#panel-info-toggle','#frame-status-toggle','#draft-toggle','#history-steps-toggle');
+ move(view,'#panel-notes-toggle','#panel-display-mode','#panel-info-toggle');
+ $('#draft-toggle').hidden=true;
  $('#view-more').hidden=true;
  const right=$('.toolbar-right');toolbar.append(right);
- move(right,'#undo','#redo','#zoom');
+ move(right,'#history-steps-toggle','#undo','#redo','#zoom');
  const properties=mountInspectorShortcut({host:right,onOpenInspector,getInspectorState});
  properties.button.querySelector('.properties-wide-label').textContent='属性';
  properties.button.title='打开当前对象属性 · 双击画格也可打开';
@@ -45,22 +47,24 @@ export function mountResponsiveWorkbench({onOpenInspector,getInspectorState,onAd
  $('.export-wrap').after($('#project-tools-menu'));
  $('.workspace-controls').hidden=true;
 
- // A fixed tool column belongs to the layout canvas, alongside the repair pane.
+ // Keep the controls intact in a movable palette above the layout canvas.
  const editor=$('.app-shell>.editor'),area=document.createElement('div');area.className='canvas-work-area';editor.before(area);area.append(editor);
  const dock=document.createElement('aside');dock.id='canvas-tool-dock';dock.className='canvas-tool-dock';dock.setAttribute('aria-label','排版常用工具');
  dock.innerHTML='<div class="canvas-tool-heading"><strong>常用工具</strong><button data-close-canvas-tools aria-label="收起常用工具">×</button></div><div class="canvas-tool-content"><div class="dock-primary-tools" role="group" aria-label="选择、格子与图片"></div><p class="frame-selection-note">选中画格后调整形状、描边和图片</p></div>';
  const primary=dock.querySelector('.dock-primary-tools'),content=dock.querySelector('.canvas-tool-content'),rect=$('[data-tool="rect"]');rect.textContent='格子';rect.title='调整画格边框和裁切范围，图片与对白保持原位';$('[data-tool="move"]').title='选中和移动图层；拖动边角时遵守等比开关';
- primary.append($('[data-tool="move"]'),rect,$('[data-tool="image"]'));$('#panel-tool-toggle').innerHTML='<img class="ui-icon" src="/icons/border-all.svg" alt="">更多画格工具';content.append(group);$('#tools-tab').append(tools);area.append(dock);
+ primary.append($('[data-tool="move"]'),rect,$('[data-tool="image"]'));$('#panel-tool-toggle').innerHTML='<img class="ui-icon" src="/icons/border-all.svg" alt="">更多画格工具';content.append(group);toolbar.prepend(tools);tools.style.width='auto';tools.style.flex='0 1 auto';area.append(dock);
  const nodeModes=document.createElement('div');nodeModes.className='dock-frame-modes';nodeModes.hidden=true;nodeModes.dataset.frameModes='';const nodes=$('[data-tool="nodes"]');nodes.textContent='自由节点';nodes.title='拖动节点调整画格轮廓，图片保持原位';nodeModes.append(nodes);primary.after(nodeModes);
  const nodeActions=document.createElement('div');nodeActions.className='dock-node-actions';nodeActions.dataset.nodeControls='';nodeActions.hidden=true;nodeActions.innerHTML='<button data-node-add aria-label="增加格子点">加点</button><button data-node-delete aria-label="删除格子点">删点</button><small>点击边线加点，选中节点后可删除</small>';nodeModes.after(nodeActions);nodeActions.querySelector('[data-node-add]').onclick=onAddNode;nodeActions.querySelector('[data-node-delete]').onclick=onDeleteNode;
  const creates=$('.layer-create');creates.classList.add('rail-create');creates.setAttribute('aria-label','新增图层');$('.workspace-rail').insertBefore(creates,$('[data-open-generation-settings]'));for(const [id,label] of [['layer-add','格子＋'],['layer-add-bubble','对白'],['layer-add-gradient','渐变']])$('#'+id).textContent=label;creates.querySelector('[data-open-sfx]').textContent='特效';
  const toggle=document.createElement('button');toggle.id='canvas-tools-toggle';toggle.textContent='常用工具';toggle.setAttribute('aria-controls',dock.id);toolbar.prepend(toggle);
- function showTools(value){area.classList.toggle('tools-collapsed',!value);toggle.setAttribute('aria-expanded',String(value));window.dispatchEvent(new Event('resize'));}
+ const floating=mountFloatingCanvasTools({dock,area,toolbar});
+ function showTools(value){const changed=area.classList.contains('tools-collapsed')===value;area.classList.toggle('tools-collapsed',!value);toggle.setAttribute('aria-expanded',String(value));if(changed)window.dispatchEvent(new Event('resize'));}
  toggle.onclick=()=>showTools(area.classList.contains('tools-collapsed'));dock.querySelector('[data-close-canvas-tools]').onclick=()=>showTools(false);
- // Keep direct tool choices visible while giving portrait artwork the full canvas width.
- toggle.before(primary);showTools(false);
- const small=matchMedia('(max-width:700px)');small.addEventListener('change',()=>showTools(false));
- document.addEventListener('click',event=>{if(event.target.closest('[data-panel-inspector-tab]'))showTools(false);});
+ // Keep detailed frame controls visible on desktop and reopen them on selection.
+ const small=matchMedia('(max-width:700px)'),openCanvasTools=()=>{if(!small.matches)showTools(true);};
+ showTools(!small.matches);
+ small.addEventListener('change',()=>showTools(!small.matches));
+ primary.addEventListener('click',event=>{if(event.target.closest('[data-tool]'))openCanvasTools();});
 
  const compact=matchMedia('(max-width:1000px)'),viewCommands=[...view.children],mobileViewCaption=document.createElement('span');mobileViewCaption.className='menu-caption';mobileViewCaption.textContent='视图设置';
  function compactTools(){if(compact.matches){edit.append(mobileViewCaption,...viewCommands);}else{mobileViewCaption.remove();view.append(...viewCommands);}}
@@ -70,5 +74,5 @@ export function mountResponsiveWorkbench({onOpenInspector,getInspectorState,onAd
  document.addEventListener('keydown',event=>{if(event.key==='Escape')for(const root of menus)root.open=false;});
  for(const root of menus)root.lastElementChild.addEventListener('click',event=>{if(event.target.closest('button,a')&&!event.target.closest('.inline-frame-tools'))root.open=false;});
  const resize=new ResizeObserver(()=>{document.documentElement.style.setProperty('--responsive-tools-bottom',Math.round(toolbar.getBoundingClientRect().bottom)+'px');for(const root of menus)if(root.open)position(root);});resize.observe(toolbar);
- return {group,floating:{follow(){}},syncInspectorShortcut:properties.sync,inspectorShortcutButton:properties.button};
+ return {group,floating,openCanvasTools,syncInspectorShortcut:properties.sync,inspectorShortcutButton:properties.button};
 }

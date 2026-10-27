@@ -2,7 +2,7 @@ import {libraryProjectScopes} from './library-project-scope.js';
 import {stateReferenceMetadata} from './character-state-references.js';
 import {stateKey} from './character-states.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const endpoint='/api/team-comms/asset-corrections';
+const endpoint='/api/team-members/asset-corrections';
 export function mountAssetCorrections({api,getProject,getAssets,flushSave,accept,changed,applying,applied,notify}){
  let owner='',draft=null,preview=null,works=[],workId='',items=[],error='',requestId='',loading=false;
  function reset(){const id=getProject()?.id;if(owner!==id){owner=id;draft=null;preview=null;works=[];workId='';items=[];error='';requestId='';}return id;}

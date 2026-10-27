@@ -1,5 +1,7 @@
+import {inspectSingleModePackage} from './single-mode-package.mjs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
+import {characterPreparationNote,importedCharacterState} from '../public/character-preparation.js';
 
 const digest=b=>createHash('sha256').update(b).digest('hex');
 const check=(ok,message)=>{if(!ok)throw Object.assign(Error(message),{status:400});};
@@ -10,6 +12,7 @@ const localPath=(base,name)=>{check(typeof name==='string'&&name&&!name.startsWi
 
 /** Adapt final prompt-driven manuscripts; drafts and execution variants are never separate story panels. */
 export function inspectPromptDrivenPackage(files){
+ const single=inspectSingleModePackage(files);if(single)return single;
  const finals=files.filter(f=>/_定稿\.json$/u.test(f.relativePath)).map(file=>({file,data:parse(file)})).filter(({data})=>data['格式']==='提示词驱动制作1.0'&&data['阶段']==='定稿');
  if(!finals.length)return null;
  const byPath=new Map(files.map(f=>[f.relativePath,f])),titles=new Set(finals.map(f=>f.data['作品'])),episodes=[],seenEpisodes=new Set(),issues=[],ledger=[],audited=new Set(),compactBases=new Set();
@@ -63,10 +66,10 @@ export function inspectPromptDrivenPackage(files){
   for(const [i,p] of data['格'].entries()){check(typeof p['格ID']==='string'&&!panels.has(p['格号']),'定稿格号缺失或重复');panels.set(p['格号'],{raw:p,index:i});}
   check(new Set(data['格'].map(p=>p['格ID'])).size===panels.size,'定稿格ID重复');
   for(const u of single){check(Array.isArray(u['格号'])&&u['格号'].length===1&&!singles.has(u['格号'][0]),'单格生成单元必须唯一对应一格');const declared=data['单格生成单元'].find(v=>v['单元ID']===u['单元ID']);check(declared&&JSON.stringify(declared['格号'])===JSON.stringify(u['格号']),'定稿与单格执行稿映射不符');singles.set(u['格号'][0],{unit:u,...unitPrompts(u,'单格')});}
-  const references=unit=>(unit['参考']||[]).map((r,slot)=>{
+   const references=unit=>(unit['参考']||[]).map((r,slot)=>{
    const key=String(r['名称']||'').split('｜')[0],asset=assets.get(key);check(asset,'参考缺少对应资产版本：'+r['名称']);
    const type={'人物':'设定卡','场景':'场景','道具':'道具'}[asset['类型']];check(type,'不支持的资料资产类型：'+asset['类型']);
-   return {slot,'类型':type,'人物':type==='设定卡'?asset['名称']:'','名称':asset['名称'],...(type==='场景'?{'场景':asset['名称']}:type==='道具'?{'道具':asset['名称']}:{}),'服装':type==='设定卡'?asset['状态说明']||'':'','说明':type==='设定卡'?'':asset['状态说明']||'','必须':true,assetSourceId:asset['资产ID'],assetSourceVersion:asset['版本'],assetPrompt:asset['提示词'],sourceReference:structuredClone(r),binding:null,skipped:false};
+    return {slot,'类型':type,'人物':type==='设定卡'?asset['名称']:'','名称':asset['名称'],...(type==='场景'?{'场景':asset['名称']}:type==='道具'?{'道具':asset['名称']}:{}),'服装':type==='设定卡'?importedCharacterState(asset['服装'],asset['服装状态'],asset['造型'],asset['状态说明']):'','说明':type==='设定卡'?'':asset['状态说明']||'',preparationNote:type==='设定卡'?characterPreparationNote(asset['状态说明']):'','必须':true,assetSourceId:asset['资产ID'],assetSourceVersion:asset['版本'],assetPrompt:asset['提示词'],sourceReference:structuredClone(r),binding:null,skipped:false};
   });
   for(const [i,u] of screen.entries()){
    const declared=data['生成单元'][i];check(declared?.['单元ID']===u['单元ID']&&JSON.stringify(declared['格号'])===JSON.stringify(u['格号']),'定稿与屏段执行稿映射不符');
@@ -74,14 +77,19 @@ export function inspectPromptDrivenPackage(files){
    const localId='段'+String(i+1).padStart(2,'0'),key='E'+String(ep).padStart(3,'0')+'-S'+String(i+1).padStart(3,'0'),prompt=unitPrompts(u,'屏段');
    for(const [row,number] of u['格号'].entries()){
     const panel=panels.get(number),one=singles.get(number);check(panel&&one&&!covered.has(number),'屏段源格缺失、重复或缺少独立单格提示词：'+number);covered.add(number);
-    const raw=structuredClone(panel.raw),states={};for(const name of raw['出现角色']||[]){const direct=raw['当前状态']?.[name]?.['造型'],entry=(raw['资产索引']||[]).map(pair=>assets.get(pair.join('/'))).find(a=>a?.['类型']==='人物'&&a['名称']===name);if(direct||entry?.['状态说明'])states[name]=direct||entry['状态说明'];}
+     const raw=structuredClone(panel.raw),states={};for(const name of raw['出现角色']||[]){const direct=raw['当前状态']?.[name],entry=(raw['资产索引']||[]).map(pair=>assets.get(pair.join('/'))).find(a=>a?.['类型']==='人物'&&a['名称']===name),state=importedCharacterState(direct?.['服装'],direct?.['服装状态'],direct?.['造型'],entry?.['服装'],entry?.['服装状态'],entry?.['造型'],entry?.['状态说明']);if(state)states[name]=state;}
     raw['服装']=states;raw['出现道具']=(raw['资产索引']||[]).map(pair=>assets.get(pair.join('/'))).filter(a=>a?.['类型']==='道具').map(a=>a['名称']);raw['目标宽高比']=one.unit['画幅'];raw['提示词']=one.prompts;raw['生图提示词']=one.prompts['空泡'];
     panelRecords.push({id:raw['格ID'],segmentId:key,number,layout:{'格ID':raw['格ID'],'格号':number,'排':row+1},original:raw,production:{},source:{file:file.relativePath,pointer:'/格/'+panel.index,executionFile:executionFile.relativePath,unitId:one.unit['单元ID'],promptFiles:one.sources}});
     const line=textRows.find(t=>t['话']===ep&&t['格ID']===raw['格ID']);check(line&&line['生成单元']===u['单元ID']&&JSON.stringify(line['台词'])===JSON.stringify(raw['台词'])&&JSON.stringify(line['特效字'])===JSON.stringify(raw['特效字']),'文字层与定稿格内容不一致：'+raw['格ID']);
     for(const [ti,t] of (line['台词']||[]).entries()){check(typeof t['文本']==='string'&&t['文本'].trim(),'台词文本缺失');texts.push({...structuredClone(t),'文字ID':raw['格ID']+'-T'+String(ti+1).padStart(3,'0'),'格ID':raw['格ID'],'段ID':localId,'渲染':'工具',source:{file:textFile.relativePath,gridId:raw['格ID']}});}
     for(const [ti,t] of (line['特效字']||[]).entries()){const value=typeof t==='string'?t:t['文本']||t['字']||t['内容'];check(typeof value==='string','特效字文本缺失');texts.push({...(typeof t==='object'?structuredClone(t):{}),'文字ID':raw['格ID']+'-SFX'+String(ti+1).padStart(3,'0'),'格ID':raw['格ID'],'段ID':localId,'类型':'特效字','文本':value,'渲染':'模型'});}
    }
-   segments.push({id:key,localId,episode:ep,order:i,panelIds:u['格号'].map(n=>panels.get(n).raw['格ID']),scene:[...new Set(u['格号'].map(n=>panels.get(n).raw['当前场景']))].join('／'),prompts:prompt.prompts,references:references(u),background:{'方式':'纯白'},source:{file:executionFile.relativePath,pointer:'/组/'+execution['组'].findIndex(g=>g['方式']==='屏段')+'/生成单元/'+i,unitId:u['单元ID'],promptFiles:prompt.sources},sourceContext:structuredClone(u['有效前情']||u['前情']),regions:{},positions:{},mode:'clean'});
+   const tableRegions={};
+   for(const cell of declared?.['屏段布局']?.['格子']||[]){
+    const panel=panels.get(cell?.['格号']),rect=cell?.['rect'];
+    if(panel&&rect&&['x','y','w','h'].every(key=>Number.isFinite(rect[key])))tableRegions[panel.raw['格ID']]={x:rect.x,y:rect.y,w:rect.w,h:rect.h};
+   }
+   segments.push({id:key,localId,episode:ep,order:i,panelIds:u['格号'].map(n=>panels.get(n).raw['格ID']),scene:[...new Set(u['格号'].map(n=>panels.get(n).raw['当前场景']))].join('／'),prompts:prompt.prompts,references:references(u),background:{'方式':'纯白'},source:{file:executionFile.relativePath,pointer:'/组/'+execution['组'].findIndex(g=>g['方式']==='屏段')+'/生成单元/'+i,unitId:u['单元ID'],promptFiles:prompt.sources},sourceContext:structuredClone(u['有效前情']||u['前情']),regions:{},positions:{},tableRegions,mode:'clean'});
   }
   check(covered.size===panels.size&&singles.size===panels.size,'屏段与单格须完整覆盖同一份剧情');
   episodes.push({episode:ep,title:data['话名']||'第'+ep+'话',segments,panelRecords,texts,typography:{},anchors:{},layout:{},sourceFormat:data['格式'],sourceFinal:file.relativePath,costumeRevision:structuredClone(data['服装修订'])});

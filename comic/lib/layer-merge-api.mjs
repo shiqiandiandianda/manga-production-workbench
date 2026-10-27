@@ -1,4 +1,3 @@
-import {compatibleCanvas} from './canvas-image-compat.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
@@ -19,7 +18,7 @@ export function createLayerMergeAPI({store,dataDir,body,json,saveProject,addAsse
   const guard=()=>{check(store.project(project.id).revision===input.expectedRevision&&JSON.stringify(store.project(project.id))===snapshot,'工程已变化，请保存后重新合并',409);const ids=new Set(input.layerIds||[]);for(const p of project.pages)for(const f of p.panels)if(ids.has(f.id)&&f.cutoutLayer)ids.add(f.cutoutLayer.parentPanelId);check(!store.db.jobs.some(j=>j.projectId===project.id&&ids.has(j.panelId)&&['queued','running','recoverable','awaiting_confirmation'].includes(j.status)),'所选图层还有生成任务，请完成或取消后合并',409);};
   guard();check(!busy.has(project.id),'正在合并所选图层，请稍候',409);busy.add(project.id);let output,asset,committed=false,next;
   try{
-   const native=compatibleCanvas(createRequire(import.meta.url)(process.env.COMIC_CANVAS_MODULE||process.env.COMIC_TEST_CANVAS_MODULE||'@napi-rs/canvas')),measurement=native.createCanvas(1,1).getContext('2d'),plan=planLayerMerge(project,input.layerIds,measurement,new Map(store.db.assets.map(a=>[a.id,a]))),width=Math.ceil(plan.region.w*plan.scale),height=Math.ceil(plan.region.h*plan.scale);
+   const native=createRequire(import.meta.url)(process.env.COMIC_CANVAS_MODULE||process.env.COMIC_TEST_CANVAS_MODULE||'@napi-rs/canvas'),measurement=native.createCanvas(1,1).getContext('2d'),plan=planLayerMerge(project,input.layerIds,measurement,new Map(store.db.assets.map(a=>[a.id,a]))),width=Math.ceil(plan.region.w*plan.scale),height=Math.ceil(plan.region.h*plan.scale);
    check(width<=16384&&height<=16384&&width*height<=100000000,'合并结果超过一亿像素或16384px边长，请分批合并');
    const images=new Map(),sources=new Map(),load=async id=>{if(!images.has(id)){const file=id.startsWith('comic:')?comicStyleFile(id.slice(6)):store.assetPath(id),bytes=fs.readFileSync(file);sources.set(file,hash(bytes));images.set(id,native.loadImage(bytes));}return images.get(id);},canvas=native.createCanvas(width,height),context=canvas.getContext('2d'),tileHeight=Math.max(1,Math.min(height,Math.floor(16*1024*1024/width)));
    for(let y=0;y<height;y+=tileHeight){const h=Math.min(tileHeight,height-y),tile=native.createCanvas(width,h),ctx=tile.getContext('2d');ctx.scale(plan.scale,plan.scale);ctx.translate(0,-y/plan.scale);await paintSceneRegion(ctx,plan.isolated,{layout:plan.layout,region:{x:0,y:y/plan.scale,w:plan.region.w,h:h/plan.scale},renderScale:plan.scale,canvasFactory:()=>native.createCanvas(1,1),imageLoader:load});context.drawImage(tile,0,y);tile.width=1;tile.height=1;}

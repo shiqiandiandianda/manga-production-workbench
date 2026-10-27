@@ -22,7 +22,7 @@ test('必须先保存工程，且拒绝空话或不安全的处理尺寸',async(
  for(const input of [{project:{}},{layout:{...layout,pages:[]}},{segmentHeight:8193}])await assert.rejects(exportCompleteStrip({project,layout,...input,request:()=>{throw Error('不应请求服务');}}));
 });
 test('真实浏览器渲染接口经HTTP合并为单张PNG，封面正文尾图、话号与跨8192接缝均保留',async t=>{
- const root=path.resolve(import.meta.dirname,'../..'),require=createRequire(import.meta.url),canvas=require(process.env.COMIC_TEST_CANVAS_MODULE||path.join(root,'runtime/node/node_modules/@napi-rs/canvas'));
+ const root=path.resolve(import.meta.dirname,'../..'),require=createRequire(import.meta.url),canvas=require(path.join(root,'runtime/node/node_modules/@napi-rs/canvas'));
  const dir=fs.mkdtempSync(path.join(root,'verification','complete-strip-'));
  process.env.COMIC_PYTHON_BIN=path.join(root,'runtime/python/python.exe');
  const p=createProject('单张完整PNG合成验收');p.revision=8;p.pages=[];p.shots=[];

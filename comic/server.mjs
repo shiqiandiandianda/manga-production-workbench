@@ -1,7 +1,4 @@
-import {Readable} from 'node:stream';
-import {pipeline as formalPreviewPipeline} from 'node:stream/promises';
-import {createFormalEngineeringVersions} from './lib/formal-engineering-versions.mjs';
-import {createEpisodeVersionStore} from './lib/episode-versions.mjs';
+import {createPromptRewriteAPI} from './lib/prompt-rewrite-api.mjs';
 import {PRODUCTION_PACKAGE_LIMITS as productionPackageLimits} from './public/production-package-limits.js';
 import {createPanelImageImports} from './lib/panel-image-imports.mjs';
 import {planProjectPurge,executeProjectPurge,purgeSummary} from './lib/project-purge.mjs';
@@ -23,6 +20,7 @@ import {referenceContentStamp} from './lib/reference-content.mjs';
 import {splitProductionScreenBoards,syncScreenBackgrounds} from './public/production-screen-boards.js';
 import {generationTargetStamp,autoApplyBlocks} from './lib/generation-autofill.mjs';
 import {createProductionPackageAPI} from './lib/production-package-api.mjs';
+import {hydrateProductionTableRegions} from './lib/production-table-regions.mjs';
 import {productionAssetIds,remapProductionPackage} from './lib/production-package-portable.mjs';
 import {packageResultView,preparePackageJob,packageJobReady,packageJobWait,refreshPackageJob} from './lib/production-package-jobs.mjs';
 import {productionJobSignature} from './public/production-package-model.js';
@@ -31,15 +29,14 @@ import {EDITOR_SAVE_COMPATIBILITY_LIMIT,EDITOR_SERVER_FIELDS,rotateProjectHistor
 import {createRemoteLibrary} from './lib/remote-library.mjs';
 import {createBubbleStyleLibrary} from './lib/bubble-style-library.mjs';
 import {createProjectSync} from './lib/project-sync.mjs';
-import {createTeamProjects} from './lib/team-projects.mjs';
 import {createTeamReleaseContext} from './lib/team-release-context.mjs';
 import {createTeamProduction} from './lib/team-production.mjs';
-import {createTeamCommunicationsProxy} from './lib/team-communications.mjs';
+import {createTeamMemberProxy} from './lib/team-member-services.mjs';
 import {createIntegratedRepair,rebaseRepairSessions} from './lib/integrated-repair.mjs';
 import {createLocalImageTools} from './lib/local-image-tools.mjs';
 import {documentHash,mergeStoryboardImport} from './lib/storyboard-document.mjs';
 import {sanitizeTrustedNativeSizing} from './lib/native-sizing.mjs';
-import {assertPanelReferenceCoverage} from './public/panel-reference-audit.js';
+import {assertPanelReferenceCoverage,auditPanelReferences} from './public/panel-reference-audit.js';
 
 import {assessFrameComposition} from './public/generation-frame-sizing.js';
 import {fitGeneratedArtwork} from './public/artwork-transform.js';
@@ -48,6 +45,7 @@ import {productionPanelDataIssues} from './public/production-panel-prompts.js';
 import {ensurePanelGeneration,ensureProjectPanelGeneration,panelProductionShot,panelContentKey,panelProductionSnapshot} from './public/panel-generation.js';
 import {referencesForPanel,panelReferenceKey,referenceCountError} from './public/panel-references.js';
 import {GenerationSlots} from './lib/generation-slots.mjs';
+import {readGate,blockGate,clearGate} from '../distribution/generation-gate.mjs';
 
 import {createEpisodeBoardSharing} from "./lib/episode-boards.mjs";
 import {boardAssetIds,remapBoardAssets} from './public/episode-boards.js';
@@ -106,17 +104,32 @@ import {createProjectCenterSync} from './lib/project-center.mjs';
 
 
 const root=path.dirname(fileURLToPath(import.meta.url));
+// A single batch must not queue an entire long episode in one click: it is the
+// main way a short burst exhausts the provider image quota.
+const MAX_BATCH_PANELS=Math.max(1,Math.min(100,Number(process.env.COMIC_MAX_BATCH_PANELS)||24));
 const geometryKey=panel=>JSON.stringify({x:panel.x,y:panel.y,w:panel.w,h:panel.h,points:panel.points,imageAssetId:panel.imageAssetId,imageTransform:panel.imageTransform});
 const json=(response,status,value)=>{response.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});response.end(JSON.stringify(value));};
 async function body(request,maxBytes=2*1024*1024){const chunks=[];let total=0;for await(const chunk of request){total+=chunk.length;check(total<=maxBytes,'文件或请求超过大小限制',413);chunks.push(chunk);}try{return JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}');}catch(error){check(false,'请求不是有效 JSON');}}
-export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root,'data'),maxConcurrent=Number(process.env.COMIC_MAIN_MAX_CONCURRENT??(process.env.COMIC_MAX_CONCURRENT?normalizeConcurrency(process.env.COMIC_MAX_CONCURRENT):DEFAULT_MAIN_CONCURRENCY)),repairConcurrent=Number(process.env.COMIC_REPAIR_MAX_CONCURRENT??Math.min(DEFAULT_REPAIR_CONCURRENCY,maxConcurrent)),bridge=new CodexBridge({poolSize:maxConcurrent}),jimengBridge=new JimengBridge({taskRoot:path.resolve(dataDir),stateDir:path.join(dataDir,'provider-jimeng')}),seedReference=false,teamProductionFetcher=fetch,teamProductionNodeFile=null,formalVersionLibrary=null}={}) {
+export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root,'data'),maxConcurrent=Number(process.env.COMIC_MAIN_MAX_CONCURRENT??(process.env.COMIC_MAX_CONCURRENT?normalizeConcurrency(process.env.COMIC_MAX_CONCURRENT):DEFAULT_MAIN_CONCURRENCY)),repairConcurrent=Number(process.env.COMIC_REPAIR_MAX_CONCURRENT??Math.min(DEFAULT_REPAIR_CONCURRENCY,maxConcurrent)),bridge=new CodexBridge({poolSize:maxConcurrent}),jimengBridge=new JimengBridge({taskRoot:path.resolve(dataDir),stateDir:path.join(dataDir,'provider-jimeng')}),seedReference=false,teamProductionFetcher=fetch,teamProductionNodeFile=null}={}) {
   const store=new Store(dataDir),imageThumbnails=createImageThumbnails(path.join(dataDir,'thumbnails')),running=new Map();
   const teamRelease=createTeamReleaseContext({root,dataDir,store,body,json});
   for(const old of [...store.db.projects]){const result=old.productionPackage?splitProductionScreenBoards(old):{project:clone(old),changed:false};if(!result.changed)result.project=clone(old);const referencesRemoved=stripObsoleteProductionReferences(result.project),sliceChanged=hydrateProductionSlices(result.project,store.db.assets);let bubbleChanged=false;for(const page of result.project.pages)for(const bubble of page.bubbles)bubbleChanged=restoreLegacyBubbleMaterialVisibility(bubble)||bubbleChanged;if(result.changed||sliceChanged||bubbleChanged||referencesRemoved){ensureProjectPanelGeneration(result.project,store.db.assets);validateProject(result.project);const backup=path.join(dataDir,'backups','screen-boards');fs.mkdirSync(backup,{recursive:true});fs.writeFileSync(path.join(backup,old.id+'_r'+old.revision+'.json'),JSON.stringify(old));if(result.changed)rebaseRepairSessions(dataDir,old,result.project);result.project.revision=(old.revision||0)+1;result.project.updated=new Date().toISOString();store.db.projects[store.db.projects.indexOf(old)]=result.project;store.markProject(result.project);}}store.save();
   for(const p of store.db.projects)if(p.layoutHistory&&p.layoutHistory.retention!=='rolling'){ensureLayoutHistory(p);p.revision++;store.markProject?.(p);}store.save();
+  {let changed=false;for(const project of store.db.projects)if(hydrateProductionTableRegions(project,dataDir)){store.markProject?.(project);changed=true;}if(changed)store.save();}
   const boardSharing=createEpisodeBoardSharing(store);
   const generationSettings=new GenerationSettings(dataDir,normalizeConcurrency(maxConcurrent),{main:maxConcurrent,repair:repairConcurrent});
   let concurrency=generationSettings.platforms.main;
+  // Provider rate limits are account-wide. When Codex answers 429/quota the queue
+  // pauses for a cooldown instead of burning the rest of the batch on failures.
+  const rateLimit={until:0,strikes:0,timer:null,lastFailure:null};
+  const generationGateFile=process.env.COMIC_GENERATION_GATE||path.join(dataDir,'generation-gate.json');
+  {
+    const gate=readGate(generationGateFile);
+    if(gate.until>Date.now()){rateLimit.until=gate.until;rateLimit.strikes=gate.strikes||0;rateLimit.lastFailure=gate.updatedAt;}
+  }
+  const rateLimitBaseMs=Math.max(250,Number(process.env.COMIC_RATE_LIMIT_COOLDOWN_MS)||60000);
+  const rateLimitMaxMs=Math.max(rateLimitBaseMs,Number(process.env.COMIC_RATE_LIMIT_MAX_COOLDOWN_MS)||30*60*1000);
+  const rateLimitDelay=()=>Math.min(rateLimitMaxMs,rateLimitBaseMs*2**Math.min(rateLimit.strikes,6));
   bridge.ensurePoolSize?.(generationSettings.limits.codex);
   let closed=false,loginProcess=null,loginState={running:false,message:''};
   
@@ -144,29 +157,27 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
   if(seedReference&&store.db.assets.length===0&&fs.existsSync(referencePath)&&!store.db.projects[0]?.deletedAt&&store.db.projects[0]?.title==='门前来信 · 排版示例'){
     const asset=addAsset(referencePath,'用户提供的漫画参考','reference');store.db.projects[0].references.push({assetId:asset.id,role:'style',name:asset.name});store.save();
   }
-  let projectCenter,projectSync=null,teamProjects=null;
-  function saveProject(project,{editor=false}={}){stripObsoleteProductionReferences(project);hydrateProductionSlices(project,store.db.assets);syncScreenBackgrounds(project,store.db.assets);if(project.layoutHistory)ensureLayoutHistory(project);project.updated=new Date().toISOString();if(editor)project.revision++;teamProjects?.stamp(project);store.markProject?.(project);store.save();projectCenter?.mark(project);if(!teamProjects?.mark(project))projectSync?.mark(project);return boardSharing.view(project);}
+  let projectCenter,projectSync=null;
+  function saveProject(project,{editor=false}={}){stripObsoleteProductionReferences(project);hydrateProductionSlices(project,store.db.assets);syncScreenBackgrounds(project,store.db.assets);if(project.layoutHistory)ensureLayoutHistory(project);project.updated=new Date().toISOString();if(editor)project.revision++;store.markProject?.(project);store.save();projectCenter?.mark(project);projectSync?.mark(project);return boardSharing.view(project);}
   
   const generationSlots=new GenerationSlots({directory:process.env.COMIC_SLOT_DIR||path.join(dataDir,'generation-slots'),platforms:generationSettings.platforms,onChange:pump});
+  generationSlots.setProviderLimits(generationSettings.limits);
   const localRuntime=path.resolve(root,'../.runtime/image-tools');
-  const localPython=[process.env.IMAGE_REPAIR_PYTHON,path.join(localRuntime,'python/python.exe'),process.env.COMIC_PYTHON_BIN,path.resolve(root,'../runtime/python/python.exe')].find(file=>file&&fs.existsSync(file))||path.join(localRuntime,'python/python.exe');
-  const localTools=createLocalImageTools({runtimeRoot:localRuntime,dataDir,script:path.join(root,'python/local_image_tools.py'),python:localPython});
+  const localTools=createLocalImageTools({runtimeRoot:localRuntime,dataDir,script:path.join(root,'python/local_image_tools.py'),python:path.join(localRuntime,'python/python.exe')});
   const library=createRemoteLibrary({dataDir,configPath:process.env.COMIC_LIBRARY_CONFIG||path.resolve(root,'../asset-studio/data/moku.json'),store,addAsset,body,json});
+  const promptRewrites=createPromptRewriteAPI({store,dataDir,bridge,body,json});
   const panelSlices=createPanelSlicesAPI({store,dataDir,body,json,saveProject,addAsset,applyLettering:(...args)=>productionPackages.applyLettering(...args)});
   const productionPackages=createProductionPackageAPI({store,dataDir,library,body,json,saveProject,addAsset,projectView:boardSharing.view,getBubbleManifest:()=>bubbleStyleLibrary.readManifest()});
   const panelImageImports=createPanelImageImports({store,dataDir});
   // 工程快照自动上传墨库：保存后按内容摘要去重、串行推送；失败只记录状态，不阻断本机保存。
-  const episodeVersions=createEpisodeVersionStore({dataDir,store});
-  const formalVersions=createFormalEngineeringVersions({dataDir,store,library:formalVersionLibrary||library,episodeVersions,validateProject,materializeImage:async(file,r)=>addAssetInfo(await inspectImageFileAsync(file),r.revisionId,'moku-formal-version')});
-  projectSync=createProjectSync({dataDir,store,library,isFormallyManaged:formalVersions.isManaged,projectView:boardSharing.view,json,body});
-  teamProjects=createTeamProjects({dataDir,store,library,projectView:boardSharing.view,saveProject,legacySync:projectSync,body,json});
-  const teamCommunications=createTeamCommunicationsProxy({root,dataDir,teamProjects,library,body,json});
+  projectSync=createProjectSync({dataDir,store,library,projectView:boardSharing.view,json,body});
+  const teamMembers=createTeamMemberProxy({root,dataDir,library,body,json});
   // 气泡样式库放在墨库独立文件夹，编辑器从墨库读取；本地文件只用于首次发布。
   const bubbleStyleLibrary=createBubbleStyleLibrary({dataDir,library,store,json,body});
   const localRegions=createLocalRegionAPI({store,dataDir,localTools,body,json,saveProject,addAsset});
   const assetWorkspace=createAssetWorkspaceAPI({store,body,json,saveProject});
   const layerMerge=createLayerMergeAPI({store,dataDir,body,json,saveProject,addAsset});
-  const integratedRepair=createIntegratedRepair({dataDir,store,body,json,saveProject,addAsset,apiOrigin:()=>`http://127.0.0.1:${server.address().port}`,localTools,getRepairConcurrency:()=>generationSettings.platforms.repair});
+  const integratedRepair=createIntegratedRepair({dataDir,store,body,json,saveProject,addAsset,apiOrigin:()=>`http://127.0.0.1:${server.address().port}`,localTools});
   const handleAssetCenter=createAssetCenterHandler({store,dataDir,body,json,saveProject,bridge,generationSlots,apiOrigin:()=>`http://127.0.0.1:${server.address().port}`});
   const comicSfxDesigner=new ComicSfxDesigner({store,bridge,slots:generationSlots,dataDir,slotOrigin:()=>`http://127.0.0.1:${server.address().port}`});
   function jimengUncertain(job){
@@ -186,7 +197,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
   
   const handleBreakout=createBreakoutHandler({store,body,json,saveProject,enqueue:enqueueBreakout,python:process.env.COMIC_PYTHON_BIN||bridge.python});
   function enqueueBreakout(project,request){
-    check(!closed,'服务正在关闭，请稍后重试',503);check(!store.db.jobs.some(j=>j.projectId===project.id&&j.panelId===request.panelId&&['queued','running','awaiting_confirmation','recoverable'].includes(j.status)),'当前画格还有生成任务，请等待完成或取消',409);
+    check(!closed,'服务正在关闭，请稍后重试',503);check(!store.db.jobs.some(j=>j.projectId===project.id&&j.panelId===request.panelId&&['queued','running','awaiting_confirmation','recoverable','delegated'].includes(j.status)),'当前画格还有生成任务，请等待完成或取消',409);
     check(store.db.jobs.filter(j=>['queued','running'].includes(j.status)).length<120,'任务队列最多保留120个等待或运行任务');request.referenceAssetIds.forEach(id=>localImagePath(store.assetPath(id)));
     const snapshot=clone(request);snapshot.referenceStamp=referenceStamp(request.referenceAssetIds.map(id=>store.assetPath(id)));delete snapshot.bridgeInput;delete snapshot.referenceFiles;
     const job={id:uid('job'),kind:'breakout-foreground',provider:'codex',projectId:project.id,panelId:request.panelId,shotId:'',shotCode:'破框',shotTitle:request.subject,action:'generate',status:'queued',phase:'queued',message:'透明前景已排队，完成后需看图确认',created:new Date().toISOString(),updated:new Date().toISOString(),breakoutRequest:snapshot,input:clone(request.bridgeInput)};
@@ -194,7 +205,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
   }
   function enqueueProduction(project,request,input={}){
     check(!closed,'服务正在关闭，请稍后重试',503);const snapshot=request.stageSnapshot;
-    check(!store.db.jobs.some(j=>j.projectId===project.id&&j.assetProductionRequest?.stageSnapshot?.assetId===snapshot.assetId&&j.assetProductionRequest?.stageSnapshot?.stageId===snapshot.stageId&&['queued','running','awaiting_confirmation','recoverable'].includes(j.status)),'这个资产步骤已有任务，请等待完成或取消',409);
+    check(!store.db.jobs.some(j=>j.projectId===project.id&&j.assetProductionRequest?.stageSnapshot?.assetId===snapshot.assetId&&j.assetProductionRequest?.stageSnapshot?.stageId===snapshot.stageId&&['queued','running','awaiting_confirmation','recoverable','delegated'].includes(j.status)),'这个资产步骤已有任务，请等待完成或取消',409);
     check(store.db.jobs.filter(j=>['queued','running'].includes(j.status)).length<120,'任务队列最多保留120个等待或运行任务');
     request.referenceIds.forEach(assetId=>localImagePath(store.assetPath(assetId)));
     const job={id:uid('job'),kind:'asset-production',provider:request.provider,projectId:project.id,panelId:'',shotId:'',shotCode:request.asset.id,shotTitle:request.asset.name+' · '+request.stage.label,action:'generate',status:'queued',phase:'queued',message:'资产已排队，完成后需看图确认',created:new Date().toISOString(),updated:new Date().toISOString(),assetProductionRequest:{asset:{id:request.asset.id},stage:{id:request.stage.id},stageSnapshot:clone(snapshot),requestKey:request.requestKey,referenceStamp:referenceContentStamp(request.referenceIds.map(id=>store.assetPath(id)))},input:clone(request.bridgeInput)};
@@ -224,9 +235,22 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
     for(const key of ['completedAt','errorDetails','errorCode','requiredAction','validation','protocol','nativeDiagnostics','startedAt','phaseStartedAt','elapsedMs','stage','timings','generationCompletedAt','imageGenerationMs','dispatchEffort'])delete job[key];
     if(!keepGenerationStartedAt)delete job.generationStartedAt;
   }
-  function scheduler(){return {concurrency:generationSlots.mainLimit(),active:running.size,queued:store.db.jobs.filter(j=>j.status==='queued').length};}
+  function scheduler(){const value={concurrency:generationSlots.mainLimit(),active:running.size,queued:store.db.jobs.filter(j=>j.status==='queued').length};if(Date.now()<rateLimit.until){value.pausedUntil=rateLimit.until;value.rateLimitStrikes=rateLimit.strikes;}return value;}
+  function schedulePumpAfterCooldown(){
+    if(closed||rateLimit.timer||rateLimit.until<=Date.now())return;
+    rateLimit.timer=setTimeout(()=>{rateLimit.timer=null;if(!closed)pump();},Math.max(0,rateLimit.until-Date.now())+50);
+    rateLimit.timer.unref?.();
+  }
+  function clearRateLimitCooldown(){
+    rateLimit.strikes=0;rateLimit.until=0;rateLimit.lastFailure=null;
+    if(rateLimit.timer){clearTimeout(rateLimit.timer);rateLimit.timer=null;}
+    clearGate(generationGateFile);
+  }
   function pump(){
     if(closed)return;
+    const sharedGate=readGate(generationGateFile);
+    if(sharedGate.until>rateLimit.until)rateLimit.until=sharedGate.until;
+    if(Date.now()<rateLimit.until){schedulePumpAfterCooldown();return;}
     const remoteOwners=new Set(generationSlots.listRemote().map(lease=>lease.ownerId));
     function start(job,remoteRecovery=false){
       const operation={controller:new AbortController(),handle:null,remoteRecovery};running.set(job.id,operation);
@@ -239,7 +263,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
     for(const job of store.db.jobs.filter(j=>j.status==='queued'&&j.provider==='jimeng'&&j.recoveryOnly===true&&remoteOwners.has('comic:'+j.id)))start(job,true);
     while([...running.values()].filter(operation=>!operation.remoteRecovery).length<generationSlots.mainLimit()){
       const job=store.db.jobs.find(j=>{
-        if(j.status!=='queued'||!packageJobReady(j,store))return false;
+        if(j.status!=='queued'||running.has(j.id)||!packageJobReady(j,store))return false;
         const provider=j.provider||'codex';
         const active=store.db.jobs.filter(item=>(item.provider||'codex')===provider&&((running.has(item.id)&&!running.get(item.id).remoteRecovery)||remoteOwners.has('comic:'+item.id))).length;
         return active<generationSettings.limits[provider];
@@ -251,7 +275,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
     let lease,completed=false;
     try{
       updateJob(job,{message:`等待生图名额；主平台平时最多 ${concurrency} 张，补图任务优先插队`});
-      lease=await generationSlots.acquire({ownerId:'comic:'+job.id,requestId:uid('attempt'),recoveryOnly:job.recoveryOnly===true,signal:operation.controller.signal});
+      lease=await generationSlots.acquire({ownerId:'comic:'+job.id,requestId:uid('attempt'),recoveryOnly:job.recoveryOnly===true,signal:operation.controller.signal,provider:job.provider||'codex'});
       if(operation.controller.signal.aborted)throw Object.assign(new Error('任务已取消'),{name:'AbortError'});
       const directory=job.kind==='collab-generation'?path.join(dataDir,'collab','jobs',job.id):path.join(dataDir,'jobs',job.id);fs.mkdirSync(directory,{recursive:true});
       refreshPackageJob(job,store);if(job.input.productionSource)fs.writeFileSync(path.join(directory,'production-source.json'),JSON.stringify(job.input.productionSource,null,2));
@@ -268,6 +292,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
         updateJob(job,{message,phase,stage:details.stage||null,...(phase!==job.phase?{phaseStartedAt:new Date().toISOString()}:{}),...(phase==='generating'&&!job.generationStartedAt?{generationStartedAt:new Date().toISOString()}:{}),...(details.stage==='image_generation_completed'?{generationCompletedAt:new Date().toISOString(),...(Number.isFinite(details.imageGenerationMs)?{imageGenerationMs:details.imageGenerationMs}:{})}:{}),...(details.dispatchEffort?{dispatchEffort:details.dispatchEffort}:{}),elapsedMs:details.elapsedMs,...(details.recovery?{recovery:details.recovery}:{})},{soon:!details.phase||details.phase===job.phase});
       }});
       completed=true;
+      clearRateLimitCooldown();
        if(closed)return;
       if(result.awaitingConfirmation){if(job.kind==='collab-generation'){updateJob(job,{status:'failed',phase:'failed',completedAt:new Date().toISOString(),message:'即梦需要批准积分，协作任务不能自动批准；请在执行节点改用 Codex 或手动处理'});return;}updateJob(job,{status:'awaiting_confirmation',phase:'awaiting_confirmation',quote:result.quote,recovery:result.recovery,message:`即梦需要批准积分；本镜头报价 ${result.quote.totalMaxCredits} 积分，请明确批准消费上限`});return;}
         // 协作任务：只校验/登记结果并写回 job，绝不触碰任何工程画格（回填由 A 端 collab-apply 完成）。
@@ -307,6 +332,15 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
         updateJob(job,{status:job.status==='cancelled'?'cancelled':'done',assetId:asset.id,rawAssetId:rawAsset.id,applied,autoApplyBlocked,repairedPage:result.repairedPage,imageToolSeen:result.imageToolSeen,message:applied?'镜头已生成并贴入格子'+(result.nativeComposition?.notice?'；'+result.nativeComposition.notice:''):'结果已保留为候选：'+autoApplyBlocked.join('；'),description:result.description});
       if(job.status==='done')updateJob(job,{phase:'done',completedAt:new Date().toISOString(),timings:result.timings||null,...(result.recovery?{recovery:result.recovery}:{})});
      }catch(error){completed||=error.generationEnded===true;if(job.status!=='cancelled'&&!closed){
+      if(error.code==='account_rate_limited'){
+        // The provider refused the request before any turn existed. Keep the job
+        // queued (not failed), pause the whole queue and resume automatically.
+        rateLimit.strikes++;rateLimit.until=Date.now()+rateLimitDelay();rateLimit.lastFailure=new Date().toISOString();
+        blockGate(generationGateFile,rateLimit.until,'codex_rate_limited',rateLimit.strikes);
+        const resume=new Date(rateLimit.until).toLocaleTimeString('zh-CN',{hour12:false});
+        updateJob(job,{status:'queued',phase:'queued',message:`官方 Codex 账号限流或额度用尽（429）；队列已暂停到 ${resume}，恢复后自动继续。本次没有提交生成，原图与任务保留，请勿重复提交。`,errorCode:error.code,requiredAction:null,rateLimitedUntil:rateLimit.until});
+        schedulePumpAfterCooldown();return;
+      }
       if(job.provider==='jimeng'&&error.awaitingConfirmation){updateJob(job,{status:'awaiting_confirmation',phase:'awaiting_confirmation',quote:error.quote,recovery:error.recovery,requiredAction:error.requiredAction||null,errorCode:error.code||null,message:redact(error.message)});return;}
       const recoverable=job.provider==='jimeng'&&error.recoverable===true;
       updateJob(job,{status:recoverable?'recoverable':'failed',phase:recoverable?'recoverable':'failed',completedAt:new Date().toISOString(),message:redact(error.message).slice(0,900),requiredAction:error.requiredAction||null,errorCode:error.code||null,...(error.diagnostics?{nativeDiagnostics:error.diagnostics}:{}),...(error.validation?{validation:error.validation}:{}),...(error.protocol?{protocol:error.protocol}:{}),...(error.recovery?{recovery:error.recovery}:{})});
@@ -341,12 +375,12 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
       if(await panelSlices.handle(request,response,{pathname,method,url}))return;
       if(await productionPackages.handle(request,response,{pathname,method,url}))return;
       if(await bubbleStyleLibrary.handle(request,response,{pathname,method,url}))return;
+      if(await promptRewrites.handle(request,response,{pathname,method,url}))return;
       if(await library.handle(request,response,{pathname,method,url}))return;
-      if(await teamProjects.handle(request,response,{pathname,method,url}))return;
       if(await projectSync.handle(request,response,{pathname,method,url}))return;
       if(await integratedRepair.handle(request,response,{pathname,method,url}))return;
-      if(pathname==='/api/project-center/service/stop'&&method==='POST'&&process.env.PRODUCTION_INTEGRATION_ROOT){const input=await body(request);check(input.expectedCodeRoot===root,'服务身份不符',409);check(!teamProjects.running()&&!layerMerge.running()&&!integratedRepair.running()&&!running.size&&!handleAssetCenter.running()&&!comicSfxDesigner.running()&&!store.db.jobs.some(j=>['queued','running'].includes(j.status)),'服务仍有任务，未退出',409);json(response,200,{ok:true});setTimeout(shutdownStudio,50);return;}
-      if(pathname.startsWith('/api/collab/')){if(await collabJobs.handle(request,response,{pathname,method,url}))return;if(await collabClient.handle(request,response,{pathname,method,url}))return;return json(response,404,{error:'协作接口不存在',code:'collab_route_not_found'});}
+      if(pathname==='/api/project-center/service/stop'&&method==='POST'&&process.env.PRODUCTION_INTEGRATION_ROOT){const input=await body(request);check(input.expectedCodeRoot===root,'服务身份不符',409);check(!promptRewrites.running()&&!layerMerge.running()&&!integratedRepair.running()&&!running.size&&!handleAssetCenter.running()&&!comicSfxDesigner.running()&&!store.db.jobs.some(j=>['queued','running'].includes(j.status)),'服务仍有任务，未退出',409);json(response,200,{ok:true});setTimeout(shutdownStudio,50);return;}
+      if(pathname.startsWith('/api/collab/')){if(process.env.COMIC_TEAM_HELP!=='1')return json(response,410,{error:'团队帮忙生图功能已移除；请使用本机生图'});if(await collabJobs.handle(request,response,{pathname,method,url}))return;if(await collabClient.handle(request,response,{pathname,method,url}))return;return json(response,404,{error:'协作接口不存在',code:'collab_route_not_found'});}
       
       
       if(await stripExports.handle(request,response,pathname,method))return;
@@ -354,9 +388,6 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
       
       
       
-      if(pathname.startsWith('/api/formal-engineering-versions')){const input=method==='GET'?Object.fromEntries(url.searchParams):await body(request),p=store.project(input.projectId),n=Number(input.episode),action=pathname.split('/').at(-1);try{if(method==='GET'){if(action==='preview'){const original=await formalVersions.preview(p,n,input);response.writeHead(200,{'Content-Type':original.headers.get('content-type')||'application/octet-stream','Cache-Control':'no-store'});await formalPreviewPipeline(Readable.fromWeb(original.body),response);return;}const result=action==='diff'?await formalVersions.compareVersions(p,n,input):action==='history'?await formalVersions.history(p,n,input):action==='inventory'?await formalVersions.inventory(p,n):action==='submission'?await formalVersions.query(p,n):await formalVersions.status(p,n);return json(response,200,result);}if(method==='POST'){const handler={publish:formalVersions.publish,compare:formalVersions.compare,'commit-merge':formalVersions.commitMerge,checkout:formalVersions.checkout,restore:formalVersions.restore}[action];check(handler,'版本操作不存在',404);return json(response,200,await handler(p,n,input));}}catch(error){return json(response,error.status||500,{error:error.message,code:error.code||'FORMAL_VERSION_ERROR'});}}
-      if(pathname==='/api/episode-versions'&&method==='GET'){const p=store.project(url.searchParams.get('projectId')),n=Number(url.searchParams.get('episode'));return json(response,200,episodeVersions.status(p,n));}
-      if(pathname==='/api/episode-versions/checkpoint'&&method==='POST'){const input=await body(request),p=store.project(input.projectId);return json(response,200,episodeVersions.checkpoint(p,Number(input.episode),input.expectedRevision,input.note));}
       if(await assetWorkspace(request,response,{pathname,method,url}))return;
       if(await handleAssetCenter(request,response,{pathname,method,url}))return;
       if(await projectCenter?.handle(request,response,{pathname,method,url}))return;
@@ -371,24 +402,24 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
       
       
       if(await teamRelease.handle(request,response,url))return;
-      if(await teamCommunications.handle(request,response,url))return;
+      if(await teamMembers.handle(request,response,url))return;
       if(await teamProduction.handle(request,response,url))return;
       if(method==='GET'&&pathname==='/api/team-release/status'){
         const address=process.env.COMIC_TEAM_CONTROL_URL;if(!address)return json(response,200,{managed:false});const control=new URL(address);if(control.hostname!=='127.0.0.1'||control.protocol!=='http:')return json(response,503,{error:'本机版本管理地址无效'});
         try{const upstream=await fetch(control.origin+'/api/status',{signal:AbortSignal.timeout(2000)});if(!upstream.ok)throw Error('版本管理未就绪');const state=await upstream.json();return json(response,200,{managed:true,role:state.role,controlUrl:control.origin,current:state.current,latest:state.latest,available:state.available,busy:state.busy});}catch{return json(response,503,{error:'版本管理正在启动或重启'});}
       }
-      if(method==='GET'&&pathname==='/api/health')return json(response,200,{application:'comic-merged-studio',version:'0.7.0-integrated-repair',mokuCompatibilityBuild:'V41-Moku-20261027-r1',integrationVersion:'10.24-unified-layout-3',autoLayout:true,codeRoot:root,dataRoot:path.resolve(dataDir),teamControlUrl:process.env.COMIC_TEAM_CONTROL_URL||null,generation:{...generationSlots.snapshot(),queued:store.db.jobs.filter(j=>j.status==='queued').length,remoteUnknown:generationSlots.listRemote().length},styleDesign:{running:comicSfxDesigner.running()},workflow:'storyboard-import',productionPackageVersion:2,productionLayoutDesignVersion:1,productionPackageBoardLimit:1000,productionReferenceBindings:true,mokuReferencesOnly:true,defaultGeneratedImageZoom:95,referenceContentVerification:true,generationAutoFillVersion:2,panelSlicesVersion:1,panelSlicesInteractionVersion:2,referenceGenerationReturnVersion:1,referencePickerSplitVersion:1,sceneReferencePickerVersion:1,assetInlineWorkspaceVersion:1,textAssetReferencesVersion:1,assetProvenanceVersion:1,bubbleTextFrameVersion:1,episodeAssetOverviewVersion:1,unifiedArtStyleVersion:1,imageCornerResizeVersion:1,frameCornerDragVersion:2,localRegionToolsVersion:1,layerMergeVersion:1,inlineEpisodeBoardsVersion:1,episodeBoardLocalImages:true,nativeReferencePackingVersion:1,nativeReferenceLimit:5,teamCommunicationsVersion:1,backgroundFrameDragVersion:1,productionScreenBoardsVersion:1,productionSliceGenerationVersion:1,productionPanelGenerationVersion:1,productionPanelBatchVersion:1,productionLetteringStylesVersion:1,teamworkVersion:1,reviewAnnotationsVersion:1,projectSnapshotCompression:true,contentInputs:['production-package','storyboard-table'],imageStorage:'path',fixedEpisodeBoards:true,continuousCanvasCoverTailVisible:true,assetDirectoryImport:true,storyboardBatchImport:true,collaboration:true,projectCenter:true,remoteLibrary:true,projectSync:true,integratedRepair:true,localImageTools:localTools.status(),mode:'whole-strip',assetCenter:{running:handleAssetCenter.running(),...handleAssetCenter.status()}});
+      if(method==='GET'&&pathname==='/api/health')return json(response,200,{application:'comic-merged-studio',version:'0.7.0-integrated-repair',mokuCompatibilityBuild:'Moku-only-20261027-r1',workspaceUpdateBuild:'20261027-dialogue-prompt-r1',doubleDialogueVersion:1,promptRewriteVersion:1,promptRewrite:{running:promptRewrites.running()},integrationVersion:'10.24-unified-layout-3',autoLayout:true,codeRoot:root,dataRoot:path.resolve(dataDir),teamControlUrl:process.env.COMIC_TEAM_CONTROL_URL||null,generation:{...generationSlots.snapshot(),queued:store.db.jobs.filter(j=>j.status==='queued').length,remoteUnknown:generationSlots.listRemote().length,pausedUntil:Date.now()<rateLimit.until?rateLimit.until:null,rateLimitStrikes:rateLimit.strikes,maxBatchPanels:MAX_BATCH_PANELS,sharedGateUntil:readGate(generationGateFile).until||null},styleDesign:{running:comicSfxDesigner.running()},workflow:'storyboard-import',productionPackageVersion:2,productionLayoutDesignVersion:1,productionPackageBoardLimit:1000,productionReferenceBindings:true,mokuReferencesOnly:true,defaultGeneratedImageZoom:95,referenceContentVerification:true,generationAutoFillVersion:2,panelSlicesVersion:1,panelSlicesInteractionVersion:2,referenceGenerationReturnVersion:1,referencePickerSplitVersion:1,sceneReferencePickerVersion:1,assetInlineWorkspaceVersion:1,textAssetReferencesVersion:1,assetProvenanceVersion:1,bubbleTextFrameVersion:1,episodeAssetOverviewVersion:1,unifiedArtStyleVersion:1,imageCornerResizeVersion:1,frameCornerDragVersion:2,localRegionToolsVersion:1,layerMergeVersion:1,inlineEpisodeBoardsVersion:1,episodeBoardLocalImages:true,nativeReferencePackingVersion:1,nativeReferenceLimit:5,backgroundFrameDragVersion:1,productionScreenBoardsVersion:1,productionSliceGenerationVersion:1,productionPanelGenerationVersion:1,productionPanelBatchVersion:1,productionLetteringStylesVersion:1,projectSnapshotCompression:true,contentInputs:['production-package','storyboard-table'],imageStorage:'path',fixedEpisodeBoards:true,continuousCanvasCoverTailVisible:true,assetDirectoryImport:true,storyboardBatchImport:true,collaboration:true,projectCenter:true,remoteLibrary:true,projectSync:true,integratedRepair:true,localImageTools:localTools.status(),mode:'whole-strip',assetCenter:{running:handleAssetCenter.running(),...handleAssetCenter.status()}});
       if(method==='GET'&&pathname==='/api/state')return json(response,200,stateSnapshot(url.searchParams,{login:loginState,scheduler:scheduler(),...(store.lastSaveError?{storageWarning:'工程数据暂时无法写盘（'+store.lastSaveError+'），工作台会自动重试；请检查磁盘空间或是否有程序占用数据文件。'}:{})}));
       if(method==='GET'&&pathname==='/api/generation-settings')return json(response,200,generationSettings.snapshot());
       if(method==='GET'&&pathname==='/api/platform-generation-settings')return json(response,200,generationSettings.platformSnapshot());
       if(method==='PUT'&&pathname==='/api/platform-generation-settings'){
         const settings=generationSettings.updatePlatforms(await body(request));
-        concurrency=settings.main;generationSlots.setPlatforms(settings);integratedRepair.setConcurrency(settings.repair);bridge.ensurePoolSize?.(generationSettings.limits.codex);pump();
+        concurrency=settings.main;generationSlots.setPlatforms(settings);generationSlots.setProviderLimits(generationSettings.limits);bridge.ensurePoolSize?.(generationSettings.limits.codex);pump();
         return json(response,200,settings);
       }
       if(method==='PUT'&&pathname==='/api/generation-settings'){
         const input=await body(request),settings=generationSettings.update(input.provider,input.concurrency);
-        bridge.ensurePoolSize?.(settings.limits.codex);pump();
+        generationSlots.setProviderLimits(settings.limits);bridge.ensurePoolSize?.(settings.limits.codex);pump();
         return json(response,200,settings);
       }
       if(method==='GET'&&pathname==='/api/codex/status')return json(response,200,{...await bridge.status({force:url.searchParams.get('force')==='1',checkSession:url.searchParams.get('force')==='1'}),login:loginState});
@@ -432,7 +463,7 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
       if(projectMatch&&method==='DELETE'){
         const input=await body(request),project=store.project(projectMatch[1]);
         check(Number.isInteger(input.expectedRevision)&&input.expectedRevision===project.revision,'项目已在其他窗口修改，请刷新项目管理后再删除。',409);
-        check(!store.db.jobs.some(j=>j.projectId===project.id&&['queued','running'].includes(j.status)),'这个项目还有生成任务正在处理，请先完成或取消任务再删除。',409);
+        check(!store.db.jobs.some(j=>j.projectId===project.id&&['queued','running','delegated'].includes(j.status)),'这个项目还有生成任务正在处理，请先完成或取消任务再删除。',409);
         check(!store.db.jobs.some(j=>j.projectId===project.id&&j.provider==='jimeng'&&(j.status==='recoverable'||(j.status!=='done'&&jimengUncertain(j)))),'这个项目还有即梦云端任务结果未确认，请先查询原任务完成后再删除',409);
         project.deletedAt=new Date().toISOString();project.revision++;store.save();
         return json(response,200,{id:project.id,title:project.title,deletedAt:project.deletedAt});
@@ -449,15 +480,15 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
         const id=purgeMatch[1],input=method==='POST'?await body(request):null,idle=()=>{
           check(!store.db.jobs.some(j=>j.projectId===id&&['queued','preparing','running','recoverable','awaiting_confirmation','delegated'].includes(j.status)),'这个项目还有未结束或待确认的任务，请处理后再彻底删除',409);
           check(!store.db.jobs.some(j=>j.projectId===id&&j.provider==='jimeng'&&j.status!=='done'&&jimengUncertain(j)),'云端任务结果未确认，请先查询原任务',409);
-          check(!integratedRepair.running()&&!teamProjects.running()&&!projectSync.running()&&!projectCenter.running(),'修图或工程同步正在处理，请完成后再彻底删除',409);
+          check(!integratedRepair.running()&&!projectSync.running()&&!projectCenter.running(),'修图或工程同步正在处理，请完成后再彻底删除',409);
         };idle();const stamp=()=>JSON.stringify([store.db.projects.map(p=>[p.id,p.revision,p.updated,store.projectStamp(p.id)]),store.db.assets.map(a=>[a.id,a.filePath])]),before=stamp(),plan=await planProjectPurge(store,id);idle();check(stamp()===before,'统计期间工程或图片发生变化，请重新确认',409);
         if(method==='GET')return json(response,200,purgeSummary(plan));
         check(input.expectedRevision===plan.revision&&input.confirmation===plan.title&&input.planToken===plan.token,'项目或清理范围已改变，请重新打开彻底删除确认窗口',409);
         idle();const latest=store.db.projects.find(p=>p.id===id);check(store.pendingPurges.has(id)||latest?.deletedAt&&latest.revision===plan.revision,'项目状态已改变，未执行彻底删除',409);
-        const result=executeProjectPurge(store,plan);projectSync.forget(id);teamProjects.forget(id);projectCenter.forget(id);return json(response,200,{ok:true,permanent:true,...result});
+        const result=executeProjectPurge(store,plan);projectSync.forget(id);projectCenter.forget(id);return json(response,200,{ok:true,permanent:true,...result});
       }
       if(projectMatch&&method==='PUT'){
-        const input=await body(request,EDITOR_SAVE_COMPATIBILITY_LIMIT),old=store.project(projectMatch[1]);check(input.id===old.id,'工程编号不一致');check(old.layerSchema!==1||input.layerSchema===1,'工程已升级为联通图层，请刷新页面后继续编辑。',409);check(old.editorLayoutVersion!==2||input.editorLayoutVersion===2,'工程已升级为渐变区域和镜头组，请保存旧窗口副本后刷新页面。',409);check(input.revision===old.revision,'工程已在其他窗口修改，请先保存本地工程副本再重新载入。',409);for(const key of [...EDITOR_SERVER_FIELDS,'formalVersionBindings']){if(old[key]!==undefined)input[key]=clone(old[key]);else delete input[key];}
+        const input=await body(request,EDITOR_SAVE_COMPATIBILITY_LIMIT),old=store.project(projectMatch[1]);check(input.id===old.id,'工程编号不一致');check(old.layerSchema!==1||input.layerSchema===1,'工程已升级为联通图层，请刷新页面后继续编辑。',409);check(old.editorLayoutVersion!==2||input.editorLayoutVersion===2,'工程已升级为渐变区域和镜头组，请保存旧窗口副本后刷新页面。',409);check(input.revision===old.revision,'工程已在其他窗口修改，请先保存本地工程副本再重新载入。',409);for(const key of EDITOR_SERVER_FIELDS){if(old[key]!==undefined)input[key]=clone(old[key]);else delete input[key];}
         
         
         
@@ -474,7 +505,7 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
         ensureProjectPanelGeneration(input,store.db.assets);normalizeLayerOrder(input);validateProject(input);checkAssets(input);
         const mergeRestores=new Set([...layerMerge.restorableImages(old,input),...integratedRepair.restorableImages(old,input),...panelImageImports.restorableImages(old,input)]),oldPanels=new Map(old.pages.flatMap(page=>page.panels.map(panel=>[panel.id,panel])));
         for(const page of input.pages)for(const panel of page.panels){const current=oldPanels.get(panel.id);if(current){if(!mergeRestores.has(panel.id)){if(current.imageEffects)panel.imageEffects=clone(current.imageEffects);else delete panel.imageEffects;}if(current.breakoutCandidates)panel.breakoutCandidates=clone(current.breakoutCandidates);else delete panel.breakoutCandidates;if(current.breakoutForeground)panel.breakoutForeground=clone(current.breakoutForeground);else delete panel.breakoutForeground;if(current.generation&&panel.generation===undefined){panel.generation=clone(current.generation);panel.referenceIds=clone(current.referenceIds);}if(!mergeRestores.has(panel.id)){if(panel.imageAssetId!==current.imageAssetId){panel.imageTransform=current.imageTransform;if(current.cutoutLayer?.kind==='upscale')panel.cutoutLayer=clone(current.cutoutLayer);}panel.imageAssetId=current.imageAssetId;panel.candidates=current.candidates;}panel.generationToken=current.generationToken;}}
-        rotateProjectHistory(input);boardSharing.accept(old,input);delete input.deletedAt;input.created=old.created;input.revision=old.revision+1;input.updated=new Date().toISOString();store.db.projects[store.db.projects.indexOf(old)]=input;teamProjects.stamp(input);store.save();if(!teamProjects.mark(input))projectSync?.mark(input);return json(response,200,input);
+        rotateProjectHistory(input);boardSharing.accept(old,input);delete input.deletedAt;input.created=old.created;input.revision=old.revision+1;input.updated=new Date().toISOString();store.db.projects[store.db.projects.indexOf(old)]=input;store.save();projectSync?.mark(input);return json(response,200,input);
       }
       if(method==='GET'&&pathname==='/api/assets')return json(response,200,store.db.assets);
       if(method==='POST'&&pathname==='/api/episode-board-images'){
@@ -539,10 +570,10 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
         check(project.autoLayoutSource?.mode!=='screen-crop-reflow','成图重排工程只复用已有图片，不提交重新生图；请回到原工程制作新图',409);
         check(!input.provider||['jimeng','codex'].includes(input.provider),'生图来源无效');
         if(input.expectedRevision!==undefined)check(input.expectedRevision===project.revision,'当前排版已改变，请重新发起生成或重绘。',409);
-        check(Array.isArray(panelIds)&&panelIds.length>0&&panelIds.length<=100&&new Set(panelIds).size===panelIds.length,'请选择 1—100 个不同格子');
+        check(Array.isArray(panelIds)&&panelIds.length>0&&panelIds.length<=MAX_BATCH_PANELS&&new Set(panelIds).size===panelIds.length,`一批最多提交 ${MAX_BATCH_PANELS} 个不同格子，请分批生成`);
         await teamProduction.refreshReservations(project.id);teamProduction.assertAvailable(project.id,panelIds);
         check(store.db.jobs.filter(j=>['queued','running'].includes(j.status)).length+panelIds.length<=120,'任务队列最多保留 120 个等待或运行任务');
-        const packageModel=provider==='jimeng'&&(project.productionPackage||project.pages.some(p=>p.panels.some(f=>panelIds.includes(f.id)&&textAssetSignature(f).length)))?(await jimengBridge.models()).items?.find(m=>m.model===input.model):null;if(provider==='jimeng'&&project.productionPackage)check(packageModel,'请重新选择可用的官方模型');const candidates=panelIds.map(panelId=>{const {panel}=findPanel(project,cleanId(panelId));check(!panel.locked,'请先解锁格子');check(panel.coordinateSource?.generation!=='不生成','该格标记为不生成，仅显示边框与文字');check(!panel.breakoutForeground,'透明前景请通过原画格的破框功能生成');ensurePanelGeneration(project,panel,store.db.assets);const packagePlan=preparePackageJob(project,panel,store.db.assets,panelIds,store.db.jobs);if(packagePlan&&packageModel){const error=referenceCountError(packageModel,textAssetGenerationMode(packageModel,input.mode,packagePlan.refs.length+packagePlan.dependencies.length,panel,{edit:action==='edit'}),packagePlan.refs.length+packagePlan.dependencies.length,{edit:action==='edit'});check(!error,error);}if(panel.productionGrid){const record=project.productionPackage.episodes.flatMap(e=>e.panelRecords).find(r=>r.id===panel.productionGrid.panelId&&r.segmentId===panel.productionGrid.segmentId),problems=productionPanelDataIssues(record);check(!problems.length,'本格分镜资料不完整：'+panel.productionGrid.panelId+'；'+problems.join('；'));}const shot=panelProductionShot(project,panel,store.db.assets);check(shot.description.trim(),'请先填写本格提示词');const refs=referencesForPanel(project,panel,store.db.assets);if(panel.productionGrid||panel.panelSlice)verifyProductionReferenceFiles({segment:project.productionPackage.episodes.flatMap(e=>e.segments).find(s=>s.id===(panel.productionGrid||panel.panelSlice).segmentId),refs},store.db.assets);if(input.referenceIdsByPanel!==undefined){check(input.referenceIdsByPanel&&typeof input.referenceIdsByPanel==='object'&&!Array.isArray(input.referenceIdsByPanel),'本格参考请求格式无效');check(JSON.stringify(input.referenceIdsByPanel[panelId])===JSON.stringify(refs.map(ref=>ref.assetId)),'本格参考已改变，请保存并重新发起生成',409);}refs.forEach(ref=>store.asset(ref.assetId));if(!packagePlan){if(!panel.productionGrid&&!panel.panelSlice)assertCharacterReferences(project,shot,store.db.assets,refs.map(ref=>ref.assetId),panel);assertPanelReferenceCoverage(project,panel,store.db.assets);}return {panel,shot,refs,packagePlan};});
+        const packageModel=provider==='jimeng'&&(project.productionPackage||project.pages.some(p=>p.panels.some(f=>panelIds.includes(f.id)&&textAssetSignature(f).length)))?(await jimengBridge.models()).items?.find(m=>m.model===input.model):null;if(provider==='jimeng'&&project.productionPackage)check(packageModel,'请重新选择可用的官方模型');const candidates=panelIds.map(panelId=>{const {panel}=findPanel(project,cleanId(panelId));check(!panel.locked,'请先解锁格子');check(panel.coordinateSource?.generation!=='不生成','该格标记为不生成，仅显示边框与文字');check(!panel.breakoutForeground,'透明前景请通过原画格的破框功能生成');ensurePanelGeneration(project,panel,store.db.assets);const packagePlan=preparePackageJob(project,panel,store.db.assets,panelIds,store.db.jobs);if(packagePlan&&packageModel){const error=referenceCountError(packageModel,textAssetGenerationMode(packageModel,input.mode,packagePlan.refs.length+packagePlan.dependencies.length,panel,{edit:action==='edit'}),packagePlan.refs.length+packagePlan.dependencies.length,{edit:action==='edit'});check(!error,error);}if(panel.productionGrid){const record=project.productionPackage.episodes.flatMap(e=>e.panelRecords).find(r=>r.id===panel.productionGrid.panelId&&r.segmentId===panel.productionGrid.segmentId),problems=productionPanelDataIssues(record,{referenceAudit:auditPanelReferences(project,panel,store.db.assets)});check(!problems.length,'本格分镜资料不完整：'+panel.productionGrid.panelId+'；'+problems.join('；'));}const shot=panelProductionShot(project,panel,store.db.assets);check(shot.description.trim(),'请先填写本格提示词');const refs=referencesForPanel(project,panel,store.db.assets);if(panel.productionGrid||panel.panelSlice)verifyProductionReferenceFiles({segment:project.productionPackage.episodes.flatMap(e=>e.segments).find(s=>s.id===(panel.productionGrid||panel.panelSlice).segmentId),refs},store.db.assets);if(input.referenceIdsByPanel!==undefined){check(input.referenceIdsByPanel&&typeof input.referenceIdsByPanel==='object'&&!Array.isArray(input.referenceIdsByPanel),'本格参考请求格式无效');check(JSON.stringify(input.referenceIdsByPanel[panelId])===JSON.stringify(refs.map(ref=>ref.assetId)),'本格参考已改变，请保存并重新发起生成',409);}refs.forEach(ref=>store.asset(ref.assetId));if(!packagePlan){if(!panel.productionGrid&&!panel.panelSlice)assertCharacterReferences(project,shot,store.db.assets,refs.map(ref=>ref.assetId),panel);assertPanelReferenceCoverage(project,panel,store.db.assets);}return {panel,shot,refs,packagePlan};});
         await handleAssetCenter.ensureAssets(candidates.flatMap(candidate=>candidate.refs.map(ref=>ref.assetId)));await projectCenter.ensureAssets(candidates.flatMap(candidate=>candidate.refs.map(ref=>ref.assetId)));
         const projectPolicy=await projectCenter.preflight(project,panelIds);
         check(store.project(project.id)===project&&(input.expectedRevision===undefined||input.expectedRevision===project.revision),'读取共享资产期间工程已改变，请重新发起',409);
@@ -565,7 +596,7 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
         for(const {panel} of candidates){const sizing=panel.nativeSizing;if(sizing?.mode!=='model-long')continue;check(sizing.provider===provider,'当前主格的长幅尺寸属于另一通道，请先更新尺寸方案',409);if(provider==='jimeng'){check(!sizing.imageModelId||sizing.imageModelId===input.model,'主格尺寸能力与当前即梦模型不一致',409);check(!sizing.generationMode||sizing.generationMode===input.mode,'主格尺寸能力与即梦生成方式不一致',409);check(!sizing.request?.ratio||!input.ratio||sizing.request.ratio===input.ratio,'主格尺寸方案与所选生成比例不一致',409);input.ratio??=sizing.request?.ratio;input.resolution??=sizing.request?.resolution;}}
         check(store.project(project.id)===project,'连接检查期间工程已改变，请重新提交生成。',409);
         check(store.db.jobs.filter(j=>['queued','running'].includes(j.status)).length+panelIds.length<=120,'任务队列最多保留120个等待或运行任务');
-        check(!store.db.jobs.some(j=>j.projectId===project.id&&panelIds.includes(j.panelId)&&['queued','running','awaiting_confirmation','recoverable'].includes(j.status)),'这个格子已经在排队或生成，请等待完成或取消当前任务。',409);
+        check(!store.db.jobs.some(j=>j.projectId===project.id&&panelIds.includes(j.panelId)&&['queued','running','awaiting_confirmation','recoverable','delegated'].includes(j.status)),'这个格子已经在排队或生成，请等待完成或取消当前任务。',409);
         if(input.expectedRevision!==undefined)check(input.expectedRevision===project.revision,'当前排版已改变，请重新发起生成或重绘。',409);
         const batchId=uid('batch'),submittedAt=new Date().toISOString();const jobs=candidates.map(({panel,shot,refs,packagePlan})=>{const job={id:uid('job'),batchId,batchSize:candidates.length,provider,projectId:project.id,panelId:panel.id,shotId:panel.shotId||'',shotCode:shot.code,shotTitle:shot.title,action,status:'queued',phase:'queued',message:provider==='jimeng'?'等待即梦保存与报价':'等待 Codex 生成',created:submittedAt,updated:submittedAt,panelContentKey:panelContentKey(project,panel,store.db.assets),geometryKey:imageGeometryKey(panel),autoFillStamp:generationTargetStamp(panel,action,id=>store.assetPath(id)),referenceKey:panelReferenceKey(project,panel,store.db.assets),input:clone({action,projectId:project.id,projectTitle:project.title,model:input.model,mode:provider==='jimeng'?textAssetGenerationMode(packageModel,input.mode,refs.length+ (packagePlan?.dependencies.length||0),panel,{edit:action==='edit'}):input.mode,ratio:input.ratio,resolution:input.resolution,shot,projectPolicy:projectPolicy||undefined,style:project.style,panel:panelProductionSnapshot(panel,project),nativeSizing:panel.nativeSizing||null,referenceRoles:refs,textAssetReferences:panelTextAssets(project,panel,store.db.assets),editPrompt:input.editPrompt||'',cropBox,maskPolygon,feather:panel.feather,border:panel.border})};if(packagePlan){job.productionDependencies=packagePlan.dependencies;job.productionSignature=productionJobSignature(project,panel);if(packagePlan.dependencies.length)job.message='等待接续前段成图';}const gridSource=panel.productionGrid||panel.panelSlice;if(gridSource&&project.productionPackage)job.input.productionSource={packageId:project.productionPackage.id,packageHash:project.productionPackage.hash,segmentId:gridSource.segmentId,gridId:gridSource.panelId,source:gridSource.sourceLocation,originalPrompt:shot.description,promptSource:shot.promptSource,textAssetReferences:job.input.textAssetReferences,referenceOrder:refs.map(r=>r.assetId),referenceVersions:productionReferenceVersions(project,panel,refs,store.db.assets)};if(basePageBytes){const directory=path.join(dataDir,'jobs',job.id);fs.mkdirSync(directory,{recursive:true});const base=path.join(directory,'base_page.png');fs.writeFileSync(base,basePageBytes);job.input.basePagePath=base;}if(basePanelBytes){const directory=path.join(dataDir,'jobs',job.id);fs.mkdirSync(directory,{recursive:true});const base=path.join(directory,'base_panel.png');fs.writeFileSync(base,basePanelBytes);job.input.basePanelPath=base;}panel.generationToken=job.id;store.db.jobs.push(job);return job;});store.save();void pump();return json(response,202,jobs.map(publicJob));
       }
@@ -586,7 +617,7 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
         check(input.jobIds===undefined||Array.isArray(input.jobIds)&&input.jobIds.length<=10000,'批量取消任务列表无效');
         const ids=input.jobIds?new Set(input.jobIds.map(cleanId)):null;
         if(ids)for(const id of ids){const job=store.db.jobs.find(j=>j.id===id);check(!job||job.projectId===projectId,'取消列表包含其他漫画的任务');}
-        const targets=store.db.jobs.filter(job=>job.projectId===projectId&&(!ids||ids.has(job.id))&&['queued','running','awaiting_confirmation','recoverable'].includes(job.status)),cloudPending=targets.filter(jimengUncertain).map(job=>job.id),now=new Date().toISOString();
+        const targets=store.db.jobs.filter(job=>job.projectId===projectId&&(!ids||ids.has(job.id))&&['queued','running','awaiting_confirmation','recoverable','delegated'].includes(job.status)),cloudPending=targets.filter(jimengUncertain).map(job=>job.id),now=new Date().toISOString();
         // Mark the entire snapshot before aborting or pumping, so queued targets never start.
         for(const job of targets)Object.assign(job,{status:'cancelled',phase:'cancelled',completedAt:now,updated:now,message:cloudPending.includes(job.id)?'本地任务已取消，原图保留；已提交云端的原任务可在历史中查询':'任务已取消，原图保留'});
         if(targets.length)store.save();for(const job of targets){const operation=running.get(job.id);operation?.controller.abort();operation?.handle?.cancel?.();}
@@ -602,33 +633,33 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
         for(const result of results)store.db.projects[store.db.projects.findIndex(project=>project.id===result.project.id)]=result.project;
         store.save();return json(response,200,{projects:results.map(result=>result.project),changed:results.reduce((n,result)=>n+result.changed,0),locked:results.reduce((n,result)=>n+result.locked,0)});
       }
-      if(cancelMatch&&method==='POST'){const job=store.db.jobs.find(j=>j.id===cancelMatch[1]);check(job,'任务不存在',404);check(['queued','running','awaiting_confirmation','recoverable'].includes(job.status),'任务已结束');updateJob(job,{status:'cancelled',phase:'cancelled',completedAt:new Date().toISOString(),message:'任务已取消，原图保留'});const operation=running.get(job.id);operation?.controller.abort();operation?.handle?.cancel?.();pump();return json(response,200,publicJob(job));}
+      if(cancelMatch&&method==='POST'){const job=store.db.jobs.find(j=>j.id===cancelMatch[1]);check(job,'任务不存在',404);check(['queued','running','awaiting_confirmation','recoverable','delegated'].includes(job.status),'任务已结束');updateJob(job,{status:'cancelled',phase:'cancelled',completedAt:new Date().toISOString(),message:job.remoteTaskId?'本机任务已取消；协作中控任务 '+job.remoteTaskId+' 可能仍在其他电脑运行，请在协作页核对或取消':'任务已取消，原图保留'});const operation=running.get(job.id);operation?.controller.abort();operation?.handle?.cancel?.();pump();return json(response,200,publicJob(job));}
       const repairedMatch=pathname.match(/^\/api\/jobs\/([a-z]+_[0-9a-f-]{36})\/repaired-page$/);
       if(repairedMatch&&method==='GET'){const job=store.db.jobs.find(j=>j.id===repairedMatch[1]);check(job?.repairedPage,'这个任务没有完成的修复页',404);const file=path.join(dataDir,'jobs',job.id,'out','repaired_page.png');return await sendFile(response,file,{'Content-Type':'image/png','Content-Disposition':'attachment; filename="repaired_page.png"','X-Content-Type-Options':'nosniff'},{missingMessage:'修复页文件已不存在，可能已被清理；请重新生成'});}
       const exportMatch=pathname.match(/^\/api\/projects\/([a-z]+_[0-9a-f-]{36})\/export$/);
       if(exportMatch&&method==='GET'){
         const project=boardSharing.view(store.project(exportMatch[1])),ids=new Set([...projectLibraryAssetIds(project),...project.references.map(r=>r.assetId),...boardAssetIds(project)]);for(const id of productionImageIds(project))ids.add(id);for(const shot of project.shots){shot.referenceIds.forEach(id=>ids.add(id));if(shot.nativeSizing?.observed?.assetId)ids.add(shot.nativeSizing.observed.assetId);}for(const bubble of [...project.pages.flatMap(page=>page.bubbles),...(project.archivedBubbles||[])]){if(bubble.styleTextureAssetId)ids.add(bubble.styleTextureAssetId);if(bubble.visualAssetId)ids.add(bubble.visualAssetId);}for(const page of project.pages)for(const panel of page.panels){for(const id of panel.referenceIds||[])ids.add(id);for(const ref of panel.generation?.referenceRoles||[])ids.add(ref.assetId);for(const c of panel.breakoutCandidates||[]){ids.add(c.assetId);if(c.backgroundAssetId)ids.add(c.backgroundAssetId);for(const id of c.referenceAssetIds||[])ids.add(id);}if(panel.cutoutLayer?.sourceAssetId)ids.add(panel.cutoutLayer.sourceAssetId);if(panel.breakoutForeground?.backgroundAssetId)ids.add(panel.breakoutForeground.backgroundAssetId);if(panel.nativeSizing?.observed?.assetId)ids.add(panel.nativeSizing.observed.assetId);if(panel.imageAssetId)ids.add(panel.imageAssetId);panel.candidates.forEach(id=>ids.add(id));panel.generationToken=null;}
-        for(const id of productionAssetIds(project))ids.add(id);for(const id of Object.values(project.speakerAvatars||{}))ids.add(id);const assets=[...ids].filter(id=>store.db.assets.some(a=>a.id===id)||panelAssetRequired(project,id)).map(id=>({...store.asset(id),filePath:store.assetPath(id)}));return json(response,200,{format:'comic-strip-studio',version:2,imageStorage:'path',project,assets,versionManifest:episodeVersions.manifest(project),formalVersionManifest:formalVersions.exportManifest(project),...(project.productionPackage?{packageSources:productionPackages.exportSources(project)}:{})});
+        for(const id of productionAssetIds(project))ids.add(id);for(const id of Object.values(project.speakerAvatars||{}))ids.add(id);const assets=[...ids].filter(id=>store.db.assets.some(a=>a.id===id)||panelAssetRequired(project,id)).map(id=>({...store.asset(id),filePath:store.assetPath(id)}));return json(response,200,{format:'comic-strip-studio',version:2,imageStorage:'path',project,assets,...(project.productionPackage?{packageSources:productionPackages.exportSources(project)}:{})});
       }
       if(method==='POST'&&pathname==='/api/projects/import'){
-        const input=await body(request,productionPackageLimits.projectImportBytes);check(input.format==='comic-strip-studio'&&[1,2].includes(input.version)&&input.project&&Array.isArray(input.assets)&&input.assets.length<=1200,'工程文件格式无效');validateProject(input.project);check(input.importMode===undefined||['preserve','copy'].includes(input.importMode),'请选择保留身份导入或明确复制');const copying=input.importMode==='copy';check(copying||!store.db.projects.some(p=>p.id===input.project.id),'同一工程身份已在本机存在；请打开现有工程比较，或明确选择复制为新工程',409);validateOriginalRecords(input.project.sourceOriginalFiles);
+        const input=await body(request,productionPackageLimits.projectImportBytes);check(input.format==='comic-strip-studio'&&[1,2].includes(input.version)&&input.project&&Array.isArray(input.assets)&&input.assets.length<=1200,'工程文件格式无效');validateProject(input.project);validateOriginalRecords(input.project.sourceOriginalFiles);
         const decoded=[];for(const asset of input.assets){cleanId(asset.id);check(!asset.dataUrl&&typeof asset.filePath==='string','这是旧版内嵌图片工程；请在旧工作台载入后，用新版导出路径工程再导入');const cached=store.db.assets.find(a=>imagePathKey(store.assetPath(a.id))===imagePathKey(imagePathValue(asset.filePath)));decoded.push({original:asset,info:await inspectImageFileAsync(asset.filePath,{cached})});}
         const mapping=new Map();for(const item of decoded){check(!mapping.has(item.original.id),'工程中图片编号重复');mapping.set(item.original.id,null);}
         const needed=new Set([...projectLibraryAssetIds(input.project),...input.project.references.map(ref=>ref.assetId)]);for(const shot of input.project.shots){shot.referenceIds.forEach(id=>needed.add(id));if(shot.nativeSizing?.observed?.assetId)needed.add(shot.nativeSizing.observed.assetId);}for(const page of input.project.pages)for(const panel of page.panels){for(const id of panel.referenceIds||[])needed.add(id);if(panel.nativeSizing?.observed?.assetId)needed.add(panel.nativeSizing.observed.assetId);if(panel.imageAssetId)needed.add(panel.imageAssetId);panel.candidates.forEach(id=>needed.add(id));}for(const id of Object.values(input.project.speakerAvatars||{}))needed.add(id);for(const page of input.project.pages)for(const panel of page.panels)if(panel.cutoutLayer?.sourceAssetId)needed.add(panel.cutoutLayer.sourceAssetId);for(const id of productionAssetIds(input.project))needed.add(id);for(const id of needed)check(mapping.has(id),'工程缺少原始图片，不能完整恢复');
         for(const item of decoded){const same=store.db.assets.find(a=>imagePathKey(store.assetPath(a.id))===imagePathKey(item.info.filePath));check(!same?.width||(same.width===item.info.width&&same.height===item.info.height),'同一路径的图片尺寸已变化，请先修复图片路径');}
         for(const item of decoded){const asset=addAssetInfo(item.info,item.original.name,'import-path');if(!asset.libraryRole&&['character','scene','prop','style'].includes(item.original.libraryRole))asset.libraryRole=item.original.libraryRole;if(item.original.library)asset.library=clone(item.original.library);mapping.set(item.original.id,asset.id);}
         const restoreNative=(value,width)=>{if(!value)return value;const native=clone(value);delete native.resolved;if(native.observed)native.observed.assetId=mapping.get(native.observed.assetId);return sanitizeTrustedNativeSizing(native,{assets:store.db.assets,panelWidth:width});};
-        const project=clone(input.project);if(input.versionManifest?.format==='workbench-episode-version-manifest')project.versionImportSource={format:input.versionManifest.format,version:1,sourceProjectId:input.versionManifest.sourceProjectId,episodes:input.versionManifest.episodes,importedAt:new Date().toISOString(),status:'imported-candidate'};const shotMapping=new Map(),layerMapping=new Map(),pageMapping=new Map();delete project.deletedAt;project.id=copying?uid('project'):input.project.id;project.formalVersionBindings=copying?{}:clone(input.formalVersionManifest?.formalBindings||input.project.formalVersionBindings||{});if(project.assetLibrary){project.assetLibrary.assetIds=project.assetLibrary.assetIds.map(id=>mapping.get(id));project.assetLibrary.manualAssetIds=(project.assetLibrary.manualAssetIds||[]).map(id=>mapping.get(id));}remapBoardAssets(project,mapping);if(project.episodeBoards)project.episodeBoards.sharedKey=project.id;project.title=copying?project.title.slice(0,170)+' · 副本':project.title;project.revision=0;project.created=copying?new Date().toISOString():project.created;if(project.speakerAvatars)for(const name of Object.keys(project.speakerAvatars))project.speakerAvatars[name]=mapping.get(project.speakerAvatars[name]);project.references.forEach(r=>r.assetId=mapping.get(r.assetId));for(const settings of Object.values(project.assetWorkspaceSettings||{}))for(const key of ['identityAssetId','costumeAssetId','propAssetId'])if(settings[key])settings[key]=mapping.get(settings[key])||'';project.shots.forEach(s=>{const old=s.id;s.id=copying?uid('shot'):old;shotMapping.set(old,s.id);s.referenceIds=s.referenceIds.map(id=>mapping.get(id));});
+        const project=clone(input.project),shotMapping=new Map(),layerMapping=new Map(),pageMapping=new Map();delete project.deletedAt;project.id=uid('project');if(project.assetLibrary){project.assetLibrary.assetIds=project.assetLibrary.assetIds.map(id=>mapping.get(id));project.assetLibrary.manualAssetIds=(project.assetLibrary.manualAssetIds||[]).map(id=>mapping.get(id));}remapBoardAssets(project,mapping);if(project.episodeBoards)project.episodeBoards.sharedKey=project.id;project.title=project.title.slice(0,170)+' · 导入';project.revision=0;project.created=new Date().toISOString();if(project.speakerAvatars)for(const name of Object.keys(project.speakerAvatars))project.speakerAvatars[name]=mapping.get(project.speakerAvatars[name]);project.references.forEach(r=>r.assetId=mapping.get(r.assetId));for(const settings of Object.values(project.assetWorkspaceSettings||{}))for(const key of ['identityAssetId','costumeAssetId','propAssetId'])if(settings[key])settings[key]=mapping.get(settings[key])||'';project.shots.forEach(s=>{const old=s.id;s.id=uid('shot');shotMapping.set(old,s.id);s.referenceIds=s.referenceIds.map(id=>mapping.get(id));});
         for(const episode of project.storyboardImport?.episodes||[])episode.shotIds=episode.shotIds.map(id=>shotMapping.get(id));
-        for(const page of project.pages){const oldPageId=page.id;page.id=copying?uid('page'):oldPageId;pageMapping.set(oldPageId,page.id);for(const panel of page.panels){const oldId=panel.id;panel.id=copying?uid('panel'):oldId;layerMapping.set(oldId,panel.id);panel.shotId=shotMapping.get(panel.shotId)||'';if(panel.generation){panel.generation.referenceRoles=panel.generation.referenceRoles.filter(ref=>mapping.has(ref.assetId));for(const ref of panel.generation.referenceRoles)ref.assetId=mapping.get(ref.assetId);}if(panel.referenceIds)panel.referenceIds=panel.referenceIds.map(id=>mapping.get(id));if(panel.referenceTextBindings)for(const b of Object.values(panel.referenceTextBindings))b.imageIds=b.imageIds.map(id=>mapping.get(id)).filter(Boolean);if(panel.referenceNeedBindings)for(const b of Object.values(panel.referenceNeedBindings))b.assetId=mapping.get(b.assetId);panel.imageAssetId=panel.imageAssetId?mapping.get(panel.imageAssetId):null;panel.candidates=panel.candidates.map(id=>mapping.get(id));panel.generationToken=null;}for(const bubble of page.bubbles){const oldId=bubble.id;bubble.id=copying?uid('bubble'):oldId;layerMapping.set(oldId,bubble.id);bubble.shotId=shotMapping.get(bubble.shotId)||'';}}
+        for(const page of project.pages){const oldPageId=page.id;page.id=uid('page');pageMapping.set(oldPageId,page.id);for(const panel of page.panels){const oldId=panel.id;panel.id=uid('panel');layerMapping.set(oldId,panel.id);panel.shotId=shotMapping.get(panel.shotId)||'';if(panel.generation){panel.generation.referenceRoles=panel.generation.referenceRoles.filter(ref=>mapping.has(ref.assetId));for(const ref of panel.generation.referenceRoles)ref.assetId=mapping.get(ref.assetId);}if(panel.referenceIds)panel.referenceIds=panel.referenceIds.map(id=>mapping.get(id));if(panel.referenceTextBindings)for(const b of Object.values(panel.referenceTextBindings))b.imageIds=b.imageIds.map(id=>mapping.get(id)).filter(Boolean);if(panel.referenceNeedBindings)for(const b of Object.values(panel.referenceNeedBindings))b.assetId=mapping.get(b.assetId);panel.imageAssetId=panel.imageAssetId?mapping.get(panel.imageAssetId):null;panel.candidates=panel.candidates.map(id=>mapping.get(id));panel.generationToken=null;}for(const bubble of page.bubbles){const oldId=bubble.id;bubble.id=uid('bubble');layerMapping.set(oldId,bubble.id);bubble.shotId=shotMapping.get(bubble.shotId)||'';}}
         remapWorkspaceRemovals(project,mapping,layerMapping);
         for(const shot of project.shots)if(shot.nativeSizing)shot.nativeSizing=restoreNative(shot.nativeSizing,1280);for(const page of project.pages)for(const panel of page.panels)if(panel.nativeSizing)panel.nativeSizing=restoreNative(panel.nativeSizing,panel.w);
         
         for(const layer of [...project.pages.flatMap(page=>[...page.panels,...page.bubbles]),...(project.gradients||[])]){for(const key of ['designParentPanelId','parentPanelId'])if(layer[key])layer[key]=layerMapping.get(layer[key])||layer[key];}
         for(const page of project.pages)for(const b of page.bubbles)if(b.parentPanelId&&layerMapping.has(b.parentPanelId))b.parentPanelId=layerMapping.get(b.parentPanelId);
         for(const bubble of [...project.pages.flatMap(page=>page.bubbles),...(project.archivedBubbles||[])]){remapBubbleAssets(bubble,mapping);if(bubble.localReplacement)bubble.localReplacement.patchLayerId=layerMapping.get(bubble.localReplacement.patchLayerId)||bubble.localReplacement.patchLayerId;}for(const page of project.pages)for(const f of page.panels)if(f.localRegion)f.localRegion.sourcePanelId=layerMapping.get(f.localRegion.sourcePanelId)||f.localRegion.sourcePanelId;
-        for(const bubble of project.archivedBubbles||[]){const oldId=bubble.id;bubble.id=copying?uid('bubble'):oldId;layerMapping.set(oldId,bubble.id);bubble.shotId=shotMapping.get(bubble.shotId)||'';if(bubble.parentPanelId)bubble.parentPanelId=layerMapping.get(bubble.parentPanelId)||bubble.parentPanelId;if(bubble.archivedFrom?.pageId)bubble.archivedFrom.pageId=pageMapping.get(bubble.archivedFrom.pageId)||bubble.archivedFrom.pageId;}
-        for(const g of project.gradients||[]){const oldId=g.id;g.id=copying?uid('gradient'):oldId;layerMapping.set(oldId,g.id);if(g.stripSpace)g.stripSpace.pageId=pageMapping.get(g.stripSpace.pageId);}if(project.layerOrder)project.layerOrder=project.layerOrder.map(key=>layerMapping.get(key)||key);for(const entry of project.spacingEdits||[]){if(entry.layerId)entry.layerId=layerMapping.get(entry.layerId)||entry.layerId;}normalizeLayerOrder(project);
+        for(const bubble of project.archivedBubbles||[]){const oldId=bubble.id;bubble.id=uid('bubble');layerMapping.set(oldId,bubble.id);bubble.shotId=shotMapping.get(bubble.shotId)||'';delete bubble.parentPanelId;if(bubble.archivedFrom?.pageId)bubble.archivedFrom.pageId=pageMapping.get(bubble.archivedFrom.pageId)||bubble.archivedFrom.pageId;}
+        for(const g of project.gradients||[]){const oldId=g.id;g.id=uid('gradient');layerMapping.set(oldId,g.id);if(g.stripSpace)g.stripSpace.pageId=pageMapping.get(g.stripSpace.pageId);}if(project.layerOrder)project.layerOrder=project.layerOrder.map(key=>layerMapping.get(key)||key);for(const entry of project.spacingEdits||[]){if(entry.layerId)entry.layerId=layerMapping.get(entry.layerId)||entry.layerId;}normalizeLayerOrder(project);
         for(const page of project.pages)for(const frame of page.panels)if(frame.layoutIntent){
           frame.layoutIntent.previousShotId=shotMapping.get(frame.layoutIntent.previousShotId)||null;
           frame.layoutIntent.nextShotId=shotMapping.get(frame.layoutIntent.nextShotId)||null;
@@ -640,7 +671,12 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
         for(const [key,binding] of Object.entries(project.assetBindings||{})){if(mapping.has(binding.assetId))binding.assetId=mapping.get(binding.assetId);else delete project.assetBindings[key];}
         for(const shot of project.shots)remapAssets(shot.assetAutoBinding);for(const page of project.pages)for(const frame of page.panels)remapAssets(frame.assetReferenceBinding);
         for(const page of project.pages)for(const frame of page.panels){if(frame.cutoutLayer){frame.cutoutLayer.parentPanelId=layerMapping.get(frame.cutoutLayer.parentPanelId);frame.cutoutLayer.sourceAssetId=mapping.get(frame.cutoutLayer.sourceAssetId);}if(frame.imageEffects)frame.imageEffects.imageAssetId=mapping.get(frame.imageEffects.imageAssetId);if(frame.breakoutCandidates){for(const c of frame.breakoutCandidates){c.assetId=mapping.get(c.assetId);c.backgroundAssetId=mapping.get(c.backgroundAssetId);c.referenceAssetIds=(c.referenceAssetIds||[]).map(id=>mapping.get(id)).filter(Boolean);if(c.foregroundPanelId)c.foregroundPanelId=layerMapping.get(c.foregroundPanelId);c.status='stale';}}if(frame.breakoutForeground){frame.breakoutForeground.backgroundPanelId=layerMapping.get(frame.breakoutForeground.backgroundPanelId);frame.breakoutForeground.backgroundAssetId=mapping.get(frame.breakoutForeground.backgroundAssetId);const a=store.asset(frame.imageAssetId);a.transparency=await inspectTransparentForegroundFile(store.assetPath(a.id),process.env.COMIC_PYTHON_BIN||bridge.python);}}
-        project.versionImportSource={...project.versionImportSource,kind:copying?'explicit-copy':'identity-preserving-import',sourceProjectId:input.project.id,sourceFormalBindings:clone(input.formalVersionManifest?.formalBindings||{}),identityMap:copying?Object.fromEntries([...pageMapping,...layerMapping,...shotMapping]):{},importedAt:new Date().toISOString()};remapProductionPackage(project,mapping,layerMapping,shotMapping);productionPackages.restoreSources(project,input.packageSources);Object.assign(project,remapProductionAssets(input.project,project,mapping));boardSharing.inherit(project);validateProject(project);checkAssets(project);store.db.projects.push(project);store.save();return json(response,201,project);
+        remapProductionPackage(project,mapping,layerMapping,shotMapping);productionPackages.restoreSources(project,input.packageSources);Object.assign(project,remapProductionAssets(input.project,project,mapping));boardSharing.inherit(project);validateProject(project);checkAssets(project);store.db.projects.push(project);store.save();return json(response,201,project);
+      }
+      if(method==='GET'&&(pathname==='/project-center.html'||pathname==='/collab.html')){
+        response.writeHead(410,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
+        response.end('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>功能已移除</title><body style="font:16px/1.7 system-ui;padding:40px;max-width:720px"><h1>团队帮忙生图功能已移除</h1><p>本机生图、资产生产、制作资料和工程保存不受影响。</p><p><a href="/">返回漫画工作台</a></p></body></html>');
+        return;
       }
       if(method==='GET'){
         const name=pathname==='/'?'index.html':pathname.slice(1);check(/^[a-zA-Z0-9._/-]+$/.test(name)&&!name.split('/').includes('..'),'文件路径无效');const file=path.join(root,'public',name);check(fs.existsSync(file)&&fs.statSync(file).isFile(),'页面不存在',404);
@@ -650,8 +686,9 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
     }catch(error){if(!response.headersSent)json(response,error.status||error.statusCode||500,{error:redact(error.message),...(error.code?{code:error.code}:{}),...(Array.isArray(error.problems)?{problems:error.problems.map(p=>typeof p==='string'?{message:redact(p)}:{code:p.code,message:redact(p.message||p.code||'无法读取计划'),shotCode:p.shotCode,unitId:p.unitId})}:{}),...(error.validation?{validation:error.validation}:{}),...(error.protocol?{protocol:error.protocol}:{})});else response.end();}
   });
   const forceStopStudio=()=>{const now=new Date().toISOString();for(const job of store.db.jobs)if(['queued','running','preparing','awaiting_confirmation','recoverable','delegated'].includes(job.status))Object.assign(job,{status:'cancelled',phase:'cancelled',completedAt:now,updated:now,message:'主机强制升级，已停止本机任务；原图和云端提交编号保留'});store.save();shutdownStudio();};
-  const shutdownStudio=()=>{closed=true;teamProduction.close();teamCommunications.close();projectCenter.close();projectSync?.close();teamProjects?.close();collabClient.close();integratedRepair.close();collabJobs.close();handleAssetCenter.close();store.flush();store.close?.();comicSfxDesigner.close();for(const operation of running.values()){operation.controller.abort();operation.handle?.cancel?.();}stopChild(loginProcess);bridge.close?.();jimengBridge.close?.();server.close();};
-  return {server,store,bridge,jimengBridge,generationSlots,collabJobs,collabClient,close:shutdownStudio,forceStop:forceStopStudio,idle:()=>!teamProjects.running()&&!layerMerge.running()&&!integratedRepair.running()&&handleAssetCenter.running()===0&&running.size===0&&comicSfxDesigner.running()===0};
+  const shutdownStudio=()=>{closed=true;promptRewrites.close();for(const stop of [()=>teamProduction.close(),()=>teamMembers.close(),()=>projectCenter.close(),()=>projectSync?.close(),()=>collabClient.close(),()=>integratedRepair.close(),()=>collabJobs.close(),()=>handleAssetCenter.close()]){try{stop();}catch{}}try{store.flush();}catch{}try{store.close?.();}catch{}comicSfxDesigner.close();for(const operation of running.values()){operation.controller.abort();operation.handle?.cancel?.();}stopChild(loginProcess);bridge.close?.();jimengBridge.close?.();server.close();};
+  server.once('listening',()=>{if(!closed)pump();});
+  return {server,store,bridge,jimengBridge,generationSlots,collabJobs,collabClient,close:shutdownStudio,forceStop:forceStopStudio,idle:()=>!promptRewrites.running()&&!layerMerge.running()&&!integratedRepair.running()&&handleAssetCenter.running()===0&&running.size===0&&comicSfxDesigner.running()===0};
 }
 if(process.argv[1]&&pathToFileURL(path.resolve(process.argv[1])).href===import.meta.url){
   const studio=createStudio(),port=Number(process.env.COMIC_PORT||8794);studio.server.listen(port,'127.0.0.1',()=>console.log(`长条漫画工作台 http://127.0.0.1:${studio.server.address().port}`));

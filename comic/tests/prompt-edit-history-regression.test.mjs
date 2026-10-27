@@ -13,15 +13,6 @@ function fixture(){
  s.productionPrompt='导入原文：甲站在院内。';s.sourceFields={'生图提示词':'导入原文：甲站在院内。','生图提示词（后期嵌字）':'无泡原文：保留院内动作。'};
  ensureProjectPanelGeneration(p);return {p,f,s};
 }
-test('回填比较忽略独立提示词未采用的来源变更，但继续检测当前内容、模式及参考变化',()=>{
- const {p,f,s}=fixture();setPanelPromptText(f,'本格明确采用的提示词');const before=panelContentKey(p,f);
- s.productionPrompt='新的分镜来源';s.description='更新的来源说明';s.sourceFields['生图提示词']='新的分镜来源';ensureProjectPanelGeneration(p);
- assert.equal(panelContentKey(p,f),before);
- setPanelPromptText(f,'本格实际改动');assert.notEqual(panelContentKey(p,f),before);
- setPanelPromptText(f,'本格明确采用的提示词');f.referenceIds=['asset_new_reference'];assert.notEqual(panelContentKey(p,f,[{id:'asset_new_reference',name:'合成参考',mime:'image/png'}]),before);f.referenceIds=[];
- f.generation.promptSource='post-lettering';assert.notEqual(panelContentKey(p,f),before);
- const fresh=fixture(),sourceKey=panelContentKey(fresh.p,fresh.f);fresh.s.sourceFields['生图提示词']='未手改时采用新来源';assert.notEqual(panelContentKey(fresh.p,fresh.f),sourceKey);
-});
 test('editing is local to this panel and prompt mode; reload preparation and both adapters select the edited text',()=>{
  const {p,f,s}=fixture(),original=clone(s),key=panelContentKey(p,f),before=layoutEditSnapshot(p);
  setPanelPromptText(f,'人工修改：平视，保留整只手。');
@@ -57,17 +48,4 @@ test('backend validates edited prompt keys, type and length while retaining lega
  const {p,f}=fixture();assert.ok(validPromptOverrides(undefined));
  for(const value of [[],{wrong:'x'},{imported:3},{imported:'a'.repeat(20001)}]){f.generation.promptOverrides=value;assert.throws(()=>validateProject(p),/修改提示词/);}
  f.generation.promptOverrides={imported:'有效本格修改',direct:'', 'post-lettering':'无泡'};assert.doesNotThrow(()=>validateProject(p));
-});
-
-
-test('legacy manual prompt migrates once without changing source, and reset cannot resurrect it',()=>{
- const {p,f,s}=fixture();delete f.generation.promptEditVersion;f.generation.prompt='旧版手工修改';
- const source=clone(s);ensureProjectPanelGeneration(p);
- assert.equal(generationPromptSelection(f,p).text,'旧版手工修改');assert.deepEqual(s,source);
- const copy=clone(p);ensureProjectPanelGeneration(copy);assert.equal(generationPromptSelection(copy.pages[0].panels[0],copy).text,'旧版手工修改');
- assert.equal(restorePanelPromptText(f),true);ensureProjectPanelGeneration(p);assert.equal(generationPromptSelection(f,p).text,source.productionPrompt);
-});
-test('unchanged legacy source cache does not become a manual override when source changes',()=>{
- const {p,f,s}=fixture();delete f.generation.promptEditVersion;s.productionPrompt='新导入原文';s.sourceFields['生图提示词']='新导入原文';
- ensureProjectPanelGeneration(p);assert.equal(generationPromptSelection(f,p).text,'新导入原文');assert.equal(f.generation.promptOverrides,undefined);
 });

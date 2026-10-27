@@ -1,0 +1,104 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import {createRequire} from 'node:module';
+import {loadPackageFiles,inspectProductionPackage,packageDigest} from '../lib/production-package.mjs';
+import {productionProject} from '../lib/production-package-document.mjs';
+import {ensureProjectPanelGeneration,panelProductionShot} from '../public/panel-generation.js';
+import {validateProject} from '../lib/store.mjs';
+import {panelDisplayData} from '../public/panel-display.js';
+import {novelEpisodeContext,isSourceParagraph} from '../public/production-display-context.js';
+const input=process.env.POST_LETTERING_PACKAGE;
+const updated=process.env.POST_LETTERING_VARIANT==='1.2',expectedPanels=updated?327:325,expectedTexts=updated?544:395;
+test('无字后嵌完整包保留全部提示词、比例、文字、参考图片及组版原件',{skip:!input},async()=>{
+ const files=await loadPackageFiles({directory:input}),pkg=await inspectProductionPackage(files);
+ assert.deepEqual([pkg.count.episodes,pkg.count.panels,pkg.count.toolTexts],[10,expectedPanels,expectedTexts]);
+ const project=productionProject(pkg);ensureProjectPanelGeneration(project,[]);validateProject(project);
+ for(const ep of pkg.episodes){
+  assert.equal(ep.assemblyLayout.data.version,updated?undefined:2);
+  for(const s of ep.segments){
+   const frame=project.pages.flatMap(p=>p.panels).find(f=>f.productionSegment===s.id),prompt=panelProductionShot(project,frame);
+   assert.equal(prompt.promptSource,'post-lettering');assert.equal(packageDigest(Buffer.from(prompt.description)),s.source.promptFiles['无泡'].sha256);
+   assert.ok(Math.abs(frame.w/frame.h-s.imagePlan.width/s.imagePlan.height)<.001);
+   assert.equal(project.pages.find(p=>p.panels.includes(frame)).bubbles.length,0);
+  }
+ }
+ const content=files.find(f=>f.relativePath.endsWith('同源定稿/第071话/执行提示词.json'));
+ const changed=files.map(f=>f===content?{...f,bytes:Buffer.from('{}'),sha256:packageDigest(Buffer.from('{}'))}:f);
+ await assert.rejects(inspectProductionPackage(changed),/校验失败/);
+});
+test('原文定位不会将只有章节号或摘录不符的段落标成已核对',()=>{
+ assert.equal(isSourceParagraph({line:4,text:'原文'},0,137,[{chapter:137,line:4,quote:'原文'}]),true);
+ assert.equal(isSourceParagraph({line:4,text:'别的话'},0,137,[{chapter:137,line:4,quote:'原文'}]),false);
+ assert.equal(isSourceParagraph({line:4,text:'原文'},0,137,[{chapter:137}]),false);
+});
+test('按结构识别更名的导入清单和版本标签，兼容校验字段大小写及整目录上传',{skip:!input||!updated},async()=>{
+ const files=await loadPackageFiles({directory:input});
+ const descriptor=files.find(f=>f.relativePath.endsWith('/精简导入.json')),audit=files.find(f=>f.relativePath==='平台导入包/文件校验.json');
+ const oldPath=descriptor.relativePath,manifest=JSON.parse(audit.bytes),data=JSON.parse(descriptor.bytes);
+ const write=(file,value)=>{file.bytes=Buffer.from(JSON.stringify(value));file.sha256=packageDigest(file.bytes);};
+ descriptor.relativePath=oldPath.replace('精简导入.json','自定义制作清单.json');data['格式']='本地制作资料集合 3.7';write(descriptor,data);
+ for(const file of files.filter(f=>f.relativePath.endsWith('/文字层.json'))){const value=JSON.parse(file.bytes);delete value['版本'];write(file,value);}
+ const byPath=new Map(files.map(f=>[f.relativePath,f]));
+ manifest['文件']=manifest['文件'].map(row=>{const name=row['路径']===oldPath?descriptor.relativePath:row['路径'],file=byPath.get(name);assert.ok(file,name);return {path:name,bytes:file.bytes.length,SHA256:file.sha256.toUpperCase()};});
+ write(audit,manifest);
+ const uploaded=await loadPackageFiles({files:files.map(f=>({relativePath:'用户选择的文件夹/'+f.relativePath,dataBase64:f.bytes.toString('base64')}))});
+ const pkg=await inspectProductionPackage(uploaded);
+ assert.equal(pkg.count.panels,327);assert.equal(pkg.count.toolTexts,544);
+ const broken=uploaded.map(f=>f.relativePath.endsWith('/文字层.json')?{...f,bytes:Buffer.from('{}'),sha256:packageDigest(Buffer.from('{}'))}:f);
+ await assert.rejects(inspectProductionPackage(broken),/文件校验失败.*文字层/);
+});
+test('浏览器导入71—80、角色卡、提示词、小说高亮与工具栏',{timeout:100000,skip:!input},async t=>{
+ const out=path.resolve(updated?'../verification/import-compat-team-20261027/v12':'../verification/import-compat-team-20261027/v11');fs.mkdirSync(out,{recursive:true});
+ const dataDir=fs.mkdtempSync(path.join(out,'fixture-'));process.env.COMIC_PROJECT_SYNC='0';process.env.PROJECT_CENTER_URL='';process.env.COMIC_SLOT_DIR=path.join(dataDir,'slots');process.env.COMIC_LIBRARY_CONFIG=path.join(dataDir,'moku.json');fs.writeFileSync(process.env.COMIC_LIBRARY_CONFIG,'{"base":"http://127.0.0.1:9"}');
+ const {createStudio}=await import('../server.mjs');let calls=0;const fake={close(){},ensurePoolSize(){},status:async()=>({connected:false}),generate:async()=>{calls++;throw Error('No live generation');}};
+ const studio=createStudio({dataDir,bridge:fake,jimengBridge:fake,seedReference:false});await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));t.after(()=>{studio.close();studio.server.closeAllConnections();});
+ const require=createRequire(import.meta.url),{chromium}=require('playwright'),browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--disable-gpu']});t.after(()=>browser.close());
+ const page=await browser.newPage({viewport:{width:1864,height:949}}),errors=[],origin='http://127.0.0.1:'+studio.server.address().port;
+ page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/*',r=>new URL(r.request().url()).origin===origin||['data:','blob:'].includes(new URL(r.request().url()).protocol)?r.continue():r.abort());
+ await page.goto(origin);await page.waitForSelector('#canvas-tool-dock');
+ await page.locator('#storyboard-import').click();await page.locator('#package-directory').fill(input);await page.locator('[data-package-scan]').click();
+ await page.locator('[data-package-preview]').getByText('10 话 · '+expectedPanels+' 个单格',{exact:false}).waitFor();
+ await page.locator('[data-package-import]').click();await page.locator('#storyboard-import-dialog').waitFor({state:'hidden'});
+ const project=studio.store.db.projects.find(p=>p.productionPackage?.sourceFormat==='post-lettering-20261027');assert.ok(project);assert.equal(project.pages.length,expectedPanels);
+ const bound=project.productionPackage.episodes.flatMap(e=>e.segments.flatMap(s=>s.references)).filter(r=>r.packageImage);
+ assert.ok(bound.length>0);assert.equal(new Set(bound.map(r=>r.binding.assetId)).size,2);
+ for(const ref of bound)assert.equal(ref.binding.sha256,ref.packageImage.sha256);
+ const first=project.pages[0].panels.find(p=>p.productionSegment);
+ const data=panelDisplayData(first,project.shots.find(s=>s.id===first.shotId),project);
+ assert.equal(data.characterCards.find(c=>c.name==='角色甲').assetId,bound.find(r=>r['人物']==='角色甲').binding.assetId);
+ assert.match(data.characterCards.find(c=>c.name==='霍休').states[0].text,/右臂重创/);
+ await page.locator('[data-rail-tab="production"]').click();await page.waitForSelector('[data-production-segment]');
+ assert.equal(await page.locator('#production-tab input[readonly]').nth(1).inputValue(),'无字画面：工具后期嵌字');
+ assert.equal(await page.locator('#history-steps-toggle').evaluate(n=>n.closest('.toolbar-right')!==null),true);
+ assert.equal(await page.locator('#display-menu #history-steps-toggle').count(),0);assert.equal(await page.locator('#draft-toggle').isVisible(),false);
+ await page.locator('#novel-source-toggle').click();await page.locator('[data-novel-highlight]').first().waitFor();
+ assert.match(await page.locator('.novel-source-body').innerText(),/自己眼里滔天的富贵/);
+ const firstHighlight=await page.locator('[data-novel-highlight]').first().getAttribute('data-novel-line');
+ await page.locator('[data-production-segment]').selectOption(project.productionPackage.episodes[0].segments[1].id);
+ await page.waitForFunction(old=>document.querySelector('[data-novel-highlight]')?.dataset.novelLine!==old,firstHighlight);
+ const context=novelEpisodeContext(project,project.pages[1],project.pages[1].panels[0]);assert.ok(context.locations.some(l=>l.line));
+ await page.locator('#display-menu>summary').click();await page.locator('#panel-display-mode').selectOption('characters');await page.locator('.panel-character-card img').first().waitFor();
+ await page.waitForFunction(()=>{const img=document.querySelector('.panel-character-card img');return img?.complete&&img.naturalWidth>0;});
+ await page.screenshot({path:path.join(out,'novel-source-and-character-cards.png')});
+ await page.locator('#panel-display-mode').selectOption('content');
+ await page.locator('[data-info-source-field="content"]:visible').first().waitFor();
+ assert.match(await page.locator('[data-info-source-field="content"]:visible').first().innerText(),/只生成画面|仅生成无字画面/);
+ await page.locator('#display-menu>summary').click();
+ await page.locator('[data-novel-close]').click();assert.equal(await page.locator('#novel-source-panel').isVisible(),false);
+ await page.locator('#history-steps-toggle').click();assert.equal(await page.locator('#layout-history-steps').isVisible(),true);
+ await page.locator('#novel-source-toggle').click();await page.locator('[data-novel-highlight]').first().waitFor();
+ await page.locator('[data-history-close]').click();
+ await page.locator('[data-production-episode]').selectOption('80');await page.waitForFunction(()=>document.querySelector('.novel-source-status')?.textContent.startsWith('第80话'));
+ await page.locator('.novel-source-body [data-novel-line]').first().waitFor();
+ assert.doesNotMatch(await page.locator('.novel-source-body').innerText(),/第137章/);
+ await page.screenshot({path:path.join(out,'episode-80-import.png')});
+ await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent.includes('已保存'));
+ const saved=JSON.parse(fs.readFileSync(path.join(dataDir,'projects',project.id+'.json'),'utf8'));
+ assert.equal(saved.pages.length,expectedPanels);assert.equal(saved.productionPackage.episodes.reduce((n,e)=>n+e.texts.length,0),expectedTexts);
+ await page.reload();await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent.includes('已保存'));
+ await page.locator('[data-rail-tab="production"]').click();
+ await page.locator('[data-production-episode]').selectOption('80');
+ assert.equal(await page.locator('[data-production-episode]').inputValue(),'80');
+ await page.screenshot({path:path.join(out,'saved-and-reopened.png')});
+ await page.setViewportSize({width:800,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ assert.equal(calls,0);assert.deepEqual(errors,[]);
+});

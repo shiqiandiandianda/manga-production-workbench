@@ -1,6 +1,6 @@
 {
   "runtimeMode": "bundled",
-  "maxConcurrentJobs": 8,
+  "maxConcurrentJobs": 2,
   "resourceControl": {
     "enabled": true,
     "previewsEnabled": true,

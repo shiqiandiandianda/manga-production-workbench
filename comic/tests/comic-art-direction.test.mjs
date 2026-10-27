@@ -32,7 +32,7 @@ test('编译明确区分事实和设计，不覆盖保存的本格提示词、�
 });
 
 test('剔除可证明是旧机器排版说明的人物整场名单，仅当前描述中的人物进入站位约束',()=>{
- const {project,panel}=fixture();panel.generation.narrativePromptVersion='1.4.0';panel.generation.prompt+='\n大周玄衣卫叙事取景规则 1.4.0；只绘制当前阅读单元，不把相邻单元合进一张图。\n当前可见人物与画面横向位置：甲 20%；丙 50%；乙 80%。其余源人物不自动补入本镜头。\n对白、心声、气泡、尾尖、拟声、边框、渐变底与冲刺线由外部图层排版，不生成在原图内；世界内明确铭文除外。';panel.layoutIntent={characterPlacement:[{name:'甲',x:.2},{name:'丙',x:.5},{name:'乙',x:.8}],characterSlots:{甲:{x:.2},丙:{x:.5},乙:{x:.8}}};
+ const {project,panel}=fixture();panel.generation.narrativePromptVersion='1.4.0';panel.generation.prompt+='\n示例项目叙事取景规则 1.4.0；只绘制当前阅读单元，不把相邻单元合进一张图。\n当前可见人物与画面横向位置：甲 20%；丙 50%；乙 80%。其余源人物不自动补入本镜头。\n对白、心声、气泡、尾尖、拟声、边框、渐变底与冲刺线由外部图层排版，不生成在原图内；世界内明确铭文除外。';panel.layoutIntent={characterPlacement:[{name:'甲',x:.2},{name:'丙',x:.5},{name:'乙',x:.8}],characterSlots:{甲:{x:.2},丙:{x:.5},乙:{x:.8}}};
  const before=copy(panel);assert.deepEqual(panelCastAudit(panel).unconfirmed,['丙']);assert.doesNotMatch(generationLayoutInstructions(panel,project),/丙/);
  for(const builder of [buildImagePrompt,buildJimengPrompt]){const prompt=builder(inputFor(project,panel));assert.doesNotMatch(prompt,/丙 50%|丙在画面|当前可见人物与画面横向位置/);assert.match(prompt,/甲走出/);assert.match(prompt,/乙跟在/);assert.doesNotMatch(prompt,/拟声、边框、渐变底与冲刺线由外部图层排版/);}
  assert.deepEqual(panel,before);

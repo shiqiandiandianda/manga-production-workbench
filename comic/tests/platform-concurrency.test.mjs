@@ -71,12 +71,26 @@ test('分配 API 验证输入并持久保存；默认主平台六槽，补图完
   releases.forEach(r=>r());
 });
 
-test('共享HTTP修图队列实时跟随总额度和修图额度，重新进入保持一致',{timeout:60000},async t=>{
- const directory=temp(t,false),data=path.join(directory,'main');let browser;
- const studio=createStudio({dataDir:data,bridge:{status:async()=>({connected:false}),close(){}},jimengBridge:{status:async()=>({connected:false}),close(){}}});await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+studio.server.address().port;
- t.after(async()=>{await browser?.close();studio.close();studio.server.closeAllConnections();removeTemp(directory);});
- assert.equal((await api(origin,'/repair/api/health')).data.queue.concurrency,2);
- const {chromium}=createRequire(import.meta.url)('playwright');browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1864,height:1040}});await page.goto(origin);await page.locator('[data-open-generation-settings]').first().click();await page.getByLabel('总生图并发',{exact:true}).fill('5');await page.getByLabel('修图并发',{exact:true}).fill('3');await page.getByRole('button',{name:'保存并发设置',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-platform-status]').textContent.includes('总并发 5'));
- assert.equal((await api(origin,'/api/platform-generation-settings')).data.total,5);assert.equal((await api(origin,'/repair/api/health')).data.queue.concurrency,3);
- await api(origin,'/api/platform-generation-settings','PUT',{main:4,repair:4});assert.equal((await api(origin,'/repair/api/health')).data.queue.concurrency,4);await page.reload();await page.locator('[data-open-generation-settings]').first().click();await page.waitForFunction(()=>document.querySelector('[data-platform-repair]')?.value==='4');assert.equal(await page.getByLabel('总生图并发',{exact:true}).inputValue(),'4');
+test('两个平台可设置共享总额度和补图优先额度，重开和定时同步保持一致',{timeout:60000},async t=>{
+  const directory=temp(t,false),data=path.join(directory,'main');let browser,child;
+  const studio=createStudio({dataDir:data,bridge:{status:async()=>({connected:false,message:'合成测试'}),close(){}},jimengBridge:{status:async()=>({connected:false,message:'合成测试'}),close(){}},storyboardGenerator:{close(){}}});await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));
+  const origin='http://127.0.0.1:'+studio.server.address().port;
+  const probe=net.createServer();await new Promise(r=>probe.listen(0,'127.0.0.1',r));const port=probe.address().port;await new Promise(r=>probe.close(r));const repairOrigin='http://127.0.0.1:'+port;
+  let output='';child=spawn(process.execPath,[path.join(root,'repair/server.mjs')],{cwd:root,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,IMAGE_REPAIR_DATA_DIR:path.join(directory,'repair'),IMAGE_REPAIR_PORT:String(port),COMIC_STUDIO_ORIGIN:origin}});child.stdout.on('data',d=>output+=d);child.stderr.on('data',d=>output+=d);
+  t.after(async()=>{await browser?.close();if(child?.exitCode===null){child.kill('SIGTERM');await new Promise(r=>child.once('close',r));}studio.close();await new Promise(r=>studio.server.close(r));removeTemp(directory);});
+  await until(async()=>{try{return (await api(repairOrigin,'/api/health')).status===200;}catch{return false;}},'repair startup '+output);
+  assert.equal((await api(repairOrigin,'/api/health')).data.queue.concurrency,2);
+  const require=createRequire(import.meta.url),{chromium}=require(path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));
+  browser=await chromium.launch({channel:'msedge',headless:true,args:['--disable-gpu']});const context=await browser.newContext({viewport:{width:1864,height:1040}});
+  await context.route('**/*',route=>{const url=new URL(route.request().url());if(url.pathname==='/api/codex/status')return route.fulfill({json:{connected:false,message:'合成测试，无账号检查'}});return ['127.0.0.1','localhost'].includes(url.hostname)||['data:','blob:'].includes(url.protocol)?route.continue():route.abort();});
+  const page=await context.newPage(),errors=[];page.on('pageerror',e=>{errors.push(e.message);console.log('Browser error: '+e.message);});await page.goto(origin);await page.locator('[data-open-generation-settings]').first().click();
+  await page.getByLabel('主平台并发数量',{exact:true}).fill('5');await page.getByLabel('补图平台并发数量',{exact:true}).fill('3');await page.getByRole('button',{name:'保存并发分配',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-platform-status]').textContent.includes('已保存：'));
+  const evidence=path.resolve(process.env.COMIC_PLATFORM_EVIDENCE||'.runtime/platform-allocation-evidence');fs.mkdirSync(evidence,{recursive:true});await page.screenshot({path:path.join(evidence,'main-settings.png')});
+  assert.equal((await api(origin,'/api/platform-generation-settings')).data.total,5);
+  await page.goto(repairOrigin);assert.deepEqual(errors,[]);await page.getByRole('button',{name:'并发分配',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-platform-main]')?.disabled===false);
+  assert.equal(await page.getByLabel('主平台并发数量',{exact:true}).inputValue(),'5');assert.equal(await page.getByLabel('补图平台并发数量',{exact:true}).inputValue(),'3');
+  await page.getByLabel('主平台并发数量',{exact:true}).fill('6');await page.getByLabel('补图平台并发数量',{exact:true}).fill('2');await page.getByRole('button',{name:'保存并发分配',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-platform-status]').textContent.includes('已保存：'));
+  await page.screenshot({path:path.join(evidence,'repair-settings.png')});assert.equal((await api(origin,'/api/platform-generation-settings')).data.main,6);assert.equal((await api(repairOrigin,'/api/health')).data.queue.concurrency,2);
+  await api(origin,'/api/platform-generation-settings','PUT',{main:4,repair:4});await until(async()=>(await api(repairOrigin,'/api/health')).data.queue.concurrency===4,'repair live sync');
+  await page.reload();await page.getByRole('button',{name:'并发分配',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-platform-repair]')?.value==='4');assert.deepEqual(errors,[]);
 });

@@ -1,4 +1,3 @@
-import {compatibleCanvas} from './canvas-image-compat.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
@@ -13,7 +12,7 @@ import {layerDocumentBox} from '../public/multi-selection.js';
 import {applyBubbleEdit} from '../public/bubble-editor.js';
 
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
-const native=()=>compatibleCanvas(createRequire(import.meta.url)(process.env.COMIC_CANVAS_MODULE||process.env.COMIC_TEST_CANVAS_MODULE||'@napi-rs/canvas'));
+const native=()=>createRequire(import.meta.url)(process.env.COMIC_CANVAS_MODULE||process.env.COMIC_TEST_CANVAS_MODULE||'@napi-rs/canvas');
 const sourceFile=(store,key)=>key.startsWith('comic:')?comicStyleFile(key.slice(6)):store.assetPath(key);
 
 export function repairCompositionPlan(project,panelId,assets=[],measurement=native().createCanvas(1,1).getContext('2d')){

@@ -14,7 +14,7 @@ import {assetWorkspaceInventory} from '../public/asset-workspace-model.js';
 import {auditPanelReferences} from '../public/panel-reference-audit.js';
 import {prepareWorkspaceBinding} from '../lib/asset-workspace-api.mjs';
 
-for(const mode of ['local','remote','remote-stale'])test('浏览器候选直接选用：'+mode,{timeout:60000},async t=>{
+for(const mode of ['local','remote','remote-stale','remote-review','remote-review-failure'])test('浏览器候选选用与整图确认：'+mode,{timeout:60000},async t=>{
  const files=syntheticFiles(),screen=JSON.parse(files[1].bytes);
  for(const s of screen['屏段'])s['附图']=[{'类型':'设定卡','人物':'宋茜','服装':'淡黄色长裙','必须':true}];
  files[1]={...files[1],bytes:Buffer.from(JSON.stringify(screen))};
@@ -32,7 +32,7 @@ for(const mode of ['local','remote','remote-stale'])test('浏览器候选直接�
   const url=new URL(req.url,'http://local');if(url.pathname==='/')return res.end(html);if(url.pathname==='/fixture')return json({project,assets});
   if(url.pathname.endsWith('/novel-evidence'))return json({available:false,excerpts:[]});if(url.pathname.endsWith('/results'))return json({items:[]});if(url.pathname==='/api/library/projects')return json({items:[{id:cloud,name:'合成图库'}]});if(url.pathname==='/api/library/assets')return json({items:[remote],more:false});
   if(req.method==='POST'){let text='';for await(const chunk of req)text+=chunk;const input=JSON.parse(text);requests.push({path:url.pathname,input});await new Promise(r=>setTimeout(r,50));
-   if(url.pathname==='/api/library/import'){assets.push(imported);return json({asset:imported});}
+   if(url.pathname==='/api/library/import'){if(mode.startsWith('remote-review'))await new Promise(r=>setTimeout(r,400));if(mode==='remote-review-failure'&&requests.filter(r=>r.path==='/api/library/import').length===1)return json({error:'合成取图失败，请重试'},503);assets.push(imported);return json({asset:imported});}
    if(url.pathname.endsWith('/asset-workspace/bind')){const chosen=store.asset(input.assetId);project=prepareWorkspaceBinding(store,project,input,chosen);project.revision++;return json({project});}
    throw Error('禁止真实生成或其他写入');
   }
@@ -51,7 +51,11 @@ for(const mode of ['local','remote','remote-stale'])test('浏览器候选直接�
  await page.setViewportSize({width:480,height:900});await use.scrollIntoViewIfNeeded();const box=await use.boundingBox();assert.ok(box.y>=0&&box.y+box.height<=900,'no lower confirmation scroll is needed');
  await page.screenshot({path:path.join(proof,mode+'-before.png')});
  // Two rapid activations must send one adoption only; no second confirmation dialog.
- await use.evaluate(e=>{e.click();e.click();});
+ if(mode.startsWith('remote-review')){
+  await page.locator('[data-asset-moku-use]').first().click();const confirm=page.locator('[data-asset-action="confirm-state-adoption"]');assert.equal(await confirm.isEnabled(),true);
+  await confirm.evaluate(e=>{e.click();e.click();});await page.locator('[data-asset-name-confirmation][aria-busy="true"]').waitFor();assert.match(await page.locator('[data-adoption-status]').innerText(),/正在采用/);assert.equal(await confirm.isDisabled(),true);
+  if(mode==='remote-review-failure'){await page.waitForFunction(()=>document.querySelector('[data-adoption-status]')?.textContent.includes('合成取图失败'));assert.equal(await confirm.isEnabled(),true);await confirm.click();}
+ }else await use.evaluate(e=>{e.click();e.click();});
  if(mode==='remote-stale'){
   await page.waitForFunction(()=>document.querySelector('[data-asset-status]')?.textContent.includes('图片版本已改变'));
   assert.equal(requests.filter(r=>r.path.endsWith('/bind')).length,0);assert.equal(await page.locator('[data-asset-review-current]').count(),0);
@@ -63,6 +67,6 @@ for(const mode of ['local','remote','remote-stale'])test('浏览器候选直接�
   assert.equal(await page.locator('[data-asset-review-current]').getAttribute('data-asset-review-current'),chosen.id);assert.equal(await page.locator('#asset-detail-panel').isVisible(),true);
  }
  assert.equal(await page.locator('[data-asset-name-confirmation]').count(),0);assert.equal(JSON.stringify(local),originalAsset);assert.equal(sourceSnapshot(project),source);assert.deepEqual(errors,[]);
- const imports=requests.filter(r=>r.path==='/api/library/import');assert.equal(imports.length,mode==='local'?0:1);if(imports.length){assert.equal(imports[0].input.assetId,remote.id);assert.equal(imports[0].input.revisionId,remote.displayRevisionId);}
+ const imports=requests.filter(r=>r.path==='/api/library/import');assert.equal(imports.length,mode==='local'?0:mode==='remote-review-failure'?2:1);if(imports.length){assert.equal(imports[0].input.assetId,remote.id);assert.equal(imports[0].input.revisionId,remote.displayRevisionId);}
  fs.writeFileSync(path.join(proof,mode+'-report.json'),JSON.stringify({ok:true,mode,realAI:false,binds:requests.filter(r=>r.path.endsWith('/bind')).length,imports:imports.length,noMandatoryDialog:true,rapidClickGuard:true,browserErrors:errors},null,2));
 });

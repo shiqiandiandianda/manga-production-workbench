@@ -13,7 +13,7 @@ import {createStudio} from '../server.mjs';
 import {writeXlsx} from '../lib/xlsx.mjs';
 
 
-const require=createRequire(import.meta.url),runtime=path.resolve('C:/Users/EDY/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'),canvas=require(path.join(runtime,'@napi-rs/canvas'));
+const require=createRequire(import.meta.url),runtime=path.resolve((process.env.CODEX_TEST_NODE_MODULES || 'node_modules')),canvas=require(path.join(runtime,'@napi-rs/canvas'));
 const qaRoot=path.resolve('../verification/inline-boards-20261022'),output=path.join(qaRoot,'evidence');fs.mkdirSync(output,{recursive:true});
 const outline={version:1,sourceKey:'synthetic-outline',workTitle:'合成测试漫画',episodes:[{episode:11,title:'长生会与两个月后的消息'},{episode:14,title:'第一战'},{episode:15,title:'第二战'},{episode:21,title:'终局'}]};
 const fixture=(number=14)=>{const p=migrateLayerDocument(createProject('合成测试漫画')).project;p.pages[0].storyboard={episode:number};p.pages[0].height=500;p.pages[0].panels=[];p.shots=[];p.layerOrder=[];p.episodeOutline=clone(outline);ensureEpisodeBoards(p);return p;};
@@ -48,12 +48,12 @@ test('多话与分散的同话画板只各加一组封面 / 尾图，按指定�
  const all=episodeExportLayout(p);assert.deepEqual(all.episodeBoardParts.map(p=>p.kind),['cover','comic','comic','tail','cover','comic','tail']);const only=episodeExportLayout(p,{episode:14});assert.equal(only.height,4600);assert.deepEqual(only.episodeBoardParts.filter(p=>p.kind==='comic').map(p=>p.sourceY),[0,1000]);assert.equal(episodeExportLayout(p,{episode:21}).height,0);
 });
 
-test('封面、漫画、尾图按序合成，跨分段不移动漫画坐标，整话 PNG 包含模板',async t=>{
+test('封面、漫画、尾图按序合成，跨分段不移动漫画坐标，整话 PNG 包含模板',async()=>{
  const p=fixture();p.pages[0].background='#0055ff';p.episodeBoards.templates.cover.background='#ff3300';p.episodeBoards.templates.tail.background='#00cc55';for(const kind of ['cover','tail'])p.episodeBoards.templates[kind].layers.forEach(l=>l.visible=false);
  const before=clone(p),plan=episodeExportLayout(p);assert.equal(plan.height,4100);assert.deepEqual(plan.episodeBoardParts.map(p=>p.kind),['cover','comic','tail']);
  const factory=()=>{const c=canvas.createCanvas(1,1);c.toBlob=callback=>callback(new Blob([c.toBuffer('image/png')],{type:'image/png'}));return c;};
  const segment=await renderStripSegment(plan,{y:1750,height:700},{project:p,canvasFactory:factory});const ctx=segment.getContext('2d');assert.deepEqual([...ctx.getImageData(10,10,1,1).data],[255,51,0,255]);assert.deepEqual([...ctx.getImageData(10,300,1,1).data],[0,85,255,255]);assert.deepEqual([...ctx.getImageData(10,650,1,1).data],[0,204,85,255]);
- const fake={status:async()=>({connected:false}),close(){}},studio=createStudio({dataDir:fs.mkdtempSync(path.join(qaRoot,'export-')),bridge:fake,jimengBridge:fake});studio.store.db.projects.push(p);studio.store.save();await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));t.after(()=>{studio.close();studio.server.closeAllConnections();});const origin='http://127.0.0.1:'+studio.server.address().port;let downloaded;const result=await exportEpisode(p,()=>{},{canvasFactory:factory,request:(url,options)=>fetch(origin+url,options),downloadURL:async(url,name)=>{downloaded={blob:await(await fetch(origin+url)).blob(),name};}});assert.equal(result.height,4100);assert.equal(result.parts,1);assert.match(downloaded.name,/整话\.png$/);fs.writeFileSync(path.join(output,'export-full-episode.png'),Buffer.from(await downloaded.blob.arrayBuffer()));assert.deepEqual(p,before);
+ let downloaded;const result=await exportEpisode(p,()=>{},{canvasFactory:factory,download:(blob,name)=>downloaded={blob,name}});assert.equal(result.height,4100);assert.equal(result.parts,1);assert.match(downloaded.name,/整话\.png$/);fs.writeFileSync(path.join(output,'export-full-episode.png'),Buffer.from(await downloaded.blob.arrayBuffer()));assert.deepEqual(p,before);
 });
 
 test('模板真实界面：固定位置、底图、自动标题、单话改名恢复、拖动、字体与导出回读',{timeout:90000},async t=>{
@@ -81,6 +81,6 @@ test('模板真实界面：固定位置、底图、自动标题、单话改名�
  await page.reload();await page.waitForFunction(()=>document.querySelector('#save-state').textContent==='已保存到本机');await page.locator('[data-rail-tab="pages"]') .click();await page.locator('[data-episode-board="cover"]').click();assert.equal(await page.locator('[data-board-style="writingMode"]').inputValue(),'vertical');
  await page.locator('#export-toggle').click();const filePromise=page.waitForEvent('download');await page.locator('#export-page').click();const file=await filePromise;await file.saveAs(path.join(output,'cover-export.png'));
  await page.locator('#project-trigger').click();await page.locator('[data-choose-project="'+sibling.id+'"]').click();await page.waitForFunction(key=>document.querySelector('#project-select').value===key,sibling.id);await page.waitForFunction(()=>document.querySelector('#episode-select').value==='11');await page.locator('[data-episode-board="cover"]').click();assert.equal(await page.locator('[data-board-style="writingMode"]').inputValue(),'vertical');assert.equal(await page.locator('[data-board-meta="episodeTitle"]').inputValue(),'长生会与两个月后的消息');
- for(const [width,height] of [[1024,768],[614,875],[375,667]]){await page.setViewportSize({width,height});await page.waitForTimeout(80);const size=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth}));if(size.scrollWidth>size.width+1){await page.screenshot({path:path.join(output,'overflow-'+width+'.png')});console.log(await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.right>innerWidth+1&&getComputedStyle(e).position!=='absolute';}).slice(0,12).map(e=>({tag:e.tagName,id:e.id,class:e.className,right:e.getBoundingClientRect().right,width:e.getBoundingClientRect().width}))));}assert.ok(size.scrollWidth<=size.width+1,JSON.stringify(size));}
+ for(const [width,height] of [[1024,768],[614,875],[375,667]]){await page.setViewportSize({width,height});await page.waitForTimeout(80);const size=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth}));assert.ok(size.scrollWidth<=size.width+1,JSON.stringify(size));}
  assert.deepEqual(errors,[]);assert.ok(fs.statSync(path.join(output,'cover-export.png')).size>10000);
 });

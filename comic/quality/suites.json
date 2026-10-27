@@ -47,6 +47,10 @@
     "comic/tests/asset-trash.test.mjs",
     "comic/tests/asset-gallery-return.test.mjs",
     "comic/tests/asset-gallery-layout.test.mjs",
+    "comic/tests/asset-performance-evidence.test.mjs",
+    "comic/tests/browser-image-layer-copy.test.mjs",
+    "comic/tests/browser-multi-window.test.mjs",
+    "comic/tests/browser-generation-shortcuts.test.mjs",
     "comic/tests/asset-simple-pick.test.mjs",
     "comic/tests/cutout-frame.test.mjs"
   ],

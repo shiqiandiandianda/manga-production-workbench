@@ -86,6 +86,10 @@ for(const stage of stages){
   fs.symlinkSync(dep, path.join(stage,'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
   fs.mkdirSync(path.join(stage,'verification'),{recursive:true});
   fs.mkdirSync(path.join(stage, 'runtime'), {recursive:true});
+  // Browser and API fixtures create temporary directories below comic/.runtime.
+  // The source copier intentionally omits runtime data, so recreate only the
+  // empty test parent in each isolated worker before any fixture starts.
+  fs.mkdirSync(path.join(stage, 'comic/.runtime/temp'), {recursive:true});
   fs.symlinkSync(nodeRuntime, path.join(stage, 'runtime/node'), process.platform === 'win32' ? 'junction' : 'dir');
   fs.symlinkSync(path.dirname(python), path.join(stage, 'runtime/python'), process.platform === 'win32' ? 'junction' : 'dir');
   fs.mkdirSync(path.join(stage,'.runtime/image-tools'),{recursive:true});

@@ -7,6 +7,7 @@ import {projectLibraryAssets} from './project-asset-library.js';
 import {stateKey} from './character-states.js';
 import {productionPanelPromptFields,productionPanelPrompts} from './production-panel-prompts.js';
 import {SHOT_SIZES,CAMERA_ANGLES,normalizeCameraAngle} from './shot-settings.js';
+import {migrateLegacyPanelPrompt} from './prompt-source.js';
 const gridSource=panel=>panel.productionGrid||panel.panelSlice;
 const list=value=>(Array.isArray(value)?value:String(value||'').split(/[、，,；;\n]+/u)).map(v=>String(v).trim()).filter(v=>v&&!/^(无|空镜|暂无|—|-)$/u.test(v));
 const outfitKey=value=>stateKey(String(value||'').replace(/[（(][^）)]*[）)]/gu,''));
@@ -32,7 +33,7 @@ export function confirmedSliceReference(project,panel,need,asset){
 export function hydrateProductionSlices(project,assets=[]){
  let changed=false;const library=projectLibraryAssets(project,assets);
  for(const page of project.pages)for(const frame of page.panels){const source=gridSource(frame);if(!source)continue;const record=sliceSourceRecord(project,frame);if(!record)continue;let shot=project.shots.find(s=>s.id===frame.shotId);
-  if(!shot||shot.productionGridId!==record.id){shot=sourceShot(project,frame,record);project.shots.push(shot);frame.shotId=shot.id;frame.generation={version:1,promptSource:frame.generation?.promptSource||'imported',...(frame.generation?.promptOverrides?{promptOverrides:clone(frame.generation.promptOverrides)}:{}),referenceRoles:[]};changed=true;}
+  if(!shot||shot.productionGridId!==record.id){if(frame.generation)migrateLegacyPanelPrompt(frame.generation);shot=sourceShot(project,frame,record);project.shots.push(shot);frame.shotId=shot.id;frame.generation={version:1,promptSource:frame.generation?.promptSource||'imported',...(frame.generation?.promptOverrides?{promptOverrides:clone(frame.generation.promptOverrides)}:{}),referenceRoles:[]};changed=true;}
   if(frame.productionGrid){const incoming=sourceShot(project,frame,record);if(JSON.stringify(incoming.sourceFields)!==JSON.stringify(shot.sourceFields)||shot.productionPromptVariants!==1){Object.assign(shot,{...incoming,id:shot.id});changed=true;}}
   if(source.sourceBindingVersion!==1){if(frame.coordinateSource?.generation==='不生成')delete frame.coordinateSource.generation;source.sourceBindingVersion=1;source.sourceLocation=clone(record.source);changed=true;}
   if(frame.assetReferenceBinding?.mode==='manual')continue;

@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {panel,id,clone} from '../public/model.js';
 import {pageEpisode} from '../public/episode-boards.js';
+import {migrateLegacyPanelPrompt} from '../public/prompt-source.js';
 export const documentHash=project=>createHash('sha256').update(JSON.stringify(project)).digest('hex');
 // A plain import projection: full-width placeholders in source order.
 export function storyboardPage(episode,shots){
@@ -18,7 +19,7 @@ export function mergeStoryboardImport(existing,incoming){
    const placed=new Set(next.pages.flatMap(value=>value.panels.map(frame=>frame.shotId))),missing=shotIds.map(id=>next.shots.find(shot=>shot.id===id)).filter(shot=>!placed.has(shot.id));
    let y=Math.max(0,...page.panels.map(frame=>frame.y+frame.h))+40;for(const shot of missing){const frame=panel(shot.id,0,y,1280,720);frame.name=shot.code;frame.border=0;page.panels.push(frame);y+=760;}page.height=Math.max(page.height,y-40);
   }
-  for(const page of next.pages)for(const frame of page.panels){const shot=next.shots.find(value=>value.id===frame.shotId);if(shot&&shotIds.includes(shot.id)&&frame.generation?.sourceSnapshot)frame.generation.sourceSnapshot.original=clone(shot);}
+  for(const page of next.pages)for(const frame of page.panels){const shot=next.shots.find(value=>value.id===frame.shotId);if(shot&&shotIds.includes(shot.id)&&frame.generation?.sourceSnapshot){migrateLegacyPanelPrompt(frame.generation);frame.generation.prompt=shot.productionPrompt||shot.description||frame.generation.prompt||'';frame.generation.sourceSnapshot.original=clone(shot);}}
   episodes.set(entry.episode,{...entry,shotIds,status:'imported'});
  }
  next.storyboardImport={...incoming.storyboardImport,episodes:[...episodes.values()].sort((a,b)=>a.episode-b.episode)};

@@ -1,18 +1,14 @@
 import {unifiedGenerationInstructions} from './unified-layout-rules.js';
 import {stripObsoleteProductionReferences} from './production-reference-policy.js';
 import {hydrateProductionSlices} from './production-slice-source.js';
-import {generationPromptSelection,promptSource} from './prompt-source.js';
+import {generationPromptSelection,migrateLegacyPanelPrompt} from './prompt-source.js';
 import {referencesForPanel,panelReferenceIds} from './panel-references.js';
 import {sourceStateFields} from './character-states.js';
 import {effectiveCharacterStates} from './episode-outfit.js';
 const copy=value=>value===undefined?undefined:structuredClone(value);
 export function resolvePanelGeneration(project,panel,assets=[]){
  const source=project.shots.find(shot=>shot.id===panel.shotId),generation=copy(panel.generation||{}),original=source||generation.sourceSnapshot?.original||{};
- // Old workbenches edited generation.prompt directly. Only migrate a value
- // demonstrably different from its own captured source; a changed source
- // alone must not be mistaken for an edit to this panel.
- const captured=generation.sourceSnapshot?.original,baseline=captured&&(captured.productionPrompt||captured.description||''),mode=promptSource(generation.promptSource);
- if(captured&&typeof generation.prompt==='string'&&generation.prompt!==baseline&&!Object.hasOwn(generation.promptOverrides||{},mode))generation.promptOverrides={...generation.promptOverrides,[mode]:generation.prompt};
+ migrateLegacyPanelPrompt(generation);
  return {...generation,version:1,prompt:original.productionPrompt||original.description||generation.prompt||'',negativePrompt:'',shotSize:original.shotSize||generation.shotSize||'',cameraAngle:original.cameraAngle||generation.cameraAngle||'',dialogue:original.dialogue??generation.dialogue??'',embeddedTexts:copy(original.embeddedTexts||generation.embeddedTexts||[]),...(original.assetVisualContract?{assetVisualContract:copy(original.assetVisualContract)}:{}),...Object.fromEntries(Object.entries(sourceStateFields(original)).filter(([key])=>!Object.hasOwn(generation,key))),sourceSnapshot:{...generation.sourceSnapshot,projectId:project.id,shotId:panel.shotId||'',code:original.code||generation.sourceSnapshot?.code||'',title:original.title||generation.sourceSnapshot?.title||'',original:copy(original)},referenceRoles:copy(referencesForPanel(project,panel,assets))};
 }
 export function ensurePanelGeneration(project,panel,assets=[]){

@@ -2,6 +2,12 @@ import {effectiveOutfitPrompt} from './episode-outfit.js';
 export const PROMPT_SOURCES=Object.freeze([{value:'imported',label:'分镜表提示词'},{value:'post-lettering',label:'生图提示词（后期嵌字）'},{value:'direct',label:'直出提示词'}]);
 export function promptSource(value){if(value===undefined||value===null||value==='current')return 'imported';if(!PROMPT_SOURCES.some(option=>option.value===value))throw Object.assign(Error('提示词来源无效'),{status:400});return value;}
 const header=value=>String(value).normalize('NFKC').replace(/\s+/gu,'');
+// Migrate only a legacy edit against its own captured source, before that
+// snapshot is replaced. Old "current" prompts belong to the imported mode.
+export function migrateLegacyPanelPrompt(generation){
+ const captured=generation?.sourceSnapshot?.original,baseline=captured&&(captured.productionPrompt||captured.description||'');
+ if(captured&&typeof generation.prompt==='string'&&generation.prompt!==baseline&&!Object.hasOwn(generation.promptOverrides||{},'imported'))generation.promptOverrides={...generation.promptOverrides,imported:generation.prompt};
+}
 export function generationPromptChoices(panel,project){
  const generation=panel?.generation||{},shot=project?.shots?.find(shot=>shot.id===panel?.shotId),original=shot||generation.lastSourceSnapshot?.original||generation.sourceSnapshot?.original||{},fields=original.sourceFields||{};
  const read=names=>{const match=Object.entries(fields).find(([key,value])=>names.includes(header(key))&&typeof value==='string'&&value.trim());return match?{text:match[1],column:match[0]}:{text:'',column:null};};

@@ -38,6 +38,13 @@ test('只有其他用途的格数组时不猜成分镜，原件保留并提示�
  assert.ok(result.episodes[0].panelRecords.every(panel=>!panel.source.file));
 });
 
+test('没有格式的辅助格列表即使有相同格ID，也不会冒充缺失分镜',async()=>{
+ const files=syntheticFiles(),board=JSON.parse(files[0].bytes),other=file('定位资料/第011话_辅助.json',{'作品':board['作品'],'话':11,'格':board['格'].map(row=>({'格ID':row['格ID']}))});
+ const result=await inspectProductionPackage([files[1],other]);
+ assert.ok(result.issues.some(issue=>issue.severity==='conflict'&&issue.message.includes('缺少逐格分镜JSON')));
+ assert.ok(result.episodes[0].panelRecords.every(panel=>!panel.source.file));
+});
+
 test('分镜JSON目录内的正式JSON不强制改文件名',async()=>{
  const files=syntheticFiles();files[0]={...files[0],relativePath:'整包/分镜JSON/第011话.json'};
  const source=await inspectProductionPackage(files);assert.equal(source.episodes[0].panelRecords[0].source.file,files[0].relativePath);

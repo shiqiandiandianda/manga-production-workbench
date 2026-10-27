@@ -62,6 +62,16 @@ test('没有格式标记的单份旧版分镜仍可导入',async()=>{
  assert.equal(source.episodes[0].panelRecords[0].source.file,'旧版/第041话.json');
 });
 
+test('旧版分镜须与屏段格ID完整对应，多份候选不自动选择',async()=>{
+ const files=sourceFiles(),board=JSON.parse(files[0].bytes);delete board['格式'];
+ const legacy=sourceFile('旧版/第041话.json',board),duplicate=sourceFile('历史/第041话.json',board);
+ await assert.rejects(inspectProductionPackage([files[1],legacy,duplicate]),/同一话有多个分镜JSON版本/);
+ board['格'][0]['格ID']='E041-999';
+ const mismatch=await inspectProductionPackage([files[1],sourceFile('旧版/第041话.json',board)]);
+ assert.ok(mismatch.issues.some(issue=>issue.severity==='conflict'&&issue.message.includes('缺少逐格分镜JSON')));
+ assert.ok(mismatch.episodes[0].panelRecords.every(panel=>!panel.source.file));
+});
+
 test('屏段计划保留为来源，不冒充有版本号的屏段文字层',async()=>{
  const files=sourceFiles(),text=JSON.parse(files[1].bytes);
  files.unshift(sourceFile('屏段/第041话_屏段计划.json',{'作品':text['作品'],'话':41,'默认模式':'空泡','屏段':text['屏段']}));

@@ -55,6 +55,10 @@ function storyboardFilePriority(relativePath){
  if(parts.some(part=>/^分镜\s*JSON$/i.test(part)))return 2;
  return /分镜(?:\s*JSON)?\.json$/i.test(name)?1:0;
 }
+function isLegacyStoryboard(data){
+ const rows=data?.['格'];
+ return !String(data?.['格式']||'').trim()&&typeof data?.['作品']==='string'&&data['作品'].trim()&&Number.isInteger(data['话'])&&Array.isArray(rows)&&rows.length>0&&rows.every(row=>typeof row?.['格ID']==='string'&&row['格ID'].trim()&&['画面内容','生图提示词','直出提示词'].some(key=>typeof row[key]==='string'&&row[key].trim()))&&new Set(rows.map(row=>row['格ID'])).size===rows.length;
+}
 export async function inspectProductionPackage(files){
  const postLettering=inspectPostLetteringPackage(files);if(postLettering)return postLettering;
  const promptDriven=inspectPromptDrivenPackage(files);if(promptDriven)return promptDriven;
@@ -72,10 +76,9 @@ export async function inspectProductionPackage(files){
    // 底稿仍保留在来源清单中，不能与正式分镜竞争同一话的生产来源。
    if(isStoryboardDraft(file,data))continue;
    const priority=storyboardFilePriority(file.relativePath),declared=/^分镜\s*JSON(?:\s|\d|$)/i.test(String(data['格式']||''));
-   // A generic JSON with a 格 array is not enough to infer that it is the
-   // storyboard. Keep its original in the manifest and report a missing
-   // storyboard if there is no explicitly declared or named candidate.
-   if(!priority&&!declared)continue;
+   // Preserve older unlabelled storyboards only when they have complete panel
+   // identifiers and content; the IDs must also match the screen below.
+   if(!priority&&!declared&&!isLegacyStoryboard(data))continue;
    const sources=boardSources.get(data['话'])||[];sources.push({data,file:file.relativePath,priority});boardSources.set(data['话'],sources);
   }
  }
@@ -86,7 +89,9 @@ export async function inspectProductionPackage(files){
   // because another path has a higher folder priority.
   const declared=sources.filter(source=>/^分镜\s*JSON(?:\s|\d|$)/i.test(String(source.data['格式']||'')));
   const priority=Math.max(...sources.map(source=>source.priority));
-  const selected=declared.length?declared:sources.filter(source=>source.priority===priority);
+  const screen=screens.get(episode)?.data,screenIds=screen?.['屏段']?.flatMap(segment=>segment['格']||[]).map(row=>row['格ID']),screenIdSet=new Set(screenIds||[]);
+  const selected=declared.length?declared:priority?sources.filter(source=>source.priority===priority):sources.filter(source=>isLegacyStoryboard(source.data)&&Array.isArray(screenIds)&&screenIds.length===source.data['格'].length&&screenIdSet.size===screenIds.length&&source.data['格'].every(row=>screenIdSet.has(row['格ID'])));
+  if(!selected.length)continue;
   if(selected.length>1)fail('同一话有多个分镜JSON版本：第'+episode+'话（'+selected.map(source=>source.file).join('、')+'）');
   const {data,file}=selected[0];boards.set(episode,{data,file});
  }

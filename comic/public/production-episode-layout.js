@@ -121,9 +121,11 @@ export function layoutProductionEpisode(project,episodeNumber){
   return {s,page,start};
  });
  if(plans.length!==pages.length||plans.some((p,i)=>pages[i]!==p.page))fail('本话画板顺序与设计屏段不一致，请先核对画板');
- const prior=productionEpisodeUnit(project,episodeNumber),groups=[];
+ // Capture every segment's mode before preparing panels: preparing a panel can
+ // itself make an older screen appear to be in panel mode.
+ const previousUnits=new Map(plans.map(({s,page})=>[s.segmentId,pagePriorUnit(project,page)])),groups=[];
  for(let i=0;i<plans.length;i++){
-  const {s,page,start}=plans[i],end=plans[i+1]?.start??design.finalLayout.canvas.height,height=end-start;
+  const {s,page,start}=plans[i],prior=previousUnits.get(s.segmentId),end=plans[i+1]?.start??design.finalLayout.canvas.height,height=end-start;
   if(height<20)fail('设计屏段高度无效：'+s.segmentId);
   page.productionLayoutViews||={version:1,screen:{height:page.height},panel:{height:page.height}};
   page.productionLayoutViews[prior].height=page.height;page.productionLayoutViews.panel.height=height;
@@ -140,19 +142,19 @@ export function layoutProductionEpisode(project,episodeNumber){
  const selected=new Set(groups.flatMap(g=>[...g.keys])),order=project.layerOrder||[],at=order.findIndex(k=>selected.has(k)),remaining=order.filter(k=>!selected.has(k));
  const sorted=groups.sort((a,b)=>a.layer-b.layer).flatMap(g=>[g.frame.id,...order.filter(k=>g.keys.has(k)&&k!==g.frame.id)]);
  remaining.splice(at<0?remaining.length:Math.min(at,remaining.length),0,...sorted);project.layerOrder=remaining;
- switchProductionEpisodeUnit(project,episodeNumber,'panel');
+ switchProductionEpisodeUnit(project,episodeNumber,'panel',{previousUnits});
  return {panels:groups.length,boards:plans.length,layoutVersion:design.layoutVersion};
 }
 
 /** Adapt the exact assistant preview into existing screen boards and editable panel families. */
 export function layoutAssistantEpisode(project,episodeNumber,source,{assets=[]}={}){
- const episode=project.productionPackage?.episodes.find(e=>e.episode===episodeNumber),g=validateAssistantGeometry(source.geometry,episode),pages=episodePages(project,episodeNumber),byKey=new Map(g.panels.map(p=>[p.key,p])),prior=productionEpisodeUnit(project,episodeNumber),newBinding=!project.layoutRuleBindings?.[episodeNumber],refreshPlan=newBinding||source.updatedPreview===true,generation=refreshPlan?generationPlans(episode,g):project.layoutRuleBindings[episodeNumber].generationSegments||generationPlans(episode,g);
+ const episode=project.productionPackage?.episodes.find(e=>e.episode===episodeNumber),g=validateAssistantGeometry(source.geometry,episode),pages=episodePages(project,episodeNumber),byKey=new Map(g.panels.map(p=>[p.key,p])),newBinding=!project.layoutRuleBindings?.[episodeNumber],refreshPlan=newBinding||source.updatedPreview===true,generation=refreshPlan?generationPlans(episode,g):project.layoutRuleBindings[episodeNumber].generationSegments||generationPlans(episode,g);
  const plans=episode.segments.map((s,i)=>{const root=productionFrame(project,s.id),page=pages.find(p=>p.panels.includes(root)),first=byKey.get(s.panelIds[0]);if(!page||page.width!==1280||page.storyboard?.segmentId!==s.id||!first)fail('请先核对本话一屏一画板与源格关联');if(page.locked)fail('请先解锁本话画板：'+page.name);return {s,page,start:i===0?0:Math.floor(first.y)};});
  if(plans.length!==pages.length||plans.some((p,i)=>pages[i]!==p.page))fail('本话画板顺序与屏段不一致，请先核对');
- const groups=[],oldBackgrounds=new Set((project.gradients||[]).filter(b=>b.assistantLayoutAnchor?.episode===episodeNumber).map(b=>b.id));
+ const previousUnits=new Map(plans.map(({s,page})=>[s.id,pagePriorUnit(project,page)])),groups=[],oldBackgrounds=new Set((project.gradients||[]).filter(b=>b.assistantLayoutAnchor?.episode===episodeNumber).map(b=>b.id));
  if((project.gradients||[]).some(b=>oldBackgrounds.has(b.id)&&b.locked))fail('请先解锁本话助手底色图层');
  for(let i=0;i<plans.length;i++){
-  const {s,page,start}=plans[i],height=(plans[i+1]?.start??g.canvas.height)-start;if(height<1)fail('助手预览跨屏阅读顺序无效，请先核对');
+  const {s,page,start}=plans[i],prior=previousUnits.get(s.id),height=(plans[i+1]?.start??g.canvas.height)-start;if(height<1)fail('助手预览跨屏阅读顺序无效，请先核对');
   page.productionLayoutViews||={version:1,screen:{height:page.height,background:page.background},panel:{height:page.height,background:page.background}};
   page.productionLayoutViews[prior].height=page.height;page.productionLayoutViews[prior].background=page.background;page.productionLayoutViews.panel={height,background:'#ffffff'};
   if(refreshPlan){const plan=generation.find(p=>p.segmentId===s.id),root=productionFrame(project,s.id);if(newBinding&&root.imageAssetId)fail('已有整屏图片请先在排版助手确认实际裁格');if(!root.imageAssetId){const h=root.w*plan.imagePlan.height/1280,delta=h-root.h;page.productionLayoutViews.screen.height=Math.ceil(Math.max(h+root.y,page.productionLayoutViews.screen.height+delta));root.h=h;}s.plannedRegions=Object.fromEntries(plan.panels.map(p=>[p.panelId,structuredClone(p.rect)]));s.imagePlan=structuredClone(plan.imagePlan);s.unifiedLayoutRuleDigest=source.contract.digest;s.layoutDesignVersion='unified-'+source.contract.digest.slice(0,16);}
@@ -175,6 +177,6 @@ export function layoutAssistantEpisode(project,episodeNumber,source,{assets=[]}=
  const selected=new Set(groups.flatMap(g=>[...g.keys])),order=project.layerOrder||[],at=order.findIndex(k=>selected.has(k)),remaining=order.filter(k=>!selected.has(k)&&!oldBackgrounds.has(k));
  const sorted=groups.sort((a,b)=>a.layer-b.layer).flatMap(g=>[g.frame.id,...order.filter(k=>g.keys.has(k)&&k!==g.frame.id)]);remaining.splice(at<0?remaining.length:Math.min(at,remaining.length),0,...sorted);project.layerOrder=[...backgrounds,...remaining];
  project.layoutRuleBindings||={};project.layoutRuleBindings[episodeNumber]={...project.layoutRuleBindings[episodeNumber],contract:structuredClone(source.contract),scriptId:source.scriptId,geometry:structuredClone(g),targetPanels:structuredClone(g.panels),generationSegments:generation,appliedToCurrentProject:true};
- switchProductionEpisodeUnit(project,episodeNumber,'panel');
+ switchProductionEpisodeUnit(project,episodeNumber,'panel',{previousUnits});
  return {panels:groups.length,boards:plans.length,layoutVersion:'排版助手预览'};
 }

@@ -56,7 +56,7 @@ const features = [
   feature('画布与画格','撤销、重做和编辑事务','工具栏','comic/public/editor-state.js','layout-history,prompt-edit-history-regression',true),
   feature('画布与画格','自动裁格、手工修正与裁格来源','裁格排字','comic/lib/panel-slices-api.mjs,comic/public/panel-slices-lettering-ui.js','panel-slices,production-lettering-edit,production-package',true,'合成浏览器验证空泡人工定位；真实成图的视觉效果仍须用户核对'),
   feature('画布与画格','按已有成图裁格并重排，结果接回来源工程','整话自动排版','comic/lib/reflow-preparation.mjs,comic/lib/auto-layout-api.mjs','',true,'本次仅登记入口和来源保护逻辑；新版本真实页面及接回闭环未独立验收'),
-  feature('画布与画格','自动排版预览、调整构图与人工修正','自动排版','comic/public/auto-layout-ui.js,comic/public/artwork-framing.mjs','storyboard-layout-batch',true,'关联已有批量排版测试；新版交互与视觉质量未逐项验收'),
+  feature('画布与画格','自动排版预览、调整构图与人工修正','自动排版','comic/public/auto-layout-ui.js,comic/public/artwork-framing.mjs,comic/public/production-episode-layout.js','storyboard-layout-batch,comic/quality/cases/episode-layout-modes.test.mjs',true,'合成资料验证不同屏段模式的整话坐标、切换及图片身份；真实排版服务与页面视觉质量未逐项验收'),
   feature('文字和气泡','手工对白、旁白、说话人与文字内容','文字工具','comic/public/bubble-editor.js','lettering,bubble-editor',true),
   feature('文字和气泡','移动文字框、气泡框、尾巴及节点','文字属性','comic/public/bubble-editor.js','bubble-editor,browser-bubble-text-frame',true),
   feature('文字和气泡','字体、字号、间距、颜色与排版','文字属性','comic/public/bubble-text-flow.js','unified-typography,browser-bubble-text-frame'),

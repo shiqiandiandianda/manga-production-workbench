@@ -10,6 +10,7 @@
     "comic/quality/cases/asset-studio-upload-ui.test.mjs",
     "comic/quality/cases/panel-display-screen.test.mjs",
     "comic/quality/cases/formal-version-ui.test.mjs",
+    "comic/quality/cases/episode-layout-modes.test.mjs",
     "comic/quality/cases/moku-real-contract.test.mjs",
     "comic/quality/cases/project-sync-setup.test.mjs",
     "comic/tests/model.test.mjs",

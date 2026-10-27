@@ -45,6 +45,8 @@ node quality/run.mjs --suite small --filter moku-http-flow
 
 `--filter` 只是排查工具，不代表整套测试已经执行。失败、超时、跳过、待办、零测试、安全拦截、不稳定或未完成都不算通过。隔离浏览器在打开页面前若出现指定的临时配置目录启动错误，会重试一次；重试后完成则标为 `flaky`，不会被当作干净通过。全量套件中保留原有历史测试，若它们引用已删除的独立修图服务，会作为失败列出；当前同页修图另有 `repair-integrated.test.mjs` 和 `repair-composition.test.mjs`。不要删除失败测试来制造通过。
 
+用户已确认团队帮忙生图保持默认关闭。`team-help-disabled.test.mjs` 检查旧页面及接口返回 410、没有新增任务；历史团队接单用例仍保留在全量盘点中，但其要求启用已关闭功能，失败不作为恢复该功能的依据。其他非通过用例仍需逐项核实。
+
 长套件可用 `node quality/run.mjs --suite large --list` 查看排序，再以 `--start 0 --end 40` 等不重叠区间分别运行，结束序号不包含在区间内。每段必须使用同一源码版本，并汇总所有区间；单段报告标记为部分运行。若期间修改源码，受影响测试必须在最终版本重新运行。
 
 真实制作资料的原有跳过项单列在 `comic/tests/production-real-data.test.mjs`，保留在全量功能／大改动套件中，等待独立授权与测试资料；它不阻断只使用合成资料的核心套件。该项跳过时仍会让全量套件未通过。
@@ -59,6 +61,7 @@ $env:QUALITY_PYTHON = 'D:\test-dependencies\python\python.exe'
 $env:QUALITY_TEST_FONT = 'C:\Windows\Fonts\arial.ttf'
 $env:QUALITY_MOKU_SOURCE = 'D:\moku-test-source'
 $env:QUALITY_U2NET_MODEL = 'D:\test-dependencies\u2net.onnx'
+$env:QUALITY_BROWSER_EXECUTABLE = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
 npm run quality:small
 ```
 

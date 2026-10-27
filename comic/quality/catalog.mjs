@@ -82,7 +82,7 @@ const features = [
   feature('导出','整话长图导出与失败处理','导出','comic/public/complete-strip-export.js','complete-strip-export',true),
   feature('导出','封面正文尾图拼接与分段渲染','导出','comic/lib/strip-export.mjs','render-segments,complete-strip-export'),
   feature('导出','工程及关联素材打包导入','工程导出','comic/lib/production-package-portable.mjs','production-package,browser-all-materials-export',true),
-  feature('协作与其他组件','团队任务领取、状态、人工审核','团队制作','comic/lib/team-production.mjs','team-production,team-volunteer',false,'团队帮忙生图默认停用并返回 410；旧能力只在显式启用时保留，本次未验收'),
+  feature('协作与其他组件','团队任务领取、状态、人工审核','团队制作','comic/lib/team-production.mjs','comic/quality/cases/team-help-disabled.test.mjs,team-production,team-volunteer',false,'用户确认保持默认关闭：旧入口返回 410；历史启用状态用例仅供追溯，不代表当前功能可用'),
   feature('协作与其他组件','协作任务、回填及冲突保护','协作','comic/lib/collab-apply.mjs','collab-client,collab-jobs,collab-apply',false,'协作入口默认返回 410；相关纯逻辑测试不能说明用户入口可用'),
   feature('协作与其他组件','项目中心资料与资产候选','项目中心','workbench/server/project-center.mjs','workbench/tests/project-center.test.mjs'),
   feature('协作与其他组件','剧本库导入、列表和删除','资产工作台剧本库','workbench/server/script-library.mjs','workbench/tests/script-library.test.mjs'),
@@ -108,7 +108,7 @@ const flows = [
   flow('工程同步与冲突恢复','明确项目及话 → 保存工程 → 登记固定引用 → 重复保存／断线重试 → 读回','project-sync,moku-project-library,comic/quality/cases/moku-real-contract.test.mjs',true,'模拟接口及本地墨库 1.1.0／2.0.1 合成测试'),
   flow('素材批量回收与恢复','跨页选择 → 核对分类、账号和版本 → 确认回收 → 回执丢失时按账号及项目找回批次 → 从回收站恢复 → 验证历史固定原件','comic/quality/cases/moku-bulk-ui.test.mjs,comic/quality/cases/moku-real-contract.test.mjs',true,'本地墨库 1.1.0／2.0.1 与合成页面；全局素材按类别分批'),
   flow('项目删除与恢复','选择工程 → 删除或拒绝旧版本 → 从回收区恢复 → 检查 ID 与图层','project-management'),
-  flow('团队协作与审核','提交任务 → 成员接单 → 候选结果 → 审核 → 绑定 → 冲突处理','team-production,collab-apply,workbench/tests/project-center.test.mjs',false,'漫画工作台默认停用团队帮忙生图，接口返回 410；不能视为完整可用链路'),
+  flow('团队协作与审核','提交任务 → 成员接单 → 候选结果 → 审核 → 绑定 → 冲突处理','comic/quality/cases/team-help-disabled.test.mjs,team-production,collab-apply,workbench/tests/project-center.test.mjs',false,'用户确认保持团队帮忙生图关闭：当前入口返回 410，此链路未启用'),
   flow('任务异常恢复','取消／失败／会话失效 → 显示状态 → 重新确认 → 防重复生成或覆盖','jobs-cancel-all,integrated-workspace,project-sync'),
 ];
 features.forEach((row,index)=>row.id='F'+String(index+1).padStart(3,'0'));

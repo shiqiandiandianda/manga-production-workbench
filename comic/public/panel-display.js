@@ -16,7 +16,7 @@ export function panelDisplayData(frame,shot,project){
  data.content=generationPromptSelection(frame,project||{shots:shot?[{...shot,id:frame.shotId}]:[]}).text;
  const context=productionDisplayContext(project,null,frame);
  if(context.segment&&!frame.productionBackground){
-  const names=[...new Set(context.records.flatMap(r=>r.original?.['出现角色']||[]))];
+  const names=[...new Set(context.records.flatMap(r=>{const value=r.original?.['出现角色'];return (Array.isArray(value)?value:typeof value==='string'?value.split(/[、，,；;\n]+/u):[]).map(v=>typeof v==='string'?v.trim():'').filter(Boolean);} ))];
   data.characterCards=names.map(name=>{
    const reference=context.segment.references.find(r=>r['类型']==='设定卡'&&r['人物']===name&&!r.skipped);
    const binding=reference?.binding,valid=binding&&(!binding.characterName||binding.characterName===name)&&/^asset_[a-f0-9-]{36}$/i.test(binding.assetId||'');
@@ -28,7 +28,9 @@ export function panelDisplayData(frame,shot,project){
    }
    return {name,assetId:valid?binding.assetId:null,outfit:valid?binding.outfitName||'':'',states};
   });
-  data.characters=names.join('、')||'本格未声明出场人物';
+  if(names.length)data.characters=names.join('、');
+  else if(!context.gridId){const refs=context.segment.references.filter(r=>r['类型']==='设定卡'&&r['人物']).map(r=>r['人物']+(r['服装']?'（'+r['服装']+'）':''));data.characters='分镜未标注出场人物'+(refs.length?'；本段参考：'+refs.join('、'):'');}
+  else data.characters='本格未声明出场人物';
  }
  return data;
 }

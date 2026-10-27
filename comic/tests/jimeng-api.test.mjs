@@ -16,6 +16,7 @@ function png(width,height){
  return Buffer.concat([pixel.subarray(0,8),chunk('IHDR',header),chunk('IDAT',deflateSync(Buffer.alloc(height*(1+width*4),255))),chunk('IEND',Buffer.alloc(0))]);
 }
 async function fixture(t,{generate}={}){
+ fs.mkdirSync(path.join(root,'.runtime'),{recursive:true});
  const directory=fs.mkdtempSync(path.join(root,'.runtime','jimeng-api-tests-')),calls=[],submitId=randomUUID();
  const jimeng={status:async()=>({provider:'jimeng',installed:true,connected:true,version:'1.0.2',message:'mock',login:{running:false}}),models:async()=>({items:[{model:'discovered-model',modes:[]}]}),publicLogin:()=>({running:false}),publicState:s=>({canvasId:s.canvasId,nodeId:s.nodeId,submitId:s.submitId,operationRef:s.submitId}),resumeState:()=>({submissionAttempted:true,recovery:{submitId,nodeId:'node_mock',operationRef:submitId}}),close(){},generate:async(dir,input,refs,options)=>{calls.push({dir,input,refs,options});if(generate)return generate(dir,input,refs,options);if(options.approvalCeiling!==undefined)return {bytes:pixel,provider:'jimeng',recovery:{submitId,operationRef:submitId}};return {awaitingConfirmation:true,quote:{items:[{nodeId:'node_mock',maxCredits:120}],totalMaxCredits:120,confirmationRequired:true,confirmable:true},recovery:{submitId,nodeId:'node_mock'}};}};
  const studio=createStudio({dataDir:directory,bridge:{status:async()=>({connected:false,message:'Codex mock unused'})},jimengBridge:jimeng,seedReference:false});studio.store.db.projects.push(fixtureProject('隔离回归样本',true));studio.store.save();
@@ -52,11 +53,18 @@ test('图内文字字段能保存且校验，既有sfx/system图层不会被提�
  saved.shots[0].embeddedTexts=[{text:123}];assert.equal((await f.request('/api/projects/'+project.id,'PUT',saved)).status,400);
 });
 
-test('重绘等待时同尺寸重新指定原图路径，旧结果只进候选',async t=>{
+test('重绘等待时同一资产迁到相同内容的缓存路径，不误拦截结果',async t=>{
  let release;const held=new Promise(resolve=>release=resolve),patch=png(20,20),f=await fixture(t,{generate:async()=>{await held;return {bytes:patch,alignedBytes:patch,provider:'jimeng'};}}),project=f.studio.store.db.projects[0],panel=project.pages[0].panels[0];Object.assign(panel,{x:0,y:0,w:20,h:20,points:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}]});
  const before=path.join(f.studio.store.root,'before.png'),after=path.join(f.studio.store.root,'after.png');fs.writeFileSync(before,patch);fs.writeFileSync(after,patch);const asset=(await f.request('/api/assets','POST',{filePath:before})).data;await f.request(`/api/projects/${project.id}/panels/${panel.id}/image`,'POST',{assetId:asset.id});
  const queued=await f.request('/api/jobs','POST',{projectId:project.id,panelIds:[panel.id],provider:'jimeng',model:'discovered-model',mode:'i2i',action:'edit',editPrompt:'调整光线',basePanelDataUrl:'data:image/png;base64,'+patch.toString('base64'),baseRegion:{x:0,y:0,w:20,h:20}});assert.equal(queued.status,202);
- assert.equal((await f.request('/api/assets/'+asset.id+'/path','PUT',{filePath:after})).status,200);release();const state=await f.settled();assert.equal(state.jobs[0].status,'done');assert.equal(state.jobs[0].applied,false);assert.equal(state.projects[0].pages[0].panels[0].imageAssetId,asset.id);
+ assert.equal((await f.request('/api/assets/'+asset.id+'/path','PUT',{filePath:after})).status,200);release();const state=await f.settled();assert.equal(state.jobs[0].status,'done');assert.equal(state.jobs[0].applied,true);assert.equal(state.projects[0].pages[0].panels[0].imageAssetId,state.jobs[0].assetId);
+});
+test('重绘等待时原图内容改变，结果只进候选并保留当前原图',async t=>{
+ let release;const held=new Promise(resolve=>release=resolve),patch=png(20,20),f=await fixture(t,{generate:async()=>{await held;return {bytes:patch,alignedBytes:patch,provider:'jimeng'};}}),project=f.studio.store.db.projects[0],panel=project.pages[0].panels[0];Object.assign(panel,{x:0,y:0,w:20,h:20,points:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}]});
+ const before=path.join(f.studio.store.root,'before.png'),after=path.join(f.studio.store.root,'after.png');fs.writeFileSync(before,patch);fs.writeFileSync(after,Buffer.concat([patch,Buffer.from('changed')]));
+ const asset=(await f.request('/api/assets','POST',{filePath:before})).data;await f.request(`/api/projects/${project.id}/panels/${panel.id}/image`,'POST',{assetId:asset.id});
+ const queued=await f.request('/api/jobs','POST',{projectId:project.id,panelIds:[panel.id],provider:'jimeng',model:'discovered-model',mode:'i2i',action:'edit',editPrompt:'调整光线',basePanelDataUrl:'data:image/png;base64,'+patch.toString('base64'),baseRegion:{x:0,y:0,w:20,h:20}});assert.equal(queued.status,202);
+ assert.equal((await f.request('/api/assets/'+asset.id+'/path','PUT',{filePath:after})).status,200);release();const state=await f.settled();assert.equal(state.jobs[0].status,'done');assert.equal(state.jobs[0].applied,false);assert.equal(state.projects[0].pages[0].panels[0].imageAssetId,asset.id);assert.ok(state.projects[0].pages[0].panels[0].candidates.includes(state.jobs[0].assetId));
 });
 
 test('恢复原任务回到积分确认后，approve切回运行路径且保留同一submit',async t=>{

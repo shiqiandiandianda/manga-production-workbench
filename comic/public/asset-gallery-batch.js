@@ -36,7 +36,7 @@ export function galleryRecordAssignments(rows,record,{projectId}={}){
 export function galleryReturnDecision(row,records=[],{projectId,includeText=false}={}){
  const targets=row.uses.filter(u=>!u.locked&&!u.skipped&&(u.text?includeText:u.missing)).map(u=>({panelId:u.panelId,needId:u.needId}));
  if(!targets.length)return {status:'skip',reason:'已有图片、文生，或使用位置不可编辑'};
- const relevant=records.filter(r=>!r.deletedAt&&!row.removedRecordIds?.includes(r.id)&&r.context?.projectId===projectId&&(!r.source?.projectId||r.source.projectId===projectId)&&r.role===row.role&&(r.requirementKey===row.key||assetNameKey(r.name)===assetNameKey(row.name)));
+ const nameKey=assetNameKey(row.name),relevant=records.filter(r=>!r.deletedAt&&!row.removedRecordIds?.includes(r.id)&&r.context?.projectId===projectId&&(!r.source?.projectId||r.source.projectId===projectId)&&r.role===row.role&&((row.key&&r.requirementKey===row.key)||(nameKey&&assetNameKey(r.name)===nameKey)));
  if(relevant.some(r=>['queued','running','claimed','recoverable','delegated','awaiting_confirmation'].includes(r.status)))return {status:'skip',reason:'已有任务进行中，完成后可再次接回'};
  const available=relevant.filter(r=>r.available);
  const generatedForRequirement=r=>libraryStatePlaceholder(row.state)&&r.source?.projectId===projectId&&row.uses.some(u=>u.panelId===r.source.panelId&&u.needId===r.source.needId);

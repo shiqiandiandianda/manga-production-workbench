@@ -31,6 +31,7 @@ test('costume provenance does not mix other states in the same screen, and adapt
 test('searching one character for several costumes shares catalogue pages and retains cancellation checks',async()=>{
  const p=await project(),id=randomUUID(),queries=[];let current=true;
  const search=createMokuReferenceSearch({project:p,api:async route=>{queries.push(route);return route==='/api/library/projects'?{items:[{id,name:p.title}]}:{items:[],more:false};},verify:()=>{if(!current)throw Error('switched');}});
- await search.search('角色甲');await search.search('角色甲');assert.equal(queries.filter(q=>q.includes('/api/library/assets?')).length,2); // Current project + public, fetched once each.
+ await search.search('角色甲');const first=queries.filter(q=>q.includes('/api/library/assets?'));assert.equal(first.length,4);assert.equal(first.filter(q=>new URL(q,'http://local').searchParams.get('q')).length,2); // Each scope has a server search and a bounded broad catalogue.
+ await search.search('角色甲');assert.equal(queries.filter(q=>q.includes('/api/library/assets?')).length,4,'重复搜索应复用两个范围内的查询与目录页');
  current=false;await assert.rejects(search.search('角色甲'),/switched/);
 });

@@ -263,7 +263,7 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
    try{await api('/api/library/assets/'+item.id+'/tags','POST',{tags:[row.name]});if(getProject()?.id===projectId&&ticket===batchTicket){batchMessage+=' 已将“'+row.name+'”添加为墨库标签。';searcher?.clear();}}
    catch(error){if(getProject()?.id===projectId&&ticket===batchTicket){batchMessage='图片已采用，但墨库标签未保存：'+error.message+'。可打开当前图片的“添加墨库标签”重试。';rowMessages.set(row.key,batchMessage);}}
   }catch(error){if(getProject()?.id===projectId&&ticket===batchTicket)rowMessages.set(row.key,'采用失败：'+error.message);throw error;}
-  finally{if(getProject()?.id===projectId&&ticket===batchTicket){busy=false;paintList();}}
+  finally{if(getProject()?.id===projectId&&ticket===batchTicket){busy=false;paintList();paintBatchState();}}
  }
  function paintRecordUpdate(){const node=detail.querySelector('[data-asset-content]'),top=node?.scrollTop||0;paintDetail();const next=detail.querySelector('[data-asset-content]');if(next)next.scrollTop=top;}
  const recordStamp=r=>r?.version||JSON.stringify([r?.id,r?.status,r?.partial,r?.finished,r?.phases,r?.updatedAt,r?.imageUrl]);

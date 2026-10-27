@@ -14,6 +14,12 @@ const allowed=/\.(json|xlsx|md|txt|html|csv|tsv|png|jpe?g|webp|svg|py|pyc)$/i;
 const fileLimit=()=>limits.fileBytes;
 export function packagePath(value){const s=String(value||'').replaceAll('\\','/');if(!s||s.startsWith('/')||/^[a-z]:/i.test(s)||s.split('/').some(p=>!p||p==='.'||p==='..')||s.includes('\0'))fail('资料相对路径无效');return s;}
 export async function loadPackageFiles(input,library){
+ // A scan is one logical read operation: do not mix credentials if the
+ // user signs in or out while the catalog or a fixed revision is loading.
+ if(input.sourceType==='moku'&&library?.withSession)return library.withSession(()=>loadPackageFilesInSession(input,library));
+ return loadPackageFilesInSession(input,library);
+}
+async function loadPackageFilesInSession(input,library){
  const files=[];let total=0;
  const add=(relativePath,bytes,origin={})=>{relativePath=packagePath(relativePath);if(path.posix.basename(relativePath).startsWith('~$')||!allowed.test(relativePath))return;if(bytes.length>fileLimit(relativePath))fail(relativePath+' 超过8MB');total+=bytes.length;if(total>limits.bytes)fail('资料包总大小超过256MiB，请按话数分开导入');if(files.length>=limits.files)fail('资料包超过10000个文件，请缩小资料范围');files.push({relativePath,bytes,sha256:packageDigest(bytes),...origin});};
  if(input.sourceType==='moku'){
@@ -22,7 +28,7 @@ export async function loadPackageFiles(input,library){
   for(let offset=0;offset<Infinity;offset+=200){const page=await library.read('/api/assets?'+new URLSearchParams({projectId:input.remoteProjectId,limit:'200',offset:String(offset)}));if(!Array.isArray(page.items))fail('墨库资料列表格式无效');
    for(const item of page.items){const folder=String(item.folder||'').replaceAll('\\','/').replace(/^\/+|\/+$/g,'');if(prefix&&folder!==prefix&&!folder.startsWith(prefix+'/'))continue;if(!allowed.test(item.name)||item.name.startsWith('~$'))continue;
     const detail=await library.read('/api/assets/'+item.id);if(detail.deletedAt)fail('资料已被删除：'+item.name,409);const rid=item.displayRevisionId||detail.recommendedRevisionId,revision=detail.revisions?.find(r=>r.id===rid);if(!revision||!/^([a-f0-9]{64})$/i.test(revision.sha256))fail('墨库资料缺少固定版本或摘要：'+item.name);
-    const response=await library.remote('/api/revisions/'+rid+'/download'),chunks=[];let size=0;for await(const chunk of response.body){size+=chunk.length;chunks.push(Buffer.from(chunk));}const bytes=Buffer.concat(chunks);if(packageDigest(bytes)!==revision.sha256)fail('墨库资料校验失败：'+item.name,502);
+    const response=await library.remote('/api/revisions/'+rid+'/download'),chunks=[];let size=0;for await(const chunk of response.body){library.assertSession?.();size+=chunk.length;chunks.push(Buffer.from(chunk));}library.assertSession?.();const bytes=Buffer.concat(chunks);if(packageDigest(bytes)!==revision.sha256)fail('墨库资料校验失败：'+item.name,502);
     const rel=[prefix?folder.slice(prefix.length).replace(/^\//,''):folder,item.name].filter(Boolean).join('/');add(rel,bytes,{sourceType:'moku',projectId:input.remoteProjectId,assetId:item.id,revisionId:rid,objectVersion:detail.objectVersion});
    }if(page.items.length<200)break;
   }
@@ -35,7 +41,7 @@ export async function loadPackageFiles(input,library){
   const names=records.map(f=>packagePath(String(f.relativePath||f.name).replaceAll('\\','/'))),first=names[0]?.split('/')[0];const trimRoot=names.every(n=>n.includes('/')&&n.startsWith(first+'/'));
   for(const [i,f] of records.entries()){if(typeof f.dataBase64!=='string'||f.dataBase64.length>Math.ceil(fileLimit(names[i])*4/3)+4||!/^[A-Za-z0-9+/]*={0,2}$/.test(f.dataBase64))fail('资料文件编码无效');add(trimRoot?names[i].slice(first.length+1):names[i],Buffer.from(f.dataBase64,'base64'),{sourceType:'upload'});}
  }
- if(!files.length)fail('没有找到可读取的制作资料');const seen=new Set();for(const file of files){const key=file.relativePath.toLowerCase();if(seen.has(key))fail('资料包有重复相对路径：'+file.relativePath);seen.add(key);}return files.sort((a,b)=>a.relativePath.localeCompare(b.relativePath,'en'));
+ if(input.sourceType==='moku')library?.assertSession?.();if(!files.length)fail('没有找到可读取的制作资料');const seen=new Set();for(const file of files){const key=file.relativePath.toLowerCase();if(seen.has(key))fail('资料包有重复相对路径：'+file.relativePath);seen.add(key);}return files.sort((a,b)=>a.relativePath.localeCompare(b.relativePath,'en'));
 }
 function records(sheet){const hi=sheet.headerIndex>=0?sheet.headerIndex:0,headers=(sheet.table[hi]||[]).map(v=>String(v||''));return sheet.table.slice(hi+1).map((r,i)=>({values:Object.fromEntries(headers.filter(Boolean).map((h,j)=>[h,r[j]??''])),row:sheet.rowNumbers?.[hi+1+i]||hi+i+2}));}
 function isStoryboardDraft(file,data){

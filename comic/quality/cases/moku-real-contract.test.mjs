@@ -18,6 +18,8 @@ import {createProject} from '../../public/model.js';
 import {createMokuReferenceSearch} from '../../public/moku-reference-search.js';
 import {Store} from '../../lib/store.mjs';
 import {createStudio} from '../../server.mjs';
+import {loadPackageFiles,inspectProductionPackage} from '../../lib/production-package.mjs';
+import {syntheticFiles} from '../../tests/fixtures/production-synthetic.mjs';
 import {createAssetStudioMokuUploader} from '../../../asset-studio/app/roles/moku-uploads.mjs';
 
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -121,6 +123,40 @@ test('工作台与隔离的墨库实际接口闭环',{timeout:120000},async t=>{
     const taxonomy=await library.read('/api/project-library/taxonomy');assert.equal(taxonomy.items.find(item=>item.type==='comic_project').subjectRule,'optional');
     await assert.rejects(library.uploadAsset({projectId:project.id,name:'未分类.png',bytes:png}),/明确分类/);
     await assert.rejects(library.uploadAsset({projectId:project.id,scopeId:foreign.id,assetKind:'image',assetType:'character',objectId:subject.id,name:'跨项目.png',mime:'image/png',bytes:png}),error=>Number(error.status)===400);
+  });
+  await t.test('制作资料从实际墨库分类链路读取固定版本；下载中切换会话即停止扫描',async()=>{
+    const ep=await call('POST','/api/projects/'+other.id+'/episodes',{number:'11'}),source=syntheticFiles(),uploaded=[];
+    for(const [index,file] of source.entries())uploaded.push(await library.uploadAsset({projectId:other.id,scopeId:ep.id,assetKind:'file',assetType:'storyboard',name:path.posix.basename(file.relativePath),mime:'application/json',bytes:file.bytes,operationId:'synthetic-package-'+index}));
+    const input={sourceType:'moku',remoteProjectId:other.id},loaded=await loadPackageFiles(input,library);
+    assert.equal(loaded.length,source.length);
+    for(const file of loaded){const original=source.find(item=>path.posix.basename(item.relativePath)===file.relativePath);const saved=uploaded.find(item=>item.assetId===file.assetId);assert.ok(original&&saved);assert.equal(file.projectId,other.id);assert.equal(file.revisionId,saved.revisionId);assert.equal(hash(file.bytes),hash(original.bytes));}
+    const parsed=await inspectProductionPackage(loaded);assert.equal(parsed.count.episodes,1);assert.equal(parsed.count.panels,2);
+    let release,started;const gate=new Promise(resolve=>release=resolve),entered=new Promise(resolve=>started=resolve);let held=false;
+    const delayed={...library,remote:async(route,options)=>{const response=await library.remote(route,options);if(!held&&/\/download$/.test(route)){held=true;const bytes=Buffer.from(await response.arrayBuffer());return {body:{async *[Symbol.asyncIterator](){started();await gate;yield bytes;}}};}return response;}};
+    const pending=loadPackageFiles(input,delayed);await entered;
+    try{assert.equal((await editorCall('/api/library/login','POST',{username:'test-maker',password:'moku-test-only-2026'})).status,200);}finally{release();}
+    await assert.rejects(pending,error=>error.code==='SESSION_ACCOUNT_CHANGED');assert.equal(held,true);
+    const workDir=path.join(dir,'package-http-editor'),previousConfig=process.env.COMIC_LIBRARY_CONFIG;process.env.COMIC_LIBRARY_CONFIG=config;
+    let workbench;try{workbench=createStudio({dataDir:workDir,bridge:{status:async()=>({connected:false}),close(){}},jimengBridge:{close(){}},seedReference:false});}finally{if(previousConfig===undefined)delete process.env.COMIC_LIBRARY_CONFIG;else process.env.COMIC_LIBRARY_CONFIG=previousConfig;}
+    const origin=await listen(workbench.server);t.after(()=>{workbench.close();workbench.server.closeAllConnections();workbench.server.close();});
+    const request=async(route,value)=>{const response=await fetch(origin+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});return {status:response.status,value:await response.json()};};
+    const login=()=>request('/api/library/login',{username:'test-maker',password:'moku-test-only-2026'}),scan=()=>request('/api/production-packages/scan',input),importScan=scanId=>request('/api/production-packages/import',{scanId});
+    assert.equal((await login()).status,200);const first=await scan();assert.equal(first.status,200,JSON.stringify(first.value));for(let n=0;n<5;n++)assert.equal((await scan()).status,200);assert.notEqual((await scan()).status,200);assert.equal(workbench.store.db.projects.length,0);
+    const cookie=JSON.parse(fs.readFileSync(path.join(workDir,'library-session.local.json'),'utf8')).cookie;
+    const expired=await fetch('http://127.0.0.1:'+port+'/api/auth/logout',{method:'POST',headers:{Cookie:cookie,Origin:'http://127.0.0.1:'+port,'Content-Type':'application/json','Idempotency-Key':randomUUID()},body:'{}'});assert.equal(expired.status,200);
+    assert.equal((await importScan(first.value.scanId)).status,401);assert.equal(workbench.store.db.projects.length,0);
+    assert.equal((await login()).status,200);assert.equal((await importScan(first.value.scanId)).status,409);
+    const second=await scan();assert.equal(second.status,200,JSON.stringify(second.value));assert.equal((await request('/api/library/logout',{})).status,200);assert.equal((await importScan(second.value.scanId)).status,409);assert.equal(workbench.store.db.projects.length,0);
+    assert.equal((await login()).status,200);const third=await scan();assert.equal(third.status,200,JSON.stringify(third.value));const imported=await importScan(third.value.scanId);assert.equal(imported.status,201,JSON.stringify(imported.value));assert.equal(workbench.store.db.projects.length,1);
+    const {chromium}=createRequire(import.meta.url)('playwright'),browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());
+    const page=await browser.newPage({viewport:{width:1600,height:950}}),errors=[];page.on('pageerror',error=>errors.push(error.message));
+    await page.goto(origin+'/?project='+imported.value.id);await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent.includes('已保存'));
+    await page.locator('[data-rail-tab="production"]').click();await page.locator('[data-production-import]').click();await page.locator('#storyboard-import-target').selectOption('new');await page.locator('#package-source').selectOption('moku');
+    await page.waitForFunction(id=>[...document.querySelector('#package-moku-project').options].some(option=>option.value===id),other.id);await page.locator('#package-moku-project').selectOption(other.id);await page.locator('[data-package-scan]').click();await page.locator('.package-counts').waitFor();
+    const secondTab=await browser.newPage({viewport:{width:1600,height:950}});await secondTab.goto(origin+'/?project='+imported.value.id);await secondTab.locator('#project-tools-menu summary').click();await secondTab.locator('#moku-login-open').click();await secondTab.locator('[data-moku-logout]').click();await secondTab.getByText('已退出墨库，可重新登录。',{exact:false}).first().waitFor();
+    await page.locator('[data-package-import]').click();await page.locator('[data-import-status]').filter({hasText:'墨库登录状态已变化'}).waitFor();assert.equal(workbench.store.db.projects.length,1);
+    await secondTab.locator('#moku-login-user').fill('test-maker');await secondTab.locator('#moku-login-password').fill('moku-test-only-2026');await secondTab.locator('#moku-login-dialog [type=submit]').click();await secondTab.waitForFunction(()=>!document.querySelector('#moku-login-dialog').open);
+    await page.locator('[data-package-scan]').click();await page.locator('.package-counts').waitFor();await page.locator('[data-package-import]').click();await page.locator('#storyboard-import-dialog').waitFor({state:'hidden'});assert.equal(workbench.store.db.projects.length,2);assert.deepEqual(errors,[]);
   });
   let character,bubble,font,formalEvidence;
   await t.test('真实分类上传、无后缀图片、幂等重试和固定版本下载',async()=>{

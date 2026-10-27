@@ -82,7 +82,7 @@ for(const production of [true,false])test(`本话资产总览选图后返回并�
   const item=card(names[index]);await item.scrollIntoViewIfNeeded();const position=await list.evaluate(n=>n.scrollTop);await item.locator('.asset-list-item').click();
   assert.equal(await page.locator('[data-asset-view=current]').getAttribute('aria-selected'),'true');const choice=page.locator('[data-asset-use-moku="'+cloud[index].id+'"]').first();await choice.waitFor();
   if(index===8){failImport=true;await choice.click();await page.waitForFunction(()=>document.querySelector('[data-asset-status]')?.textContent.includes('合成取图失败'));assert.equal(await page.locator('#asset-detail-panel').isVisible(),true);failImport=false;}
-  await choice.click();await item.locator('.asset-state.ready').waitFor();assert.equal(await page.locator('#asset-detail-panel').isVisible(),false);assert.ok(Math.abs(await list.evaluate(n=>n.scrollTop)-position)<3);assert.equal(await page.locator('dialog[open]').count(),0);
+  await choice.click();await item.locator('.asset-state.ready').waitFor();await page.locator('#asset-detail-panel').waitFor({state:'hidden'});assert.equal(await page.locator('#asset-detail-panel').isVisible(),false);assert.ok(Math.abs(await list.evaluate(n=>n.scrollTop)-position)<3);assert.equal(await page.locator('dialog[open]').count(),0);
  }
  assert.equal(await card(names[15]).count(),1);await page.screenshot({path:path.join(evidence,production?'production-after-two-choices.png':'panel-after-two-choices.png')});assert.equal(studio.store.db.jobs.length,0);assert.equal(imported.size,2);assert.deepEqual(errors,[]);
 });

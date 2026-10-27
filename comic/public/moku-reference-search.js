@@ -21,12 +21,14 @@ export function createMokuReferenceSearch({api,project,assets=[],verify=()=>{}})
   const scopes=query.trim()?ids:scope==='all'?[...new Set([...preferred,'public'])]:ids;
   const pages=new Array(scopes.length),notes=[],names=new Map(libraries.map(p=>[p.id,p.name]));names.set('public','公共素材库');let cursor=0,complete=true;
   async function worker(){for(;;){const index=cursor++;if(index>=scopes.length)return;const projectId=scopes[index],items=[];try{
-   for(let page=0;page<maxPages;page++){
+   // Query the server as well as the bounded local fuzzy catalogue. Otherwise
+   // an exact name or tag beyond the first pages can never be found.
+   for(const term of query.trim()?[query.trim().slice(0,200),'']:[''])for(let page=0;page<maxPages;page++){
     check();onProgress('搜索墨库 · '+(names.get(projectId)||'项目库'));
-    const result=await cachedPage('/api/library/assets?'+new URLSearchParams({projectId,kind:'image',groupCharacters:'false',q:'',limit:'200',offset:String(page*200)}));check();
+    const result=await cachedPage('/api/library/assets?'+new URLSearchParams({projectId,kind:'image',groupCharacters:'false',q:term,limit:'200',offset:String(page*200)}));check();
     const rows=result.items||[];items.push(...rows.filter(usableMokuImage).map(item=>({...item,projectId:item.projectId||projectId,projectName:names.get(projectId)||'项目库'})));
     if(result.more===false||result.more===undefined&&rows.length<200)break;
-    if(!rows.length||page===maxPages-1){complete=false;notes.push((names.get(projectId)||'项目库')+' 结果过多，请补充名称或服装关键词');break;}
+    if(!rows.length||page===maxPages-1){complete=false;notes.push((names.get(projectId)||'项目库')+' 搜索未覆盖全部素材，已返回名称或标签匹配结果，请人工核对');break;}
    }
   }catch(error){check();complete=false;notes.push((names.get(projectId)||'项目库')+'：'+error.message);}pages[index]=items;}}
   await Promise.all(Array.from({length:Math.min(4,scopes.length)},worker));check();

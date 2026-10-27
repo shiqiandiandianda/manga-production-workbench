@@ -7,6 +7,7 @@ import http from 'node:http';
 import {pathToFileURL} from 'node:url';
 import {createRequire} from 'node:module';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
+import {spawn} from 'node:child_process';
 import {createRemoteLibrary} from '../../lib/remote-library.mjs';
 import {createProjectSync} from '../../lib/project-sync.mjs';
 import {decodeProjectSnapshot} from '../../lib/project-snapshot-codec.mjs';
@@ -14,8 +15,10 @@ import {createFormalEngineeringVersions} from '../../lib/formal-engineering-vers
 import {createEpisodeVersionStore} from '../../lib/episode-versions.mjs';
 import {createMokuRecycle} from '../../lib/moku-recycle.mjs';
 import {createProject} from '../../public/model.js';
+import {createMokuReferenceSearch} from '../../public/moku-reference-search.js';
 import {Store} from '../../lib/store.mjs';
 import {createStudio} from '../../server.mjs';
+import {createAssetStudioMokuUploader} from '../../../asset-studio/app/roles/moku-uploads.mjs';
 
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -50,6 +53,65 @@ test('工作台与隔离的墨库实际接口闭环',{timeout:120000},async t=>{
   const editorUrl=await listen(editor);
   const editorCall=async(route,method='GET',input)=>{const r=await fetch(editorUrl+route,{method,headers:input?{'Content-Type':'application/json'}:{},...(input?{body:JSON.stringify(input)}:{})});return {status:r.status,value:await r.json()};};
   const {createCanvas}=createRequire(import.meta.url)(process.env.COMIC_TEST_CANVAS_MODULE),canvas=createCanvas(32,48);canvas.getContext('2d').fillRect(0,0,32,48);const png=canvas.toBuffer('image/png');
+
+  await t.test('资产工作区通过真实墨库分类上传，保留对象和服装版本，切换账号暂停',async()=>{
+    let config={base:'http://127.0.0.1:'+port,cookie:f.cookie,projectId:project.id};
+    const upload=createAssetStudioMokuUploader({dataDir:path.join(dir,'asset-studio-upload'),getConfig:()=>config});
+    await assert.rejects(upload(png,{type:'character',name:'缺少对象'}),/明确所属/);
+    const inputs=[{type:'character',name:'资产工作区人物｜蓝衣',objectName:'资产工作区人物',variantName:'蓝衣'},
+      {type:'scene',name:'资产工作区场景｜俯视',objectName:'资产工作区场景',variantName:'俯视'},
+      {type:'prop',name:'资产工作区道具',objectName:'资产工作区道具'}];
+    for(const input of inputs){
+      const operationId='studio-'+input.type,first=await upload(png,{...input,operationId}),retry=await upload(png,{...input,operationId});
+      assert.equal(retry.assetId,first.assetId);assert.equal(retry.revisionId,first.revisionId);
+      assert.equal(first.assetType,input.type);assert.equal(first.scopeId,'project');assert.equal(first.detail.name.endsWith('.png'),true);
+      assert.equal(first.detail.objectId!==null,true);assert.equal(first.detail.revisions[0].sha256,hash(png));
+      if(input.type==='character'){
+        const canvas2=createCanvas(32,48);canvas2.getContext('2d').fillRect(0,0,10,10);const nextPng=canvas2.toBuffer('image/png');
+        const next=await upload(nextPng,{type:input.type,name:input.name,assetId:first.assetId,operationId:'studio-character-next'});
+        assert.equal(next.assetId,first.assetId);assert.notEqual(next.revisionId,first.revisionId);assert.equal(next.detail.objectId,first.detail.objectId);
+        const repeated=await upload(nextPng,{type:input.type,name:input.name,assetId:first.assetId,operationId:'studio-character-next'});
+        assert.equal(repeated.revisionId,next.revisionId);
+        await assert.rejects(upload(png,{type:input.type,name:input.name,assetId:first.assetId,operationId:'studio-character-next'}),/编号对应.*已变化/);
+      }
+    }
+    let switched=false;const guarded=createAssetStudioMokuUploader({dataDir:path.join(dir,'asset-studio-switch'),getConfig:()=>config,fetcher:async(url,options)=>{
+      const response=await fetch(url,options);if(!switched&&url.endsWith('/uploads')&&options.method==='POST'){switched=true;config={...config,projectId:other.id};}return response;
+    }});
+    await assert.rejects(guarded(png,{type:'prop',name:'切换测试',objectName:'切换测试',operationId:'switch-test'}),error=>error.code==='SESSION_ACCOUNT_CHANGED');
+    assert.equal(switched,true);
+  });
+  await t.test('资产工作区保存拼版的实际 HTTP 入口将场景上传到项目级分类',async()=>{
+    const data=path.join(dir,'asset-studio-http');fs.mkdirSync(data,{recursive:true});
+    fs.writeFileSync(path.join(data,'asset-studio.json'),JSON.stringify({mainProjectId:'project_test'}));
+    fs.writeFileSync(path.join(data,'moku.json'),JSON.stringify({base:'http://127.0.0.1:'+port,cookie:f.cookie,projectId:project.id}));
+    const editorRequests=[],stub=http.createServer(async(req,res)=>{
+      const url=new URL(req.url,'http://fixture');editorRequests.push([req.method,url.pathname]);
+      if(req.method==='POST')await body(req);
+      if(url.pathname==='/api/assets')return json(res,201,{id:'asset_test'});
+      if(url.pathname==='/api/projects/project_test')return json(res,200,{id:'project_test',revision:1});
+      if(url.pathname==='/api/projects/project_test/asset-library')return json(res,200,{ok:true});
+      return json(res,200,{ok:true});
+    });
+    const editorOrigin=await listen(stub),allocator=http.createServer(),reserved=await listen(allocator),studioPort=Number(new URL(reserved).port);await new Promise(resolve=>allocator.close(resolve));
+    const studioFile=path.resolve(import.meta.dirname,'../../../asset-studio/app/roles/assets.mjs');
+    const child=spawn(process.execPath,[studioFile,'--port',String(studioPort)],{env:{...process.env,ASSET_STUDIO_DATA_DIR:data,ASSET_EDITOR:editorOrigin,ASSET_MOKU_SESSION_FILE:'',ASSET_CANVAS_MODULE:process.env.COMIC_TEST_CANVAS_MODULE},windowsHide:true,stdio:['ignore','pipe','pipe']});
+    let output='';child.stdout.on('data',chunk=>output+=chunk);child.stderr.on('data',chunk=>output+=chunk);
+    t.after(async()=>{child.kill();stub.closeAllConnections();await new Promise(resolve=>stub.close(resolve));});
+    const origin='http://127.0.0.1:'+studioPort;
+    for(let i=0;i<100;i++){try{if((await fetch(origin+'/api/health')).ok)break;}catch{}if(i===99)assert.fail(output);await delay(100);}
+    const response=await fetch(origin+'/api/compose-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'实际保存场景',outfit:'俯视',type:'scene',data:'data:image/png;base64,'+png.toString('base64'),operationId:'actual-scene-save'})});
+    const result=await response.json();assert.equal(response.status,201,JSON.stringify(result));assert.equal(result.warning,'');assert.ok(result.moku?.assetId,JSON.stringify(result));
+    assert.equal(result.moku.assetType,'scene');assert.equal(result.moku.scopeId,'project');assert.equal(hash(fs.readFileSync(result.file)),hash(png));
+    assert.ok(editorRequests.some(([method,url])=>method==='POST'&&url==='/api/projects/project_test/asset-library'));
+    const detail=await call('GET','/api/project-library/'+project.id+'/project/image/scene/assets/'+result.moku.assetId);
+    assert.equal(detail.revisions[0].sha256,hash(png));assert.equal(detail.objectId,result.moku.detail.objectId);
+    const replacementCanvas=createCanvas(32,48);replacementCanvas.getContext('2d').fillRect(0,0,4,4);const replacement=replacementCanvas.toBuffer('image/png'),file=path.join(data,'asset-library','scene','replacement.png');fs.writeFileSync(file,replacement);
+    const retry=await fetch(origin+'/api/moku-reupload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file,assetId:result.moku.assetId,type:'scene',scopeId:'project',name:'实际保存场景',operationId:'actual-scene-revision'})});
+    const next=await retry.json();assert.equal(retry.status,200,JSON.stringify(next));assert.equal(next.assetId,result.moku.assetId);assert.notEqual(next.revisionId,result.moku.revisionId);assert.equal(next.sha256,hash(replacement));
+    const again=await fetch(origin+'/api/moku-reupload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file,assetId:result.moku.assetId,type:'scene',scopeId:'project',name:'实际保存场景',operationId:'actual-scene-revision'})});
+    assert.equal(again.status,200,await again.clone().text());assert.equal((await again.json()).revisionId,next.revisionId);
+  });
 
   await t.test('普通账号登录、真实分类接口与跨项目归属校验',async()=>{
     assert.equal((await editorCall('/api/library/status')).value.connected,false);
@@ -110,6 +172,8 @@ test('工作台与隔离的墨库实际接口闭环',{timeout:120000},async t=>{
       const first=await editorCall(route,'POST',{tags:[label]});assert.equal(first.status,200,JSON.stringify(first.value));assert.ok(first.value.asset.tags.includes(label));
       const version=first.value.asset.objectVersion,second=await editorCall(route,'POST',{tags:[label]});assert.equal(second.status,200);assert.equal(second.value.asset.objectVersion,version);
       const search=await editorCall('/api/library/assets?'+new URLSearchParams({projectId,q:label}));assert.equal(search.status,200);assert.ok(search.value.items.some(item=>item.id===reference.assetId));
+      const picker=createMokuReferenceSearch({project:{id:'synthetic-project',references:[],pages:[],assetLibrary:{mokuProjectId:project.id}},api:async route=>{const result=await editorCall(route);assert.equal(result.status,200,JSON.stringify(result.value));return result.value;}});
+      const matched=await picker.search(label,{scope:projectId});assert.equal(matched.complete,true);assert.ok(matched.items.some(item=>item.id===reference.assetId));picker.clear();
       const revision=await library.read('/api/assets/'+reference.assetId+'/revisions/'+reference.revisionId);assert.equal(revision.id,reference.revisionId);assert.equal(revision.sha256,hash(png));
     }
   });

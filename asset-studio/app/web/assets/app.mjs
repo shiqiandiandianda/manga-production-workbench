@@ -578,7 +578,7 @@ function poll() {
 async function pushToEditor() {
   if (!state.job || !state.asset) return;
   $('#push').disabled = true;
-  const uploadType = ['costume', 'hands'].includes(state.mode) ? 'prop' : state.type;
+  const uploadType = state.type;
   try {
     const response = await fetch('/api/push-to-editor', {
       method: 'POST',
@@ -598,7 +598,7 @@ async function pushToEditor() {
 async function adopt() {
   if (!state.job || !state.asset) return;
   $('#adopt').disabled = true;
-  const uploadType = ['costume', 'hands'].includes(state.mode) ? 'prop' : state.type;
+  const uploadType = state.type;
   try {
     const response = await fetch('/api/adopt', {
       method: 'POST',

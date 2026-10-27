@@ -1,5 +1,6 @@
 import {HAND_CARD_RULES,CHARACTER_CARD_LAYOUT_RULES} from '../../../comic/public/hand-card-rules.js';
 import {readMokuConfig} from './moku-session.mjs';
+import {createAssetStudioMokuUploader} from './moku-uploads.mjs';
 import {createProductionWorkspace} from './production-workspace.mjs';
 import {sceneFrontPrompt,propAssetPrompt,ASSET_VISUAL_PROMPT_VERSION} from '../../../comic/lib/scene-asset-prompts.mjs';
 import {characterAppearancePrompt,CHARACTER_APPEARANCE_VERSION} from '../../../comic/lib/character-appearance.mjs';
@@ -12,7 +13,7 @@ import {characterAppearancePrompt,CHARACTER_APPEARANCE_VERSION} from '../../../c
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import {createHash, randomUUID} from 'node:crypto';
+import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {openBrowser} from '../platform/system/open-browser.mjs';
 
@@ -25,6 +26,7 @@ const studioFile = path.join(dataDir,'asset-studio.json');
 const mokuFile = path.join(dataDir,'moku.json');
 const sharedMokuSessionFile=process.env.ASSET_MOKU_SESSION_FILE||(path.resolve(dataDir)===path.join(root,'data')?path.resolve(root,'../production-comic-data-current/library-session.local.json'):'');
 const mokuConfig=()=>readMokuConfig(mokuFile,sharedMokuSessionFile);
+const uploadToMoku=createAssetStudioMokuUploader({dataDir,getConfig:mokuConfig});
 const editor = process.env.ASSET_EDITOR || 'http://127.0.0.1:18909';
 
 const argPort = process.argv.indexOf('--port');
@@ -410,12 +412,14 @@ async function api(request, response, url) {
     const assetId = String(input.assetId || '').trim();
     const file = path.resolve(root, String(input.file || ''));
     if (!assetId) throw new Error('缺少 assetId');
-    if (!file.startsWith(root) || !fs.existsSync(file)) throw new Error('文件不存在');
+    if (!fs.existsSync(file)) throw new Error('文件不存在');
+    const actual=fs.realpathSync(file),inside=base=>{if(!fs.existsSync(base))return false;const relative=path.relative(fs.realpathSync(base),actual);return relative!==''&&relative!=='..'&&!relative.startsWith('..'+path.sep)&&!path.isAbsolute(relative);};
+    if (!inside(root)&&!inside(libraryDir)) throw new Error('文件不在资产工作区内');
     const bytes = fs.readFileSync(file);
     const result = await uploadToMoku(bytes, {
-      type: input.type || 'character',
+      type: input.type,
       name: input.name || path.basename(file),
-      assetId
+      assetId,scopeId:input.scopeId,operationId:input.operationId
     });
     sendJson(response, 200, {ok: true, ...result, size: bytes.length});
     return;
@@ -596,7 +600,7 @@ async function api(request, response, url) {
     let moku = null;
     let warning = '';
     try {
-      moku = await uploadToMoku(bytes, {type: 'prop', name: displayName});
+      moku = await uploadToMoku(bytes, {type: 'prop', name: displayName, objectName:name,variantName:outfit});
     } catch (error) {
       warning = error.message;
     }
@@ -633,7 +637,7 @@ async function api(request, response, url) {
     let moku = null;
     let warning = '';
     try {
-      moku = await uploadToMoku(bytes, {type, name: displayName});
+      moku = await uploadToMoku(bytes, {type, name: displayName,objectName:name,variantName:outfit,operationId:input.operationId});
     } catch (error) {
       warning = error.message;
     }
@@ -842,7 +846,7 @@ async function api(request, response, url) {
     try {
       moku = await uploadToMoku(bytes, {
         type,
-        name: displayName
+        name: displayName,objectName:name,variantName:input.outfit,operationId:input.operationId
       });
     } catch (error) {
       warning = error.message;
@@ -1083,81 +1087,6 @@ async function mokuJson(config, route, {method = 'GET', body, headers = {}, time
     throw error;
   }
   return data;
-}
-
-async function uploadToMoku(bytes, {type, name, assetId = ''}) {
-  const config = mokuConfig();
-  if (!config?.cookie) throw new Error('墨库未登录');
-  if (!config.projectId) throw new Error('未配置墨库项目');
-  const folder = type === 'character' ? '角色' : type === 'scene' ? '场景' : '道具';
-  const uploadName = /\.(png|jpe?g|webp)$/i.test(name) ? name : `${name}.png`;
-  const mime = /\.jpe?g$/i.test(uploadName) ? 'image/jpeg' : /\.webp$/i.test(uploadName) ? 'image/webp' : 'image/png';
-  const sha256 = createHash('sha256').update(bytes).digest('hex');
-  let objectVersion;
-  if (assetId) {
-    const asset = await mokuJson(config, `/api/assets/${assetId}`);
-    objectVersion = asset.objectVersion;
-  }
-  const created = await mokuJson(config, '/api/uploads', {
-    method: 'POST',
-    headers: {'Idempotency-Key': randomUUID()},
-    body: {
-      projectId: config.projectId,
-      ...(assetId ? {assetId, objectVersion} : {}),
-      name: uploadName,
-      size: bytes.length,
-      mime,
-      folder,
-      category: type,
-      expectedSha256: sha256
-    }
-  });
-  if (created.state === 'completed' && created.assetId) {
-    return {assetId: created.assetId, revisionId: created.revisionId, projectId: created.projectId, projectName: config.projectName};
-  }
-  const chunkSize = Number(created.chunkSize) || 16 * 1024 * 1024;
-  const chunkCount = Math.ceil(bytes.length / chunkSize);
-  for (let index = 0; index < chunkCount; index += 1) {
-    const chunk = bytes.subarray(index * chunkSize, Math.min(bytes.length, (index + 1) * chunkSize));
-    const chunkSha = createHash('sha256').update(chunk).digest('hex');
-    const response = await fetch(`${config.base}/api/uploads/${created.id}/chunks/${index}`, {
-      method: 'PUT',
-      headers: {
-        Cookie: config.cookie,
-        Origin: config.base,
-        Referer: `${config.base}/api-docs`,
-        'Content-Type': 'application/octet-stream',
-        'X-Chunk-SHA256': chunkSha
-      },
-      body: chunk,
-      signal: AbortSignal.timeout(120000)
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`分片 ${index + 1}/${chunkCount} 上传失败：${text.slice(0, 200)}`);
-    }
-  }
-  await mokuJson(config, `/api/uploads/${created.id}/complete`, {
-    method: 'POST',
-    headers: {'Idempotency-Key': randomUUID()},
-    body: {}
-  });
-  for (let attempt = 0; attempt < 90; attempt += 1) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    const state = await mokuJson(config, `/api/uploads/${created.id}`);
-    if (state.state === 'completed') {
-      return {
-        assetId: state.assetId,
-        revisionId: state.revisionId,
-        projectId: state.projectId,
-        projectName: config.projectName
-      };
-    }
-    if (['failed', 'cancelled'].includes(state.state)) {
-      throw new Error(state.error || '墨库上传失败');
-    }
-  }
-  throw new Error('墨库校验超时');
 }
 
 function serveStatic(response, pathname) {

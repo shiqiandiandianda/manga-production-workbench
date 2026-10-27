@@ -681,7 +681,7 @@ document.querySelector('#board-save').addEventListener('click', async () => {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || '保存失败');
-    setStatus(`已保存 · 主工作台 ${result.assetId.slice(0, 8)}${result.moku?.assetId ? ` · 墨库 ${result.moku.assetId.slice(0, 8)}` : ''}`);
+    setStatus(`已保存 · 主工作台 ${result.assetId.slice(0, 8)}${result.moku?.assetId ? ` · 墨库 ${result.moku.assetId.slice(0, 8)}` : result.warning ? ` · 墨库未保存：${result.warning}` : ' · 墨库未保存'}`);
   } catch (error) {
     setStatus(error.message);
   } finally {

@@ -11,7 +11,7 @@ export function createStateSnapshot({store,publicJob,projectView=project=>projec
  const instance=randomUUID(),jobState=new Map();let jobClock=0;
  function liveJobs(){
   const live=new Set(store.db.projects.filter(p=>!p.deletedAt).map(p=>p.id));
-  return store.db.jobs.filter(job=>live.has(job.projectId)).map(publicJob);
+  return store.db.jobs.filter(job=>live.has(job.projectId)&&!job.dismissedAt).map(publicJob);
  }
  /** 给每条任务一个递增的变化序号；只在任务内容真的变化时递增。 */
  function trackJobs(jobs){

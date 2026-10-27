@@ -1,3 +1,4 @@
+import {roundBubbleSize} from './round-bubble-default.js';
 import {bubbleSourceTextIds,dialogueSegments} from './bubble-dialogue-segments.js';
 import {productionTailVisible} from './bubble-tail-compat.js';
 import {assetUnavailable} from './asset-availability.js';
@@ -39,7 +40,7 @@ export function productionReferencePlan(project,frame,assets=[]){
   if(assetUnavailable(asset))throw invalid('所选素材被标记为不能使用：'+asset.name);
   if(binding.sourceType==='local'){if(binding.revisionId!=='local-sha256:'+binding.sha256)throw invalid('本地参考原件版本无效，请重新绑定：'+asset.name);}
   else if(!binding.revisionId||asset.library?.revisionId!==binding.revisionId||asset.library?.sha256!==binding.sha256)throw invalid('参考素材固定版本发生变化，请重新绑定：'+asset.name);
-  refs.push({assetId:asset.id,name:[ref['人物'],ref['服装']].filter(Boolean).join(' · ')||asset.name,role:ref['类型']==='设定卡'?'character':ref['类型'].includes('场景')?'scene':/道具/.test(ref['类型'])?'prop':'style'});
+  refs.push({assetId:asset.id,name:ref['类型']==='设定卡'?[ref['人物'],ref['服装']].filter(Boolean).join(' · '):productionReferenceSubject(ref)||asset.name,role:ref['类型']==='设定卡'?'character':ref['类型'].includes('场景')?'scene':/道具/.test(ref['类型'])?'prop':'style'});
  }
  if(frame.productionBackground){const prior=productionFrame(project,s.id),assetId=productionSourceAsset(prior);if(assetId)refs.push({assetId,name:s.localId+' · 底图色调参考',role:'style'});}
  if(!frame.productionBackground)for(const ref of productionExtraReferenceRoles(project,frame,assets))if(!refs.some(r=>r.assetId===ref.assetId))refs.push(ref);
@@ -55,7 +56,8 @@ export function applyProductionLettering(project,key,{regions,positions={},fontF
  segment.regions=clone(regions);segment.positions=clone(positions);segment.layoutAssetId=frame.imageAssetId;segment.layoutConfirmedAt=new Date().toISOString();const mode=frame.generation?.promptSource==='post-lettering'?'clean':'empty',scale=frame.w/(episode.typography['参考画布宽']||1280),fontSize=(episode.typography['字号']||36)*scale;let count=0;
  for(const text of episode.texts.filter(t=>t['段ID']===segment.localId&&t['渲染']==='工具')){
   const exists=page.bubbles.find(b=>bubbleSourceTextIds(b).includes(text['文字ID'])&&!page.panels.find(p=>p.id===b.parentPanelId)?.productionGrid);if(exists&&dialogueSegments(exists).length){if(fontChanged&&!exists.locked)exists.fontFamily=fontFamily;continue;}if(exists&&!replace){if(adjustedTextIds.includes(text['文字ID'])){const pos=positions[text['文字ID']];if(!valid(pos))throw invalid('文字位置无效：'+text['文字ID']);if(exists.locked)throw invalid('请先解锁台词：'+text['文字ID']);const moved=applyBubbleEdit(exists,{type:'move',dx:frame.x+pos.x*frame.w-exists.x,dy:frame.y+pos.y*frame.h-exists.y}),resized=applyBubbleEdit(moved,{type:'resize',dx:Math.max(30,pos.w*frame.w)-moved.w,dy:Math.max(20,pos.h*frame.h)-moved.h});Object.assign(exists,resized);count++;}if(fontChanged&&!exists.locked)exists.fontFamily=fontFamily;continue;}
-  const region=regions[text['格ID']],anchor=episode.anchors[text['锚点']]?.['中心']||[.5,.14],lines=text['分行']||[text['文本']],width=Math.max(80,Math.min(frame.w*.48,Math.max(...lines.map(l=>[...l].length))*fontSize+fontSize)),height=Math.max(35,lines.length*fontSize*(48/36)+fontSize*.8);
+  const region=regions[text['格ID']],anchor=episode.anchors[text['锚点']]?.['中心']||[.5,.14],lines=text['分行']||[text['文本']];let width=Math.max(80,Math.min(frame.w*.48,Math.max(...lines.map(l=>[...l].length))*fontSize+fontSize)),height=Math.max(35,lines.length*fontSize*(48/36)+fontSize*.8);
+  if(mode==='clean'&&!/字幕|旁白|人名|地点|时间/.test(text['类型']))({w:width,h:height}=roundBubbleSize(productionTextContent(text),fontSize,{maxSize:Math.min(frame.w,frame.h)}));
   let x=frame.x+(region.x+region.w*anchor[0])*frame.w-width/2,y=frame.y+(region.y+region.h*anchor[1])*frame.h-height/2;
   if(text['连泡'])y+=(text['连泡']['第几个']-1)*(height+12);const pos=positions[text['文字ID']];if(pos){if(!valid(pos))throw invalid('文字位置无效：'+text['文字ID']);x=frame.x+pos.x*frame.w;y=frame.y+pos.y*frame.h;}
   if(mode==='empty'&&!pos)throw invalid('空泡模式需要为每条台词确认文字框位置：'+text['文字ID']);

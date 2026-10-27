@@ -1,97 +1,140 @@
-import {chooseEpisodeRule,episodeRuleRequest} from './layout-rule-choice.mjs';
-import {mountEpisodeLayoutPreview} from './episode-layout-preview.js';
+/** One explicit click may apply one matching, validated result to an unchanged episode. */
+function createAutomaticLayoutReturn({getContext,apply,onBlocked=()=>{}}){
+ const attempted=new Set();let applying=false;
+ return {get applying(){return applying;},async consider(run,preview){
+  if(applying||!run?.autoReturn||run.status!=='done'||!run.planningMode||!preview)return false;
+  const identity=[run.projectId,run.episode,run.runToken,run.scriptId].join(':');
+  if(attempted.has(identity))return false;
+  const context=getContext();
+  const matches=context&&preview.projectId===run.projectId&&context.projectId===run.projectId&&
+   Number(preview.episode)===Number(run.episode)&&Number(context.episode)===Number(run.episode)&&
+   Number(context.activeEpisode)===Number(run.canvasEpisode??run.episode)&&context.revision===run.revision&&
+   context.styleId===run.learningProjectId&&preview.contract?.id===run.learningProjectId&&
+   preview.contract?.version===run.ruleVersion&&preview.scriptId===run.scriptId&&
+   /^[a-f0-9]{64}$/.test(preview.packetHash||'');
+  if(!matches){attempted.add(identity);onBlocked('排版结果已保留；工程、当前话或来源已变化，请检查预览后手动接回。');return false;}
+  attempted.add(identity);applying=true;
+  try{await apply({episodeNumber:run.episode,scriptId:run.scriptId,expectedPacketHash:preview.packetHash});return true;}
+  catch(error){onBlocked('自动接回未完成，预览已保留：'+error.message);return false;}
+  finally{applying=false;}
+ }};
+}
+
+import {reflowEpisodeNumber} from './reflow-episode-context.mjs';
+import {showReflowFramingPreview} from './reflow-framing-preview.mjs';
+import {chooseEpisodeRule} from './layout-rule-choice.mjs';
 import {createDirectLayoutRun} from './direct-layout-run.js';
-import {createLearningReferenceScope} from './learning-reference-scope.js';
-import {openPanelSlices} from './panel-slices-ui.js';
+import {createDirectLayoutTask} from './direct-layout-task.js';
+import {createBatchLayoutRun,episodeRange} from './batch-layout-run.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function mountAutoLayout({getProject,getEpisode,flushSave,api,refreshState,chooseProject,toast,accept,modal,closeModal,selectFrame,applyCurrent}){
- const button=document.createElement('button');button.id='auto-layout-toggle';button.textContent='自动排版';button.title='已有成图 → 确认裁格 → 我的排版助手 → 带图新工程';document.querySelector('#display-menu').after(button);
+export function mountAutoLayout({getProject,getEpisode,flushSave,api,toast,applyCurrent,refreshState,chooseProject,accept,onChooseEpisode}){
+ const button=document.createElement('button');button.id='auto-layout-toggle';button.textContent='自动排版';button.title='选择话数与风格，自动排版并接回画布';document.querySelector('#display-menu').after(button);
+ const reflowButton=document.createElement('button');reflowButton.id='screen-artwork-reflow-toggle';reflowButton.textContent='本话成图重排';reflowButton.title='检查本话成图 → 裁齐格子 → 按当前排版规则重排 → 接回画布；不重新生图';button.after(reflowButton);
  const dialog=document.createElement('dialog');dialog.id='auto-layout-dialog';dialog.setAttribute('aria-label','自动排版');
- dialog.innerHTML='<div class="auto-layout-heading"><strong>统一版式与成图重排</strong><span>已有图片不重新生成 · 原工程保留</span><button data-reflow-back hidden>返回裁格清单</button><button data-reflow-apply hidden>接回带图新工程</button><button data-layout-close>返回漫画编辑</button></div><p class="auto-layout-note" role="status">先选同一套规则；新话可先规划版式，已有图确认裁格后按原比例重排，结果另存为新工程。</p><section class="auto-layout-workflow"></section><iframe id="auto-layout-frame" title="自动排版学习工作台" hidden></iframe>';
- document.body.append(dialog);const style=document.createElement('style');style.textContent='#auto-layout-dialog{width:calc(100vw - 32px);max-width:none;height:calc(100vh - 32px);max-height:none;padding:0;border:1px solid #45627d;border-radius:10px;background:#122230;color:#deebf7;overflow:hidden}#auto-layout-dialog[open]{display:flex;flex-direction:column}#auto-layout-dialog::backdrop{background:#0009}.auto-layout-heading{display:flex;align-items:center;gap:12px;padding:10px 16px;flex-wrap:wrap}.auto-layout-heading span{flex:1;color:#a9bdce}.auto-layout-heading button{padding:6px 12px}.auto-layout-note{margin:0;padding:10px 16px;background:#1c3042;font-size:13px}.auto-layout-workflow{flex:1;overflow:auto;padding:22px;max-width:1100px;width:100%;margin:0 auto}.auto-layout-workflow h2{font-size:18px;margin:12px 0}.reflow-controls{display:flex;gap:16px;align-items:end;flex-wrap:wrap;margin:16px 0}.reflow-controls label{display:grid;gap:6px;min-width:200px}.reflow-controls select{padding:8px}.reflow-steps{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0 24px}.reflow-steps span{border:1px solid #45627d;padding:10px;border-radius:6px}.reflow-segments{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}.reflow-segment{padding:14px;border:1px solid #45627d;background:#1c3042;border-radius:8px}.reflow-segment img{height:130px;max-width:100%;display:block;object-fit:contain;margin:8px auto}.reflow-segment p{font-size:13px;color:#b9cddd}.reflow-segment button{width:100%;padding:9px}.reflow-footer{margin:20px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center}.reflow-footer button{padding:12px 18px}.auto-layout-workflow details{margin-top:28px;color:#a9bdce}#auto-layout-frame{flex:1;width:100%;min-height:0;border:0;background:#fff}#auto-layout-dialog [hidden]{display:none!important}@media(max-width:700px){#auto-layout-dialog{width:100vw;height:100dvh;border-radius:0}.auto-layout-heading span{display:none}.auto-layout-workflow{padding:14px}}';document.head.append(style);
- const frame=dialog.querySelector('iframe'),note=dialog.querySelector('[role=status]'),pane=dialog.querySelector('.auto-layout-workflow'),applyButton=dialog.querySelector('[data-reflow-apply]'),backButton=dialog.querySelector('[data-reflow-back]');let layoutOrigin,plan,episode,styleProject,activeScriptId,planningMode=false,loading=false,importing=false,sourceProjectId,episodePreview,ruleContext='',latestPreview=null,previewRequest=0;
- const message=(text,error=false)=>{note.textContent=text;if(error)toast(text,true);};
- function showLibrary(scriptId){pane.hidden=true;frame.hidden=false;backButton.hidden=false;applyButton.hidden=!activeScriptId;if(!frame.src||scriptId||new URL(frame.src).searchParams.has('direct'))frame.src=layoutOrigin+'/?integrated=1&targetProjectId='+encodeURIComponent(getProject().id)+(scriptId?'&id='+encodeURIComponent(scriptId):'');}
- async function reloadPlan(){if(loading)return;loading=true;try{await flushSave();const p=getProject();sourceProjectId=p?.id;plan=null;latestPreview=null;previewRequest++;episodePreview?.destroy();episodePreview=null;
-  if(p?.autoLayoutSource?.mode==='screen-crop-reflow'){const source=p.autoLayoutSource;pane.innerHTML='<h2>已接回 '+source.cropCount+' 张裁图的新排版工程</h2><p>本工程复用已有成图。原制作工程及整屏原图保留，可随时回去调整裁格。</p><button data-reflow-original>打开原工程</button><h2>待处理文字（'+(source.pendingText?.length||0)+'）</h2>'+(source.pendingText||[]).map(t=>'<article class="reflow-segment"><strong>'+esc(t.gridId)+' · '+esc(t.speaker||'说话人未标注')+'</strong><p>'+esc(t.text)+'</p><small>'+esc(t.reason)+'</small></article>').join('');attachEpisodePreview(p.autoLayoutSource.episode);pane.querySelector('[data-reflow-original]').onclick=async()=>{try{await flushSave();await chooseProject(await api('/api/projects/'+source.sourceProjectId));dialog.close();}catch(e){message(e.message,true);}};return;}
-  if(!p?.productionPackage){pane.innerHTML='<h2>先打开已有整屏成图的制作资料工程</h2><p>在原工作台照常生成整屏图片，完成后从这里裁格、重排。已有成图无需再生成。</p><button data-reflow-library>打开学习库 / 独立分镜排版</button>';bindLibrary();return;}
-  episode=Number(episode)||Number(getEpisode?.())||p.productionPackage.episodes[0].episode;if(!p.productionPackage.episodes.some(e=>e.episode===episode))episode=p.productionPackage.episodes[0].episode;
-  plan=await api('/api/auto-layout/reflow/plan','POST',{projectId:p.id,episode,expectedRevision:p.revision});renderPlan();
- }catch(e){message(e.message,true);}finally{loading=false;}}
- function bindLibrary(){pane.querySelector('[data-reflow-library]')?.addEventListener('click',()=>{activeScriptId=null;showLibrary();message('学习库可查看或维护已有风格。成图重排请返回裁格清单继续。');});}
- async function attachEpisodePreview(number){
-  const request=++previewRequest,p=structuredClone(getProject());episodePreview?.destroy();const holder=document.createElement('section'),before=pane.querySelector('.reflow-segments')||pane.querySelector('[data-reflow-original]');if(before)before.before(holder);else pane.append(holder);
-  const mount=(source)=>{episodePreview?.destroy();episodePreview=mountEpisodeLayoutPreview({container:holder,project:p,episode:number,origin:layoutOrigin,scriptId:source?.scriptId||activeScriptId,geometry:source?.geometry});};mount(null);
-  if(p.autoLayoutSource?.mode==='screen-crop-reflow')return;
-  const note=pane.querySelector('[data-current-preview-status]');if(note)note.textContent='正在读取本话最新完成的预览…';
+ dialog.innerHTML=`<header><strong>自动排版</strong><button data-close aria-label="关闭自动排版">×</button></header><form method="dialog"><div class="layout-library-row"><a data-layout-library target="_blank" rel="noopener">排版库 ↗</a></div><label>本次话数<select data-episode></select></label><label>风格库<select data-style></select></label><label>批量话数范围<span class="batch-range"><select data-batch-from aria-label="批量起始话数"></select><span>至</span><select data-batch-to aria-label="批量结束话数"></select></span></label><button type="button" data-batch-start>全部排版并接回画布</button><button type="button" class="primary" data-start>自动排版并接回画布</button><label style="grid-column:1/-1"><span><input type="checkbox" data-uniform-framing> 按排版规则调整框形并等比取景（含扁格修正）</span><small>人物比例保持不变；有意横格保留。完成排版后预览实际图片、调整取景，再另存接回。</small></label></form><p data-status role="status" aria-live="polite"></p><iframe data-runner title="当前话排版任务" hidden></iframe>`;
+ document.body.append(dialog);
+ const css=document.createElement('style');css.textContent=`#auto-layout-dialog{position:fixed;inset:auto;top:50%;left:50%;transform:translate(-50%,-50%);margin:0;z-index:10000;box-sizing:border-box;width:min(460px,calc(100vw - 32px));height:fit-content;max-height:calc(100dvh - 32px);padding:0;border:1px solid #45627d;border-radius:12px;background:#122230;color:#deebf7;overflow:auto}#auto-layout-dialog::backdrop{background:#0008}#auto-layout-dialog header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #314b60}#auto-layout-dialog header strong{font-size:17px}#auto-layout-dialog [data-close]{border:0;background:transparent;color:#b8cbd9;font-size:23px;line-height:1;padding:2px 5px;cursor:pointer}#auto-layout-dialog form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px 12px;margin:0;padding:20px 18px 16px}#auto-layout-dialog label{display:grid;gap:8px;font-size:13px;color:#b8cbd9;min-width:0}#auto-layout-dialog select{box-sizing:border-box;width:100%;min-width:0;min-height:38px;padding:8px;border:1px solid #314b60;border-radius:6px;background:#182c3c;color:#deebf7;font:inherit}#auto-layout-dialog [data-start]{grid-column:1/-1;border:0;border-radius:6px;min-height:40px;padding:10px 12px;background:#9bd0fb;color:#102333;font-weight:600;font-size:14px;cursor:pointer}#auto-layout-dialog button:disabled,#auto-layout-dialog select:disabled{opacity:.55;cursor:default}#auto-layout-dialog [data-status]{margin:0;padding:0 18px 18px;font-size:12px;line-height:1.6;color:#b8cbd9;overflow-wrap:anywhere}#auto-layout-dialog [data-status]:empty{display:none}#auto-layout-dialog [data-status][data-error="true"]{color:#f5b7ae}#auto-layout-dialog [hidden]{display:none!important}`;document.head.append(css);
+ css.textContent+=`#auto-layout-dialog .layout-library-row{grid-column:1/-1;display:flex;justify-content:flex-end;margin:-8px 0 -6px;font-size:12px}#auto-layout-dialog [data-layout-library]{color:#a9c9df;text-decoration:none;cursor:pointer}#auto-layout-dialog [data-layout-library]:hover{text-decoration:underline}#auto-layout-dialog .batch-range{display:flex;align-items:center;gap:5px}#auto-layout-dialog .batch-range select{min-width:0;padding:7px 4px;flex:1}#auto-layout-dialog [data-batch-start]{align-self:end;min-height:38px;padding:8px;border:1px solid #527999;border-radius:6px;background:#203e53;color:#d7eaf8;font:600 12px 'Microsoft YaHei',sans-serif;cursor:pointer}`;
+ css.textContent+=`@media(max-width:760px){.modern-workbench .canvas-toolbar{display:flex!important;flex-wrap:wrap!important;height:auto!important;gap:4px!important}.modern-workbench .canvas-toolbar>.tools{flex:1 0 100%!important;min-width:0!important}.modern-workbench .canvas-toolbar>#auto-layout-toggle,.modern-workbench .canvas-toolbar>#screen-artwork-reflow-toggle{flex:0 0 auto!important;min-width:max-content;order:2}.modern-workbench .canvas-toolbar>.toolbar-right{order:3;margin-left:0!important}}`;
+ const episodeSelect=dialog.querySelector('[data-episode]'),styleSelect=dialog.querySelector('[data-style]'),start=dialog.querySelector('[data-start]'),status=dialog.querySelector('[data-status]'),runner=dialog.querySelector('[data-runner]'),library=dialog.querySelector('[data-layout-library]'),batchFrom=dialog.querySelector('[data-batch-from]'),batchTo=dialog.querySelector('[data-batch-to]'),batchStart=dialog.querySelector('[data-batch-start]');
+ const uniformFraming=dialog.querySelector('[data-uniform-framing]');
+ const activeEpisode=()=>reflowEpisodeNumber(getProject(),getEpisode?.());
+ function clearSelectors(){for(const input of [episodeSelect,styleSelect,batchFrom,batchTo])input.innerHTML='<option value="">正在读取…</option>';}
+ let plan=null,episode=null,styleId=null,contextKey='',origin='',loading=false,importing=false,receiving=false,error='',blocked=false,frameToken=null,requestId=0,previewRequest=0,timing=null,rangeProject=null,batchFeedback=false;
+ function say(text,isError=false){status.textContent=text;status.dataset.error=String(isError);}
+ function context(){const p=getProject();if(!plan||plan.projectId!==p?.id)return null;const contract=plan.binding?.contract,rule=(plan.rules||plan.learningProjects||[]).find(r=>r.id===styleId);return {projectId:p.id,revision:p.revision,episode:Number(plan.episode),activeEpisode:activeEpisode(),learningProjectId:styleId,segments:plan.segments,uniformFraming:uniformFraming.checked,ruleVersion:contract?.id===styleId?contract.version:rule?.activeVersion,ruleReady:!!(contract?.id===styleId||rule?.activeVersion)};}
+ function update(){
+  const c=context(),r=directRun.record(),busy=loading||importing||receiving||batch.running||directRun.starting||r&&['starting','running'].includes(r.status),b=batch.record();
+  reflowButton.disabled=!!busy;reflowButton.textContent=directRun.preparing?'正在裁齐格子…':busy?'正在成图重排…':'本话成图重排';
+  episodeSelect.disabled=!!busy||!c;styleSelect.disabled=!!busy||!c||!!plan?.binding?.contract;uniformFraming.disabled=!!busy||!c;
+  start.disabled=!!busy||!c?.ruleReady;
+  batchFrom.disabled=!!busy||!c;batchTo.disabled=!!busy||!c;batchStart.disabled=!!busy||!c?.ruleReady||uniformFraming.checked;
+  batchStart.textContent=batch.running?'正在批量接回…':batchFeedback&&b?.status==='paused'?'继续批量排版并接回':'全部排版并接回画布';
+  start.textContent=directRun.preparing?'正在检查并裁齐本话格子…':importing?'正在接回画布…':receiving?'正在读取排版结果…':loading?'正在读取…':directRun.starting||r&&['starting','running'].includes(r.status)?'正在自动排版…':r?.status==='uncertain'?'继续查询并接回画布':r?.status==='failed'||error?'重试排版并接回画布':'自动排版并接回画布';
+  if(batch.running||batchFeedback&&b?.status==='paused')say(b?.message||'正在准备批量排版',b?.status==='paused');
+  else if(directRun.preparing)say('正在检查本话成图并裁齐格子；复用已确认裁格，不重新生图。');
+  else if(importing)say('正在备份并接回，可关闭面板继续浏览。');
+  else if(receiving)say('后台已完成，正在核验接回来源。');
+  else if(loading)say('正在读取本话资料…');
+  else if(error)say(error,true);
+  else if(r?.status==='uncertain')say('任务记录已保留，点击按钮继续查询，不会重复排版。');
+  else if(busy)say(r?.message||'正在按所选风格排版，完成后自动接回。');
+  else if(r?.status==='failed')say(r.message||'排版未完成，可点击重试。原画布保留。',true);
+  else say('');
+ }
+ async function readResult(r){
+  if(receiving)return;receiving=true;update();const request=++previewRequest;
   try{
-   const result=await api('/api/projects/'+p.id+'/production/episode-preview?episode='+encodeURIComponent(number));
-   if(request!==previewRequest||!holder.isConnected||getProject()?.id!==p.id)return;
-   latestPreview=result.available?result:null;
-   if(latestPreview){mount(latestPreview);if(note)note.textContent='已找到第'+number+'话最新预览 · '+result.geometry.panels.length+'格 · '+result.contract.name+' · '+result.contract.version+'。点击“接回当前话”应用到当前画布。';}
-   else if(note)note.textContent='尚无本话可接回的已完成预览；已有画布保持原样。';
-  }catch(error){if(request!==previewRequest||!holder.isConnected)return;if(note)note.textContent=error.message;}
+   if(!r.planningMode){
+    await flushSave();const c=context();
+    if(!r.autoReturn||!c||c.projectId!==r.projectId||c.revision!==r.revision||c.episode!==r.episode||c.learningProjectId!==r.learningProjectId)throw Error('原工程、话数或风格已变化，排版结果已保留，请重新打开自动排版');
+    const preview=await api('/api/auto-layout/reflow/preview','POST',{projectId:r.projectId,expectedRevision:r.revision,scriptId:r.scriptId});
+    await flushSave();if(getProject()?.id!==r.projectId||getProject()?.revision!==r.revision)throw Error('来源工程有新修改，请重新读取预览');
+    const result=await api('/api/auto-layout/import','POST',{scriptId:r.scriptId,reflowView:{projectId:r.projectId,revision:r.revision,packetHash:preview.packetHash,views:[]}});
+    await accept(result,{expectedRevision:r.revision,message:null});await onChooseEpisode?.(r.episode);dialog.close();toast('已自动接回原工程第'+r.episode+'话；原画板已备份');return;
+   }
+   const result=await api('/api/projects/'+r.projectId+'/production/episode-preview?'+new URLSearchParams({episode:String(r.episode),scriptId:r.scriptId,summary:'1'}));
+   if(request!==previewRequest||getProject()?.id!==r.projectId||Number(plan?.episode)!==r.episode)return;
+   if(!result.available)throw Error('排版结果暂未就绪，点击按钮继续读取原任务。');
+   await automaticReturn.consider(r,result);
+  }catch(e){error=e.message;}finally{receiving=false;update();}
  }
- async function applyLatestToCurrent(){
-  const control=pane.querySelector('[data-layout-apply-current]');if(importing)return;importing=true;if(control)control.disabled=true;
-  try{
-   const p=getProject(),number=plan.episode;let source=latestPreview;
-   if(!source||source.projectId!==p.id||source.episode!==number)source=await api('/api/projects/'+p.id+'/production/episode-preview?episode='+encodeURIComponent(number));
-   if(!source.available)throw Error('尚无第'+number+'话可接回的已完成预览，请先完成排版');
-   if(getProject()?.id!==p.id||plan.episode!==number)throw Error('工程或话数已切换，请重新选择');
-   const result=await applyCurrent({episodeNumber:number,scriptId:source.scriptId,expectedPacketHash:source.packetHash});
-   if(result?.project)dialog.close();
-  }catch(error){message(error.message,true);}finally{importing=false;if(control)control.disabled=false;}
+ function openRun(r,{fresh}){
+  if(getProject()?.id!==r.projectId||Number(plan?.episode)!==r.episode||styleId!==r.learningProjectId)return;
+  if(r.status==='done'){void readResult(r);return;}
+  if(r.planningMode||r.autoReturn){void taskMonitor.watch(r,{allowStart:!!fresh});return;}
+  if(frameToken===r.runToken&&r.status!=='uncertain')return;
+  frameToken=r.runToken;const params=new URLSearchParams({integrated:'1',id:r.scriptId,view:'preview',direct:r.runToken,allowStart:fresh?'1':'0',preferExisting:r.preferExisting?'1':'0',forceNew:r.forceNew?'1':'0',targetProjectId:r.projectId});if(r.jobId)params.set('resumeJob',r.jobId);runner.src=origin+'/?'+params;
  }
-
- function renderPlan(){
-  plan.learningProjects=plan.rules||plan.learningProjects;
-  const ready=plan.segments.filter(s=>s.recordId).length,nextRuleContext=plan.projectId+':'+plan.episode;styleProject=chooseEpisodeRule(plan,getProject().title,styleProject,ruleContext===nextRuleContext);ruleContext=nextRuleContext;
-  episodePreview?.destroy();
-  const chosen=plan.learningProjects.find(p=>p.id===styleProject);
-  const hasArtwork=plan.segments.some(s=>s.hasImage),workflowSteps=hasArtwork?'<span>① 已有整屏成图</span><span>② 逐屏确认裁区：'+ready+' / '+plan.segments.length+'</span><span>③ 使用我的风格重新排版</span><span>④ 带图接回新工程</span>':'<span>① 选择统一规则</span><span>② Codex设计版式（不生图）</span><span>③ 预览并接回新工程</span><span>④ 后续生成图片、裁格重排</span>';
-  pane.innerHTML='<h2>'+esc(getProject().title)+' · 第'+plan.episode+'话</h2><div class="reflow-steps">'+workflowSteps+'</div><p>'+(hasArtwork?'裁格只输出图片副本。优先使用所选高清图的原生像素，可手动修正白缝和多边形边缘；不会按格数平均切图。':'当前话尚无成图，点击Codex自动排版会先设计版式，不会生成图片；已有制作资料和原工程保留。')+'</p><details><summary>新话制作与规则使用说明</summary><ol><li>新话先选本次话数；请选择当前项目对应的排版学习项目。原工作台规则是另一种选择，不会叠加使用。</li><li>尚未出图：点击Codex自动排版，检查预览，接回前期新工程；之后在接回的新工程继续制作和生图。</li><li>接回后，本话规则名称和版本锁定。生成屏段与后续成图重排沿用同一版本；其他话可各自规划。</li><li>已有整屏成图：逐屏确认实际裁区，再送入排版助手，接回带图新工程。保留原图、原工程与实际图片比例。</li><li>想试另一套规则：回到接回前的原工程另做新规划。已有图片不为适应规则而拉伸、自动裁边或重新生成。</li><li>任务失败或读取中断时，先查看同一任务的具体错误与保留结果，避免反复启动重复排版。</li></ol></details><div class="reflow-controls"><label>本次话数<select data-reflow-episode>'+plan.episodes.map(e=>'<option value="'+e.episode+'" '+(e.episode===plan.episode?'selected':'')+'>第'+e.episode+'话 '+esc(e.title||'')+'</option>').join('')+'</select></label><label>我的排版学习项目<select data-reflow-style '+(plan.binding?'disabled':'')+'><option value="" '+(!styleProject?'selected':'')+'>请选择本作品的学习项目</option>'+plan.learningProjects.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===styleProject?'selected':'')+'>'+esc(p.name)+(plan.binding?.contract.id===p.id?' · 本话锁定 '+plan.binding.contract.version:p.builtin?'':p.activeVersion?' · 已有启用风格':' · 尚未启用风格')+'</option>').join('')+'</select></label><button data-learning-scope>选择学习参考范围</button><button data-reflow-reload>刷新成图与裁格进度</button></div><div class="reflow-footer"><button class="primary" data-layout-direct>Codex自动排版</button><button class="primary" data-layout-apply-current title="将本话最新预览接回当前画布，先备份，可撤销">接回当前话</button><button data-layout-retry hidden>重新排版</button><button data-layout-plan '+(!(plan.binding||chosen?.activeVersion)||plan.segments.some(s=>s.hasImage)?'disabled':'')+'>前期统一版式（不生图）</button><button data-layout-rules>查看当前排版规则</button>'+(plan.binding?'<button data-layout-export>导出前期版式约束包</button>':'')+'</div><p>先选同一套规则，再做前期规划或成图重排。'+(plan.binding?'本话已锁定规则：'+esc(plan.binding.contract.name)+' · '+esc(plan.binding.contract.version)+'；后续制作与成图重排沿用此版本，不叠加另一套规则。':'本话尚未接回前期规划；已有图可直接按原比例重排。')+'</p><div class="reflow-segments">'+plan.segments.map(s=>'<article class="reflow-segment"><strong>'+esc(s.label)+' · '+s.count+' 格</strong>'+(s.assetId?'<img src="/api/assets/'+encodeURIComponent(s.assetId)+'/thumbnail" alt="'+esc(s.label)+'整屏成图">':'')+'<p>'+esc(s.scene||'')+' · '+(s.recordId?'裁格已确认':s.hasImage?'等待确认裁格':'尚无可用成图')+'</p><button data-reflow-crop="'+esc(s.id)+'" '+(!s.hasImage?'disabled':'')+'>'+(s.recordId?'查看 / 修改裁格':'确认这屏裁格')+'</button></article>').join('')+'</div><div class="reflow-footer"><button class="primary" data-reflow-send '+(ready!==plan.segments.length||!(plan.binding||chosen?.activeVersion)?'disabled':'')+'>将已确认裁图送入排版助手</button><span>'+ready+' / '+plan.segments.length+' 屏已确认 · '+plan.segments.reduce((n,s)=>n+s.count,0)+' 格</span></div><p>接回时完整保留每张裁图，按每张裁图的真实比例安排新框，完整等比放入，不拉伸、不再次裁边。已有可编辑文字会按原裁区迁移，未定位文字列为待处理。</p><details><summary>学习库与独立分镜工具</summary><p>已有满意风格可直接使用，无需重新学习。</p><button data-reflow-library>打开学习库 / 独立分镜排版</button></details>';
-  pane.querySelector('[data-reflow-episode]').onchange=e=>{episode=Number(e.target.value);activeScriptId=null;reloadPlan();};pane.querySelector('[data-reflow-style]').onchange=e=>{styleProject=e.target.value;renderPlan();};pane.querySelector('[data-reflow-reload]').onclick=()=>reloadPlan();bindLibrary();
-  const currentPreviewStatus=document.createElement('p');currentPreviewStatus.dataset.currentPreviewStatus='';currentPreviewStatus.style.cssText='font-size:13px;color:#b9d6c9';pane.querySelector('.reflow-footer').after(currentPreviewStatus);
-  pane.querySelector('[data-layout-apply-current]').onclick=()=>applyLatestToCurrent();
-  void attachEpisodePreview(plan.episode);
-  pane.querySelector('[data-learning-scope]').onclick=openLearningScope;
-  pane.querySelector('[data-layout-direct]').onclick=()=>startDirect();pane.querySelector('[data-layout-retry]').onclick=()=>startDirect(true);updateDirectButtons();
-  for(const b of pane.querySelectorAll('[data-reflow-crop]'))b.onclick=()=>openCrop(b.dataset.reflowCrop);
-  pane.querySelector('[data-layout-plan]').onclick=async()=>{try{await flushSave();const p=getProject(),r=await api('/api/auto-layout/planning/source','POST',{projectId:p.id,episode:plan.episode,expectedRevision:p.revision,learningProjectId:styleProject});activeScriptId=r.scriptId;planningMode=true;applyButton.textContent='接回前期新工程';showLibrary(r.scriptId);message('前期与后期共用：'+r.contract.name+'。已有满意排版可直接点击上方“接回前期新工程”；尚无结果时再点击Codex自动排版。本操作不生图。');}catch(e){message(e.message,true);}};
-  pane.querySelector('[data-layout-rules]').onclick=async()=>{try{if(!styleProject)throw Error('请先选择规则项目');const r=await api('/api/auto-layout/rules');const chosen=r.entries.find(p=>p.id===styleProject);if(!plan.binding&&!chosen?.activeVersion)throw Error('请先启用所选风格');const frozen=await api('/api/auto-layout/rules/resolve','POST',episodeRuleRequest(plan.binding,styleProject));let box=pane.querySelector('[data-rule-description]');if(!box){box=document.createElement('details');box.dataset.ruleDescription='';const summary=document.createElement('summary');summary.textContent='当前冻结排版规则';box.append(summary,document.createElement('pre'));pane.querySelector('.reflow-controls').after(box);}box.open=true;box.querySelector('pre').style.cssText='white-space:pre-wrap;overflow-wrap:anywhere';box.querySelector('pre').textContent=frozen.name+' · '+frozen.version+'\n'+JSON.stringify(frozen.rules,null,2);message('规则来自所选项目的冻结版本；前期和后期使用同一份。');}catch(e){message(e.message,true);}};
-  pane.querySelector('[data-layout-export]')?.addEventListener('click',async()=>{try{await flushSave();const p=getProject(),r=await api('/api/auto-layout/planning/export','POST',{projectId:p.id,episode:plan.episode,expectedRevision:p.revision}),url=URL.createObjectURL(new Blob([JSON.stringify(r,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='第'+plan.episode+'话_统一版式约束包.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}catch(e){message(e.message,true);}});
-  pane.querySelector('[data-reflow-send]').onclick=async()=>{const b=pane.querySelector('[data-reflow-send]');b.disabled=true;try{await flushSave();const p=getProject();if(p.id!==sourceProjectId)throw Error('工程已切换，请重新打开自动排版');const result=await api('/api/auto-layout/reflow/source','POST',{projectId:p.id,episode:plan.episode,expectedRevision:p.revision,learningProjectId:styleProject,records:plan.segments.map(s=>({segmentId:s.id,recordId:s.recordId}))});activeScriptId=result.scriptId;planningMode=false;applyButton.textContent='接回带图新工程';showLibrary(result.scriptId);message('已送入 '+result.count+' 张裁图及对应分镜。点击“Codex自动排版”，预览后用上方“接回带图新工程”。全程不重新生图。');}catch(e){message(e.message,true);}finally{b.disabled=false;}};
- }
-
- function directContext(){const p=getProject();if(!p||!plan)return null;return {projectId:p.id,revision:p.revision,episode:plan.episode,learningProjectId:styleProject,segments:plan.segments,ruleVersion:plan.binding?.contract.id===styleProject?plan.binding.contract.version:plan.learningProjects.find(p=>p.id===styleProject)?.activeVersion,ruleReady:!!(plan.binding?.contract.id===styleProject||plan.learningProjects.find(p=>p.id===styleProject)?.activeVersion)};}
- function updateDirectButtons(){
-  const b=pane.querySelector('[data-layout-direct]'),retry=pane.querySelector('[data-layout-retry]');if(!b)return;
-  const r=directRun.record(),c=directContext();b.disabled=directRun.starting||(!c?.ruleReady&&!r);
-  b.textContent=directRun.starting?'正在准备排版…':r?.status==='done'?'查看排版结果':r?'查看排版进度':'Codex自动排版';
-  b.title='自动送入当前话资料并启动Codex排版，不生成图片；已有成图必须先确认裁格';
-  if(retry){retry.hidden=!r||!['done','failed'].includes(r.status);retry.disabled=directRun.starting;}
- }
- const directRun=createDirectLayoutRun({api,getContext:directContext,flushSave,onChange:()=>updateDirectButtons(),open:(r,{fresh})=>{
-  activeScriptId=r.scriptId;planningMode=r.planningMode;applyButton.textContent=planningMode?'接回前期新工程':'接回带图新工程';
-  pane.hidden=true;frame.hidden=false;backButton.hidden=false;applyButton.hidden=r.status!=='done';
-  const params=new URLSearchParams({integrated:'1',id:r.scriptId,view:'preview',direct:r.runToken,allowStart:fresh?'1':'0',preferExisting:r.preferExisting?'1':'0'});if(r.jobId)params.set('resumeJob',r.jobId);
-  params.set('targetProjectId',getProject().id);frame.src=layoutOrigin+'/?'+params;message(r.message||(r.planningMode?'正在直接启动当前话的前期版式设计，不生图…':'正在直接启动已有裁图重排，不重新生图…'));
- }});
- async function startDirect(restart=false){try{await directRun.start({restart});}catch(error){message(error.message,true);}finally{updateDirectButtons();}}
- window.addEventListener('message',event=>{
-  if(event.origin!==layoutOrigin||event.source!==frame.contentWindow||event.data?.type!=='comic-layout:direct-progress')return;
-  if(activeScriptId&&event.data.scriptId!==activeScriptId)return;const r=directRun.progress(event.data);if(!r)return;applyButton.hidden=r.status!=='done';message(r.message||'正在排版…',r.status==='failed');
+ const directRun=createDirectLayoutRun({api,getContext:context,flushSave,open:openRun,onChange:update});
+ const automaticReturn=createAutomaticLayoutReturn({
+  getContext:()=>{const c=context();return c?{projectId:c.projectId,episode:c.episode,activeEpisode:Number(getEpisode?.()),revision:getProject().revision,styleId}:null;},
+  apply:async input=>{if(importing)throw Error('正在接回其他结果');importing=true;const returnedAt=performance.now();update();try{await flushSave();const r=directRun.record();if(!r||r.revision!==getProject().revision)throw Error('工程已修改，请重新打开本话后再试');const result=await applyCurrent(input);if(!result?.project)throw Error('结果尚未接回，原排版已保留');dialog.close();await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const end=performance.now(),measurement={projectId:r.projectId,episode:r.episode,totalMs:timing?end-timing.started:null,returnMs:end-returnedAt,backendMs:r.backendTiming?.elapsedSeconds*1000,phases:result.layoutReturnTiming,finishedAt:new Date().toISOString()};try{localStorage.setItem('comic-layout-last-timing:'+r.projectId+':'+r.episode,JSON.stringify(measurement));}catch{}toast('已接回画布'+(measurement.totalMs!==null?' · 共'+(measurement.totalMs/1000).toFixed(2)+'秒':'')+(Number.isFinite(measurement.backendMs)?' · 排版'+(measurement.backendMs/1000).toFixed(2)+'秒':'')+' · 接回'+(measurement.returnMs/1000).toFixed(2)+'秒；可撤销。');}finally{importing=false;update();}},
+  onBlocked:text=>{blocked=true;error=text.replace('请检查预览后手动接回。','请返回目标话后重新打开自动排版。');update();}
  });
- window.addEventListener('message',event=>{const data=event.data;if(event.origin!==layoutOrigin||event.source!==frame.contentWindow||data?.type!=='comic-layout:selection'||!/^[-\w]{1,90}$/.test(data.scriptId)||!data.sourceProjectId)return;activeScriptId=data.scriptId;planningMode=!!data.planningMode;applyButton.textContent=planningMode?'接回前期新工程':'接回带图新工程';applyButton.hidden=!data.canApply;});
- const referenceScope=createLearningReferenceScope({api,onSaved:async()=>{await reloadPlan();message('学习参考范围已保存，下一次学习时使用；已启用规则和原工程保留。');}});
- function openLearningScope(){void referenceScope.open(styleProject);}
- async function openCrop(segmentId){const mainModal=document.getElementById('modal'),resume=()=>{if(!dialog.open)dialog.showModal();reloadPlan();};try{dialog.close();mainModal.addEventListener('close',resume,{once:true});await openPanelSlices({segmentId,api,getProject,flushSave,accept,modal,closeModal,toast,selectFrame,exportOnly:true,onExport:async result=>message('本屏已确认裁出 '+result.files.length+' 张图，原工程未改动。')});}catch(e){mainModal.removeEventListener('close',resume);if(!dialog.open)dialog.showModal();message(e.message,true);}}
- async function openForEpisode(number){if(number!==undefined){episode=Number(number);sourceProjectId=getProject()?.id;styleProject=null;activeScriptId=null;frame.hidden=true;pane.hidden=false;applyButton.hidden=true;backButton.hidden=true;}if(!dialog.open)dialog.showModal();try{const status=await api('/api/auto-layout/status');if(!status.ready)throw Error(status.error||'自动排版服务未就绪');layoutOrigin=status.origin;if(sourceProjectId!==getProject()?.id){episode=null;styleProject=null;activeScriptId=null;frame.hidden=true;pane.hidden=false;applyButton.hidden=true;backButton.hidden=true;}if(!pane.hidden)await reloadPlan();}catch(e){message(e.message,true);}};
- backButton.onclick=()=>{frame.hidden=true;pane.hidden=false;backButton.hidden=true;applyButton.hidden=true;reloadPlan();};dialog.querySelector('[data-layout-close]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{previewRequest++;episodePreview?.destroy();});
- applyButton.onclick=()=>{applyButton.disabled=true;frame.contentWindow.postMessage({type:'comic-layout:request-apply'},layoutOrigin);setTimeout(()=>{applyButton.disabled=false;},5000);};
- window.addEventListener('message',async event=>{if(event.origin!==layoutOrigin||event.source!==frame.contentWindow||event.data?.type!=='comic-layout:apply'||importing)return;const data=event.data;importing=true;try{if(activeScriptId&&data.scriptId!==activeScriptId)throw Error('当前打开的不是本次裁图，请返回清单重新送入');await flushSave();const p=await api('/api/auto-layout/import','POST',{scriptId:data.scriptId});await refreshState();await chooseProject(p,{fit:true});episode=p.layoutPlanningSource?.episode||p.autoLayoutSource?.episode||episode;activeScriptId=data.scriptId;frame.hidden=true;pane.hidden=false;backButton.hidden=true;applyButton.hidden=true;await reloadPlan();pane.querySelector('.episode-layout-preview')?.scrollIntoView({block:'start'});message('已接回新工程，下方显示当前话整话预览；普通滚轮上下浏览。');const pending=p.autoLayoutSource?.pendingText?.length||0;toast(p.layoutPlanningSource?'已接回前期新工程，前后使用同一规则；原工程保留':p.autoLayoutSource?.mode==='screen-crop-reflow'?'已接回带图新工程，原工程保留'+(pending?'；'+pending+' 条文字待定位':''):'已接回独立分镜排版工程');}catch(e){message(e.message,true);}finally{importing=false;applyButton.disabled=false;}});
- window.addEventListener('message',async event=>{if(event.origin!==layoutOrigin||event.source!==frame.contentWindow||event.data?.type!=='comic-layout:apply-current'||importing)return;importing=true;try{const data=event.data;await applyCurrent({episodeNumber:Number(data.episode),scriptId:data.scriptId,expectedPacketHash:data.expectedPacketHash});dialog.close();}catch(e){message(e.message,true);}finally{importing=false;}});
- button.onclick=()=>openForEpisode();
- return {button,dialog,openForEpisode};
+ const taskMonitor=createDirectLayoutTask({api,onProgress:data=>{const r=directRun.progress(data);if(r?.status==='done')void readResult(r);}});
+ const batch=createBatchLayoutRun({api,getProject,getEpisode,flushSave,applyCurrent,onChange:update});
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')return;const r=directRun.record();if(r&&(r.planningMode||r.autoReturn)&&['starting','running','uncertain'].includes(r.status))void taskMonitor.watch(r,{allowStart:false});});
+ async function load(){
+  const request=++requestId,p=getProject(),oldRange={from:Number(batchFrom.value),to:Number(batchTo.value)};clearSelectors();loading=true;error='';blocked=false;plan=null;previewRequest++;update();
+  try{await flushSave();if(request!==requestId||getProject()?.id!==p.id)return;
+   const n=reflowEpisodeNumber(p,Number(episode)||activeEpisode());
+   const result=await api('/api/auto-layout/reflow/plan','POST',{projectId:p.id,episode:n,expectedRevision:getProject().revision});
+   if(request!==requestId||getProject()?.id!==p.id)return;
+   plan=result;episode=Number(result.episode);const key=plan.projectId+':'+episode;styleId=chooseEpisodeRule(plan,p.title,styleId,contextKey===key);contextKey=key;
+   episodeSelect.innerHTML=plan.episodes.map(e=>'<option value="'+e.episode+'" '+(Number(e.episode)===episode?'selected':'')+'>第'+e.episode+'话'+(e.title?' '+esc(e.title):'')+'</option>').join('');
+   styleSelect.innerHTML='<option value="">请选择风格</option>'+(plan.rules||plan.learningProjects||[]).map(r=>'<option value="'+esc(r.id)+'" '+(r.id===styleId?'selected':'')+'>'+esc(r.name)+'</option>').join('');
+   const oldFrom=oldRange.from,oldTo=oldRange.to,numbers=plan.episodes.map(e=>Number(e.episode)).sort((a,b)=>a-b),saved=batch.record();
+   const from=rangeProject===p.id&&numbers.includes(oldFrom)?oldFrom:saved?.status==='paused'?saved.episodes[0]:numbers[0],to=rangeProject===p.id&&numbers.includes(oldTo)?oldTo:saved?.status==='paused'?saved.episodes.at(-1):numbers.at(-1);rangeProject=p.id;
+   const options=selected=>numbers.map(n=>'<option value="'+n+'" '+(n===selected?'selected':'')+'>第'+n+'话</option>').join('');batchFrom.innerHTML=options(from);batchTo.innerHTML=options(to);
+   batchFeedback=!!saved&&['paused','running','checking'].includes(saved.status);
+   const r=directRun.record();if(r&&['starting','running','uncertain'].includes(r.status))openRun(r,{fresh:false});
+  }catch(e){if(request===requestId)error=e.message;}
+  finally{if(request===requestId){loading=false;update();}}
+ }
+ async function openForEpisode(number){
+  const changed=plan?.projectId!==getProject()?.id;if(changed){clearSelectors();plan=null;uniformFraming.checked=false;}
+  if(changed||number!==undefined){episode=number===undefined?null:Number(number);styleId=null;contextKey='';}
+  if(number===undefined&&episode===null){
+   const p=getProject(),pending=[];
+   try{for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(!key?.startsWith('comic-direct-layout-v1:'+p.id+':'))continue;const r=JSON.parse(localStorage.getItem(key)||'null');if(r?.projectId===p.id&&r.autoReturn&&r.planningMode&&r.revision===p.revision&&Number(r.canvasEpisode??r.episode)===Number(getEpisode?.())&&p.productionPackage?.episodes.some(e=>Number(e.episode)===r.episode)&&['starting','running','uncertain'].includes(r.status))pending.push(r);}}catch{}
+   pending.sort((a,b)=>Date.parse(b.created)-Date.parse(a.created));if(pending[0]){episode=pending[0].episode;styleId=pending[0].learningProjectId;contextKey=p.id+':'+episode;}
+  }
+  if(!dialog.open)dialog.show();loading=true;error='';update();
+  try{const s=await api('/api/auto-layout/status');if(!s.ready)throw Error(s.error||'排版服务未就绪');origin=s.origin;library.href=origin+'/';await load();}
+  catch(e){loading=false;error=e.message;update();}
+ }
+ start.onclick=async()=>{if(loading||importing)return;timing={started:performance.now()};const old=directRun.record();try{
+  error='';batchFeedback=false;if(blocked){await load();blocked=false;}
+  await directRun.start({restart:old?.status==='failed',autoReturn:true});
+ }catch(e){error=e.message;}finally{update();}};
+ batchStart.onclick=async()=>{if(loading||importing||batch.running)return;try{error='';batchFeedback=true;const episodes=episodeRange(plan?.episodes||[],batchFrom.value,batchTo.value),result=await batch.start({episodes,styleId});if(result?.status==='done'){const last=result.completed.findLast(r=>r.resultProjectId);if(last){await refreshState();await chooseProject(await api('/api/projects/'+last.resultProjectId),{fit:true});}dialog.close();toast('已全部接回第'+episodes[0]+'—'+episodes.at(-1)+'话，共'+result.completed.length+'话；已逐话备份，可撤销。');}}catch(e){error=e.message;}finally{update();}};
+ const rangeChanged=()=>{batchFeedback=false;error='';update();};batchFrom.onchange=rangeChanged;batchTo.onchange=rangeChanged;
+ episodeSelect.onchange=e=>{episode=Number(e.target.value);void load();};
+ styleSelect.onchange=e=>{styleId=e.target.value;error='';blocked=false;batchFeedback=false;previewRequest++;update();};
+ dialog.querySelector('[data-close]').onclick=()=>dialog.close();
+ window.addEventListener('message',event=>{if(event.origin!==origin||event.source!==runner.contentWindow||event.data?.type!=='comic-layout:direct-progress')return;const r=directRun.progress(event.data);if(r?.status==='done')void readResult(r);});
+ uniformFraming.onchange=()=>{error='';update();};
+ reflowButton.onclick=async()=>{await openForEpisode(activeEpisode());if(loading||!plan)return;if(!plan.segments.length||plan.segments.some(s=>!s.hasImage)){error='请先完成本话所有单屏成图；已有图片和原画布保留';update();return;}say('已读取当前话。选择是否修正扁图，开始排版后将展示真实图片与对白取景预览。');};
+ button.onclick=()=>openForEpisode();return {button,reflowButton,dialog,openForEpisode};
 }

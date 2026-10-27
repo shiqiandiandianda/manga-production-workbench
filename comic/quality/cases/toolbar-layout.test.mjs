@@ -23,6 +23,6 @@ test('顶部操作栏和画布工具栏在桌面与窄屏不越界',{timeout:900
  }
  console.log('TOOLBAR_LAYOUT '+JSON.stringify(all));
  for(const layout of all){assert.ok(layout.documentWidth<=layout.width+1,JSON.stringify(layout));assert.ok(layout.children.every(e=>e.rect.bottom<=layout.top.bottom+1&&e.rect.left>=-1&&e.rect.right<=layout.width+1),JSON.stringify(layout));assert.ok(layout.top.bottom<=layout.bar.top+1,JSON.stringify(layout));}
- await page.setViewportSize({width:375,height:980});await page.locator('.canvas-toolbar #zoom').scrollIntoViewIfNeeded();assert.ok(await page.locator('.canvas-toolbar').evaluate(el=>el.scrollLeft>0),'窄屏应能滚动到缩放控件');
+ for(const width of [375,245]){await page.setViewportSize({width,height:980});const zoom=page.locator('.canvas-toolbar #zoom');await zoom.scrollIntoViewIfNeeded();const rect=await zoom.boundingBox();assert.ok(rect&&rect.x>=-1&&rect.x+rect.width<=width+1,'窄屏应能查看并操作缩放控件：'+width);assert.equal(await zoom.isEnabled(),true);}
  assert.deepEqual(errors,[]);
 });

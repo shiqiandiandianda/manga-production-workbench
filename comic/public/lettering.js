@@ -1,3 +1,4 @@
+import {roundBubbleSize,usesRoundBubbleDefault} from './round-bubble-default.js';
 import {dialogueSegments,segmentBubble} from './bubble-dialogue-segments.js';
 import {bubbleTailVisible} from './bubble-tail-compat.js';
 import {sfxFontFamily} from './sfx-fonts.js';
@@ -119,6 +120,10 @@ export function bubbleTextBox(bubble,style=normalizeBubbleStyle(bubble),w=finite
   const box=bubble.textBox;
   const inset=bubble.shape==='asset'?bubble.assetInsets:null;
   if(!box&&inset)return {x:w*inset.left,y:h*inset.top,w:Math.max(1,w*(1-inset.left-inset.right)),h:Math.max(1,h*(1-inset.top-inset.bottom))};
+  if(!box&&bubble.productionTextId&&['oval','ellipse','round'].includes(style.shape)){
+    const width=Math.max(1,w-style.padding*2),available=Math.max(1,h-style.padding*2),chars=Math.max(1,Math.floor(width*.6/Math.max(1,style.fontSize))),rows=String(bubble.text||'').split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil([...line].length/chars)),0),height=Math.min(available,Math.max(available*.8,rows*style.fontSize*style.lineHeight+style.fontSize*.4));
+    return {x:style.padding,y:(h-height)/2,w:width,h:height};
+  }
   return box&&[box.x,box.y,box.w,box.h].every(Number.isFinite)&&box.w>0&&box.h>0?{x:box.x,y:box.y,w:box.w,h:box.h}:
     {x:style.padding,y:style.padding,w:Math.max(1,w-style.padding*2),h:Math.max(1,h-style.padding*2)};
 }
@@ -219,7 +224,7 @@ function positionRows(context,bubble,style,w,h){
     const glyphs=line.glyphs||[{text:line.text,x:line.x,y:line.y}],align=line.glyphs?'center':style.textAlign;
     return glyphs.every(g=>{const width=measureLettering(context,g.text,line.glyphs?0:style.letterSpacing),left=g.x-(align==='center'?width/2:align==='right'?width:0),area=safeInterval(style,currentOutline,currentBox,w,h,g.y,style.fontSize*1.05);return !area.unsafe&&left>=area.left-.01&&left+width<=area.right+.01&&g.y-style.fontSize*.525>=currentBox.y&&g.y+style.fontSize*.525<=currentBox.y+currentBox.h;});
   })))return {...frozen,outline:currentOutline};
-  if(bubble.textFrameLayout&&!style.keepTextInside&&style.shape!=='none')return {...positionRows(context,{...bubble,textFrameLayout:false},{...style,shape:'none'},w,h),outline:currentOutline};
+  if((bubble.textFrameLayout||bubble.textBox)&&!style.keepTextInside&&style.shape!=='none')return {...positionRows(context,{...bubble,textFrameLayout:false},{...style,shape:'none'},w,h),outline:currentOutline};
   if(style.writingMode==='vertical')return positionVertical(context,bubble,style,w,h);
   const box=bubbleTextBox(bubble,style,w,h),outline=shapeOutline(style,bubble,w,h),step=style.fontSize*style.lineHeight,glyphHeight=style.fontSize*1.05;
   if(bubbleLineBreakMode(bubble)==='explicit'){
@@ -249,12 +254,13 @@ function positionRows(context,bubble,style,w,h){
   return {box,outline,lines,overflow:!fits||lines.some(line=>line.overflow),lineHeight:step};
 }
 export function fitDialogueBubble(context,bubble,{maxWidth=640}={}){
- const next=structuredClone(bubble),style=normalizeBubbleStyle(next),ratio=1.45;
+ const next=structuredClone(bubble),style=normalizeBubbleStyle(next),round=usesRoundBubbleDefault(next),ratio=round?1:1.45;
  delete next.textBox;delete next.textLayout;delete next.textFrameLayout;next.overflow='fit';
  const chars=graphemes(String(next.text||'').replaceAll('\n','')).length,area=Math.max(4,chars)*style.fontSize**2*style.lineHeight/.58;
  next.w=Math.ceil(Math.min(maxWidth,Math.max(style.fontSize*(chars>12?9.5:4)+style.padding*2,Math.sqrt(area*ratio))));
  next.h=Math.ceil(Math.max(style.fontSize*2+style.padding*2,next.w/ratio));
- for(let i=0;i<80;i++){const layout=bubbleLayout(context,next,{autoFit:false});if(!layout.overflow)break;next.h=Math.ceil(next.h+style.fontSize*.5);}
+ if(round)Object.assign(next,roundBubbleSize(next.text,style.fontSize,{lineHeight:style.lineHeight,letterSpacing:style.letterSpacing,padding:style.padding,maxSize:maxWidth}));
+ for(let i=0;i<80;i++){const layout=bubbleLayout(context,next,{autoFit:false});if(!layout.overflow)break;if(round){if(next.w>=maxWidth)break;next.w=next.h=Math.ceil(Math.min(maxWidth,next.w+style.fontSize*.5));}else next.h=Math.ceil(next.h+style.fontSize*.5);}
  return next;
 }
 export function bubbleLayout(context,bubble,{autoFit=true}={}){
@@ -263,41 +269,14 @@ export function bubbleLayout(context,bubble,{autoFit=true}={}){
     const base=bubbleLayout(context,shell,{autoFit}),dialogueLayouts=dialogueSegments(bubble).map((s,i)=>({...bubbleLayout(context,segmentBubble(bubble,i),{autoFit}),segmentId:s.id}));
     return {...base,dialogueLayouts,lines:dialogueLayouts.flatMap(l=>l.lines),overflow:dialogueLayouts.some(l=>l.overflow),autoFitted:dialogueLayouts.some(l=>l.autoFitted)};
   }
-  let style=normalizeBubbleStyle(bubble);const saved=bubble.textLayout,locked=!!(saved?.requestKey&&saved.requestKey===bubbleTextLayoutKey(bubble,style)&&Number.isFinite(saved.effectiveFontSize)&&Number.isFinite(saved.effectiveLetterSpacing));if(locked)style={...style,fontSize:saved.effectiveFontSize,letterSpacing:saved.effectiveLetterSpacing};const requestedFontSize=style.fontSize,originalW=Math.max(1,finite(bubble.w,100)),originalH=Math.max(1,finite(bubble.h,60));
+  let style=normalizeBubbleStyle(bubble);const requestedFontSize=style.fontSize,originalW=Math.max(1,finite(bubble.w,100)),originalH=Math.max(1,finite(bubble.h,60));
   const fontFor=s=>(s.fontStyle==='italic'?'italic ':'')+s.fontWeight+' '+s.fontSize+'px '+sfxFontFamily(bubble,FONT_FAMILIES[s.fontFamily]);
   let font=fontFor(style);
   context.font=font;if('letterSpacing' in context)context.letterSpacing='0px';
   if(currentVisualStyle(bubble))return {...style,fontFamilyCSS:sfxFontFamily(bubble,FONT_FAMILIES[style.fontFamily]),type:'sfx',shape:'none',x:finite(bubble.x,0),y:finite(bubble.y,0),w:originalW,h:originalH,font,fontSize:style.fontSize,color:style.textColor,textBox:{x:0,y:0,w:originalW,h:originalH},lines:[],tail:null,drawOutline:null,suggestedSize:{w:originalW,h:originalH},overflow:false,expanded:false};
-  const fitInside=autoFit&&style.shape!=='none'&&!locked;
-  if(fitInside)style={...style,keepTextInside:true,padding:Math.min(style.padding,originalW*.2,originalH*.2)};
-  let source=bubble;
-  if(fitInside&&bubble.textBox){
-    const box=bubbleTextBox(bubble,style),pad=style.padding,bw=clamp(box.w,1,Math.max(1,originalW-pad*2)),bh=clamp(box.h,1,Math.max(1,originalH-pad*2));
-    source={...bubble,textBox:{x:clamp(box.x,pad,originalW-pad-bw),y:clamp(box.y,pad,originalH-pad-bh),w:bw,h:bh}};
-  }
-  let w=originalW,h=originalH,positioned=positionRows(context,source,style,w,h),suggestedSize={w,h};
-  if(positioned.overflow&&!bubble.textBox&&(!fitInside||style.overflow==='expand')){
-    let fit=positioned,fitW=w,fitH=h;
-    // Enlargement is bounded and pure: saved geometry is only changed by an explicit editor commit.
-    for(let attempt=0;attempt<24&&fit.overflow;attempt++){
-      fitW=Math.max(fitW+style.fontSize*.6,fitW*1.12);if(isLibrarySfx(bubble))fitW=Math.min(2560,fitW);fitH=Math.max(fitH+style.fontSize*.4,fitH*1.12);
-      fit=positionRows(context,bubble,style,fitW,fitH);
-    }
-    suggestedSize={w:Math.ceil(fitW),h:Math.ceil(fitH)};
-    if(style.overflow==='expand'&&!fit.overflow){w=suggestedSize.w;h=suggestedSize.h;positioned=positionRows(context,bubble,style,w,h);}
-  }
-  if(fitInside&&positioned.overflow){
-    const originalStyle=style;
-    const at=size=>{const ratio=size/requestedFontSize,s={...originalStyle,fontSize:size,letterSpacing:originalStyle.letterSpacing*ratio};context.font=fontFor(s);return {style:s,rows:positionRows(context,source,s,w,h)};};
-    let upper=requestedFontSize,lower=upper,best=null;
-    // Bounded search: keep the largest readable size that fits every row in the contour.
-    for(let i=0;i<28;i++){lower*=.65;const candidate=at(lower);if(!candidate.rows.overflow){best=candidate;break;}}
-    // An old independent text frame can sit entirely outside a narrow shape.
-    // Recenter its rendered text only; leave saved geometry and source text untouched.
-    if(!best&&source.textBox){source={...source};delete source.textBox;delete source.textLayout;lower=requestedFontSize;for(let i=0;i<28;i++){const candidate=at(lower);if(!candidate.rows.overflow){best=candidate;break;}lower*=.65;}}
-    if(best){for(let i=0;i<10;i++){const middle=(lower+upper)/2,candidate=at(middle);if(candidate.rows.overflow)upper=middle;else{lower=middle;best=candidate;}}style=best.style;positioned=best.rows;}
-    font=fontFor(style);context.font=font;
-  }
+  // Ordinary dialogue always renders at the user's chosen font size and spacing.
+  // Overflow is reported; dragging geometry must never silently alter typography.
+  const w=originalW,h=originalH,positioned=positionRows(context,bubble,style,w,h),suggestedSize={w,h};
   const tail=bubbleTailGeometry(bubble,w,h);
   return {...style,fontFamilyCSS:sfxFontFamily(bubble,FONT_FAMILIES[style.fontFamily]),type:style.type,x:finite(bubble.x,0),y:finite(bubble.y,0),w,h,fontSize:style.fontSize,font,color:style.textColor,
     ...positioned,textLayoutStyleKey:bubbleTextLayoutKey(bubble,style),textBox:positioned.box,clip:{x:0,y:0,w,h},tail,drawOutline:tail&&bubble.shape==='asset'&&['curved','lightning'].includes(bubble.assetTailKind)?unionBubblePolygons(positioned.outline,shapedTailPoints(tail,bubble.assetTailKind)):outlineWithTail(positioned.outline,tail),suggestedSize,
@@ -354,12 +333,12 @@ function svgOutline(layout,bubble){
 }
 function svgHandles(layout,bubble,zoom){
   const z=Math.max(.01,finite(zoom,1)),radius=5/z,stroke=1.5/z,box=layout.textBox;
-  if(isLibrarySfx(bubble))return '<rect x="-3" y="-3" width="'+(layout.w+6)+'" height="'+(layout.h+6)+'" fill="none" stroke="#48a4ef" stroke-width="'+stroke+'" pointer-events="none"/><line x1="'+layout.w/2+'" y1="0" x2="'+layout.w/2+'" y2="'+(-28/z)+'" stroke="#48a4ef" stroke-width="'+stroke+'" pointer-events="none"/>'+[['sfx-scale',layout.w,layout.h],['sfx-rotate',layout.w/2,-28/z]].map(([name,x,y])=>'<circle data-bubble-handle="'+name+'" cx="'+x+'" cy="'+y+'" r="'+(7/z)+'" fill="white" stroke="#1789db" stroke-width="'+stroke+'" style="cursor:'+ (name==='sfx-scale'?'nwse-resize':'grab')+'"><title>'+ (name==='sfx-scale'?'缩放特效文字':'旋转特效文字')+'</title></circle>').join('');
+  if(isLibrarySfx(bubble))return '<rect x="-3" y="-3" width="'+(layout.w+6)+'" height="'+(layout.h+6)+'" fill="none" stroke="#48a4ef" stroke-width="'+stroke+'" pointer-events="none"/><line x1="'+layout.w/2+'" y1="0" x2="'+layout.w/2+'" y2="'+(-28/z)+'" stroke="#48a4ef" stroke-width="'+stroke+'" pointer-events="none"/>'+[['sfx-scale',layout.w,layout.h],['sfx-rotate',layout.w/2,-28/z]].map(([name,x,y])=>'<circle data-bubble-handle="'+name+'" cx="'+x+'" cy="'+y+'" r="'+(7/z)+'" fill="white" stroke="#1789db" stroke-width="'+stroke+'" style="cursor:'+ (name==='sfx-scale'?'nwse-resize':'grab')+'"><title>'+ (name==='sfx-scale'?(currentVisualStyle(bubble)?'缩放特效图片':'调整特效文字框，字号不变'):'旋转特效文字')+'</title></circle>').join('');
   const handle=(name,x,y,extra='')=>'<circle data-bubble-handle="'+name+'" '+extra+' cx="'+x+'" cy="'+y+'" r="'+12/z+'" fill="transparent" pointer-events="all" style="cursor:'+(name==='tail-anchor'?'grab':'move')+'"><title>'+ (name==='tail-anchor'?'沿气泡外边缘滑动尾巴根部':name==='tail-width'?'调整尾巴两个连接点的间距':name==='part-move'?'独立移动圆框':name==='part-resize'?'独立调整圆框大小':name==='tail'?'拖动尾尖':name==='resize'?'调整气泡大小；按住 Shift 等比缩放':['text-move','segment-move'].includes(name)?'移动这段台词': ['text-resize','segment-resize'].includes(name)?'调整这段台词的换行区域':'编辑轮廓节点')+'</title></circle><circle cx="'+x+'" cy="'+y+'" r="'+radius+'" fill="'+(name==='tail-anchor'?'#ffd681':name==='tail-width'?'#ffe3d6':'#ffffff')+'" stroke="'+(name==='tail-anchor'?'#bc7b17':name==='tail-width'?'#d1662a':'#1789db')+'" stroke-width="'+stroke+'" pointer-events="none"/>';
   const paragraphs=layout.dialogueLayouts?.map((l,i)=>{const b=l.textBox,extra='data-bubble-point="'+i+'"';return '<rect data-bubble-handle="segment-move" '+extra+' x="'+b.x+'" y="'+b.y+'" width="'+b.w+'" height="'+b.h+'" fill="transparent" stroke="#1789db" stroke-width="'+stroke+'" stroke-dasharray="'+5/z+' '+3/z+'" style="cursor:move"/><text x="'+b.x+'" y="'+(b.y-8/z)+'" fill="#1789db" font-size="'+11/z+'" pointer-events="none">第 '+(i+1)+' 段</text>'+handle('segment-move',b.x,b.y,extra)+handle('segment-resize',b.x+b.w,b.y+b.h,extra);}).join('');
   if(layout.shape==='none'&&!paragraphs)return '<rect data-text-selection="true" x="'+box.x+'" y="'+box.y+'" width="'+box.w+'" height="'+box.h+'" fill="none" stroke="'+(layout.overflow?'#dc5b32':'#1789db')+'" stroke-dasharray="'+5/z+' '+3/z+'" stroke-width="'+stroke+'" pointer-events="none"/>'+handle('text-move',box.x,box.y)+handle('text-resize',box.x+box.w,box.y+box.h);
   return '<rect x="-3" y="-3" width="'+(layout.w+6)+'" height="'+(layout.h+6)+'" fill="none" stroke="#48a4ef" stroke-width="'+stroke+'" pointer-events="none"/>'+
-    (paragraphs||('<rect data-bubble-handle="text-move" x="'+box.x+'" y="'+box.y+'" width="'+box.w+'" height="'+box.h+'" fill="transparent" stroke="'+(layout.overflow?'#dc5b32':'#1789db')+'" stroke-dasharray="'+5/z+' '+3/z+'" stroke-width="'+stroke+'" pointer-events="all" style="cursor:move"/>'+
+    (paragraphs||('<rect x="'+box.x+'" y="'+box.y+'" width="'+box.w+'" height="'+box.h+'" fill="none" stroke="'+(layout.overflow?'#dc5b32':'#1789db')+'" stroke-dasharray="'+5/z+' '+3/z+'" stroke-width="'+stroke+'" pointer-events="none"/>'+
     handle('text-move',box.x,box.y)+handle('text-resize',box.x+box.w,box.y+box.h)))+handle('resize',layout.w,layout.h)+
     (layout.tail?handle('tail',layout.tail.tip.x,layout.tail.tip.y):'')+
     (layout.shape==='custom'?(validBubblePoints(bubble.points)?bubble.points:bubbleShapePoints('custom')).map((p,index)=>handle('point',p.x*layout.w,p.y*layout.h,'data-bubble-point="'+index+'"')).join(''):'')+
@@ -379,7 +358,7 @@ export function svgBubbleMarkup(context,bubble,{selected=false,zoom=1}={}){
   const visual=currentVisualStyle(bubble),texture=bubble.styleTextureId?image(bubble.styleTextureAssetId?assetUrl(bubble.styleTextureAssetId):comicPreviewUrl(bubble.styleTextureId)):'';
   const frame=frameLines(bubble,layout.w,layout.h).map(line=>'<path data-frame-accent="true" d="M '+line.points.map(p=>p.x+' '+p.y).join(' L ')+(line.closed?' Z':'')+'" fill="none" stroke="'+layout.outlineColor+'" stroke-width="'+layout.outlineWidth*line.strokeScale+'" stroke-linecap="round" stroke-linejoin="round"/>').join('');
   const artwork=visual?image(bubble.visualAssetId?assetUrl(bubble.visualAssetId):comicPreviewUrl(visual)):svgOutline(layout,bubble)+frame+texture+text;
-  return '<g data-bubble="'+escape(bubble.id)+'" data-overflow="'+layout.overflow+'" data-render-w="'+layout.w+'" data-render-h="'+layout.h+'" transform="translate('+layout.x+' '+layout.y+')'+sfxTransform(bubble,layout.w,layout.h)+'">'+(layout.overflow?'<title>文字超出气泡安全区域：请扩大气泡、调整文字框或开启自动扩泡。</title>':'')+hit+artwork+(selected&&!bubble.locked?svgHandles(layout,bubble,zoom):'')+'</g>';
+  return '<g data-bubble="'+escape(bubble.id)+'" data-overflow="'+layout.overflow+'" data-render-w="'+layout.w+'" data-render-h="'+layout.h+'" transform="translate('+layout.x+' '+layout.y+')'+sfxTransform(bubble,layout.w,layout.h)+'">'+(layout.overflow?'<title>文字超出排版区域：可调整文字框、气泡或右侧字体属性。</title>':'')+hit+artwork+(selected&&!bubble.locked?svgHandles(layout,bubble,zoom):'')+'</g>';
 }
 
 

@@ -435,8 +435,9 @@ def generate(server, directory, digest_cache=None, skill_path=None):
             target = crop_page(task["basePagePath"], task["cropBox"], crop)
         references = [str(crop)] + references
         first = "作为 referenced_image_paths 的第一张传入" if direct else "必须先用 view_image 查看"
+        image_description = '完整原图（不是画布截图或局部裁切）' if task.get('editScope') == 'full-image' else '当前漫画格子的裁切原图'
         style_rule = '画风按本次项目统一画风设置执行。' if str(task.get('style') or '').strip() else '保持原有画风。'
-        prompt = f"编辑路径清单图 1（当前漫画格子的裁切原图，{first}）。修改要求：{task.get('editPrompt', '')}。保持其他内容，{style_rule}生成同一宽高比的新图，原图比例为 {target[0]}:{target[1]}。后续路径是角色、场景或画风参考。\n" + prompt
+        prompt = f"编辑路径清单图 1（{image_description}，{first}）。修改要求：{task.get('editPrompt', '')}。保持其他内容，{style_rule}生成同一宽高比的新图，原图比例为 {target[0]}:{target[1]}。后续路径是角色、场景或画风参考。\n" + prompt
     reference_digests = {digest_cache.digest(p) for p in references}
     references, packing_notes, reference_packing = pack_references(directory, references, task.get('referenceRoles', []), edit=task.get('action') == 'edit')
     if reference_packing:
@@ -548,7 +549,7 @@ def generate(server, directory, digest_cache=None, skill_path=None):
             manifest["timings"]["imageGenerationMs"] = round((image_completed-image_started)*1000)
         if turn_completed_elapsed_ms is not None:
             manifest["timings"]["turnCompletedMs"] = turn_completed_elapsed_ms
-        if target:
+        if target and task.get('editScope') != 'full-image':
             progress("Python 正在校验比例、缩放并贴回蒙版", "composition", "compositing")
             aligned = out / "aligned_patch.png"
             try:

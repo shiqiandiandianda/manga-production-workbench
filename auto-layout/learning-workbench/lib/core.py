@@ -175,6 +175,9 @@ def backgrounds(packet, script):
 
 
 def validate_geometry(packet, script=None):
+    if script and script.get('layoutRuleContract'):
+        from unified_layout import validate_packet
+        return validate_packet(packet,script)
     errors = []
     if packet.get("format") != "comic-layout-geometry" or packet.get("version") != 1:
         errors.append("不支持的几何布局格式")

@@ -1,15 +1,17 @@
-.modern-workbench .job-tray{max-height:286px;overflow:hidden;background:#16222e}
+.modern-workbench .job-tray{display:flex;flex-direction:column;min-width:0;min-height:0;max-height:min(45dvh,380px);overflow:hidden;background:#16222e}
 .modern-workbench .job-tray.collapsed{max-height:52px}
-.modern-workbench .job-heading{height:48px;min-height:48px;gap:12px;padding:0 16px}
+.modern-workbench .job-heading{flex:none;height:48px;min-height:48px;gap:12px;padding:0 16px}
 .modern-workbench #job-count{font-size:12px;color:#b4d8f2}
 .job-latest-status{font-size:12px;color:#90b9d6;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px}
 .modern-workbench .job-heading #cancel-recent-jobs,.modern-workbench .job-heading #cancel-all-jobs{font-size:11px;min-height:30px;padding:4px 8px}
 .modern-workbench .job-heading #cancel-recent-jobs{color:#ffd8a0;border-color:#6d5940}
-.modern-workbench #job-list{padding:0 14px 10px;max-height:none;overflow:hidden}
+.modern-workbench #job-list{flex:1;min-height:0;min-width:0;padding:0 14px 10px;max-height:none;overflow-x:hidden;overflow-y:auto}
 .task-card-filters{display:flex;gap:6px;align-items:center;padding:0 0 8px}
 .modern-workbench .task-card-filters button{border:0;background:transparent;color:#97b4cb;font-size:11px;padding:4px 10px;min-height:27px}
 .modern-workbench .task-card-filters button[aria-pressed=true]{background:#2c4a62;color:#d3ecff}
-.task-card-rail{display:grid;grid-auto-flow:column;grid-auto-columns:264px;gap:10px;overflow-x:auto;overflow-y:hidden;overscroll-behavior:contain;padding:0 0 8px;scroll-snap-type:x proximity;min-height:165px;scrollbar-color:#567b98 #17222d}
+.task-card-rail{display:grid;width:100%;min-width:0;grid-auto-flow:column;grid-auto-columns:264px;gap:10px;overflow-x:scroll;overflow-y:hidden;overscroll-behavior:contain;padding:0 0 8px;scroll-snap-type:x proximity;min-height:188px;scrollbar-color:#567b98 #17222d;touch-action:pan-x}
+.task-card-navigation{display:flex;gap:6px;margin-left:auto;flex:none}
+.modern-workbench .task-card-navigation button{min-width:34px;border:1px solid #4a718d;background:#1c3041;color:#d3ecff}
 .task-card{display:flex;flex-direction:column;height:165px;border:1px solid #446985;border-radius:8px;background:#24394b;color:#e7f3fc;overflow:hidden;scroll-snap-align:start}
 .task-card header{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;padding:9px 10px 7px;border-bottom:1px solid #4c6c8344}
 .task-card header strong{font-size:12px;line-height:1.6;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

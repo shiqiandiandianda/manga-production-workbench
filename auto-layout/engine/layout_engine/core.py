@@ -1,3 +1,4 @@
+from artwork_framing import frame_artwork
 import copy
 import hashlib
 import json
@@ -175,7 +176,12 @@ def backgrounds(packet, script):
 
 
 def validate_geometry(packet, script=None):
-    errors = []
+    user_constraints=None
+    if packet.get('nativeUserConstraints') is not None or packet.get('generator',{}).get('mode')=='native-style-rules':
+        from native_user_constraints import trusted_constraints
+        user_constraints=trusted_constraints(packet)
+    from native_user_constraints import dimension_errors
+    errors = dimension_errors(packet,script,user_constraints)
     if packet.get("format") != "comic-layout-geometry" or packet.get("version") != 1:
         errors.append("不支持的几何布局格式")
     panels = packet.get("panels", [])
@@ -216,7 +222,11 @@ def validate_geometry(packet, script=None):
             errors.append(f"{p.get('key')}画格超出画布或尺寸无效")
         if p.get("shape") != "rectangle" or p.get("role") not in ("main","support"):
             errors.append(f"{p.get('key')}画格类型无效")
-        if p.get("role") == "main" and h<=w:
+        art=frame_artwork(script["shots"][i]) if script and i<len(script["shots"]) else None
+        if art:
+            aw,ah=art.get("width"),art.get("height")
+            if not all(isinstance(n,(int,float)) and math.isfinite(n) and n>0 for n in (aw,ah)) or abs(h-w*ah/aw)>1.01:errors.append(str(p.get("key"))+"必须保留已有图片真实比例")
+        if p.get("role") == "main" and (h<w if user_constraints else h<=w) and not art:
             errors.append(f"{p.get('key')}主格需要竖幅")
         if any(not isinstance(p.get(k),(int,float)) or not math.isfinite(p[k]) or p[k]<0 for k in ("border","feather")):
             errors.append(f"{p.get('key')}边框或羽化无效")
@@ -225,12 +235,14 @@ def validate_geometry(packet, script=None):
             errors.append(f"{p.get('key')}阅读位置倒序或主格相邻")
     if panels and numeric_ok:
         first = panels[0]
-        if first.get("role") != "main" or first.get("h",0)<=first.get("w",0):
+        first_art=frame_artwork(script["shots"][0]) if script else None
+        if first.get("role") != "main" or ((first.get("h",0)<first.get("w",0) if user_constraints else first.get("h",0)<=first.get("w",0)) and not first_art):
             errors.append("第一格必须为竖幅主格")
         next_main = next((i for i,p in enumerate(panels[1:],1) if p.get("role")=="main"),len(panels))
         if any(p.get("w",0)*p.get("h",0)>=first.get("w",0)*first.get("h",0) for p in panels[1:next_main]):
             errors.append("首格面积必须大于同组副格")
-        if sum(p.get("h",0)>p.get("w",0) for p in panels)/len(panels)<.7:
+        new_panels=[p for i,p in enumerate(panels) if not (script and frame_artwork(script["shots"][i]))]
+        if new_panels and sum((p.get("h",0)>=p.get("w",0) if user_constraints else p.get("h",0)>p.get("w",0)) for p in new_panels)/len(new_panels)<.7:
             errors.append("当前Agent预设要求至少70%竖格")
     bgs = packet.get("backgrounds")
     if not isinstance(bgs, list) or not bgs:
@@ -256,7 +268,7 @@ def validate_geometry(packet, script=None):
         for previous,current in zip(bgs,bgs[1:]):
             if previous.get('mode')=='linear' and str(previous.get('endColor')).lower()!=str(current.get('color')).lower():errors.append('渐变结束色未连接下一段背景')
             if previous.get('mode')=='solid' and str(previous.get('color')).lower()!=str(current.get('color')).lower():errors.append('不同底色之间缺少安全留白渐变')
-    if packet.get('generator',{}).get('mode')=='model-generated' and numeric_ok:
+    if packet.get('generator',{}).get('mode') in ('model-generated','native-style-rules') and numeric_ok:
         has_rhythm=packet.get('generator',{}).get('rhythmVersion')=='relationships-v1'
         main=None;bottom=0
         for i,p in enumerate(panels):

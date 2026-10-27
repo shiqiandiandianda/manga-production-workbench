@@ -64,14 +64,13 @@ export function validateEpisodeBoards(project){
 export function boardTextLayout(context,layer){
  const chars=text=>[...String(text)],family=FONT_FAMILIES[layer.fontFamily],vertical=layer.writingMode==='vertical';
  const calculate=size=>{context.font=`${layer.fontWeight} ${size}px ${family}`;const step=size*layer.lineHeight;
-  let lines=[];for(const paragraph of String(layer.text??'').split('\n')){if(layer.fit==='shrink'){lines.push(paragraph);continue;}let line='';for(const char of chars(paragraph)){const attempt=line+char,extent=vertical?chars(attempt).length*size:context.measureText(attempt).width;if(line&&extent>(vertical?layer.h:layer.w)){lines.push(line);line='';}line+=char;}lines.push(line);}
+  let lines=[];for(const paragraph of String(layer.text??'').split('\n')){let line='';for(const char of chars(paragraph)){const attempt=line+char,extent=vertical?chars(attempt).length*size:context.measureText(attempt).width;if(line&&extent>(vertical?layer.h:layer.w)){lines.push(line);line='';}line+=char;}lines.push(line);}
   const extents=lines.map(line=>vertical?chars(line).length*size:context.measureText(line).width),width=vertical?lines.length*step:Math.max(0,...extents),height=vertical?Math.max(0,...extents):lines.length*step;
   const glyphs=[];if(vertical){lines.forEach((line,i)=>{const y=layer.y+(layer.align==='left'?0:layer.align==='right'?layer.h-extents[i]:(layer.h-extents[i])/2);chars(line).forEach((char,j)=>glyphs.push({text:char,x:layer.x+layer.w-(i+.5)*step,y:y+(j+.5)*size}));});}
   else lines.forEach((line,i)=>glyphs.push({text:line,x:layer.x+(layer.align==='left'?0:layer.align==='right'?layer.w:layer.w/2),y:layer.y+(i+.5)*step}));
   return {fontSize:size,font:context.font,glyphs,width,height,fits:width<=layer.w+.01&&height<=layer.h+.01,textAnchor:vertical?'middle':({left:'start',right:'end',center:'middle'})[layer.align]};
  };
- let value=calculate(layer.fontSize);if(layer.fit==='shrink'&&!value.fits){let lo=layer.minFontSize,hi=layer.fontSize;for(let i=0;i<12;i++){const mid=(lo+hi)/2;if(calculate(mid).fits)lo=mid;else hi=mid;}value=calculate(lo);}
- return value;
+ return calculate(layer.fontSize);
 }
 export function boardSvg(board,measurement,{assetUrl,selectedKey='',controls=true}={}){
  let content=`<rect width="1280" height="${board.height}" fill="${board.background}"/>`;

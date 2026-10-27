@@ -23,7 +23,7 @@ export function createLayoutPlanning({store,dataDir,body,json,request,validatePr
   if(method!=='POST'||!['/api/auto-layout/planning/source','/api/auto-layout/planning/export','/api/auto-layout/rules/resolve'].includes(pathname))return false;
   if(busy)fail('正在处理统一版式规划');busy=true;
   try{
-   const input=await body(req);
+   const input=await body(req);if(input.forceNew!==undefined&&typeof input.forceNew!=='boolean')fail('重新排版标记无效',400);
    if(pathname.endsWith('/rules/resolve')){json(res,200,await request('/api/integration/rules/resolve',input));return true;}
    if(pathname.endsWith('/export')){
     const p=store.project(input.projectId),ep=epFor(p,input),binding=p.layoutRuleBindings?.[ep.episode];if(!binding)fail('本话尚无已接回的统一版式规划',400);
@@ -34,7 +34,13 @@ export function createLayoutPlanning({store,dataDir,body,json,request,validatePr
    if(store.db.jobs.some(j=>j.projectId===p.id&&panelIds.has(j.panelId)&&['queued','preparing','running','recoverable','delegated','awaiting_confirmation'].includes(j.status)))fail('本话仍有制作任务，请完成后再规划');
    const contract=await request('/api/integration/rules/resolve',episodeRuleRequest(p.layoutRuleBindings?.[ep.episode],input.learningProjectId)),shots=fixedShots(p,ep),hash=sha(JSON.stringify(p)),batchKey=sha(JSON.stringify([hash,contract.digest,shots]));
    fs.mkdirSync(folder,{recursive:true});
-   for(const f of fs.readdirSync(folder)){const old=JSON.parse(fs.readFileSync(path.join(folder,f),'utf8'));if(old.batchKey===batchKey&&old.scriptId){json(res,200,{scriptId:old.scriptId,contract,reused:true,mode:'preproduction-layout'});return true;}}
+   if(!input.forceNew)for(const f of fs.readdirSync(folder).filter(n=>n.endsWith('.json')).sort((a,b)=>fs.statSync(path.join(folder,b)).mtimeMs-fs.statSync(path.join(folder,a)).mtimeMs)){
+    try{const old=JSON.parse(fs.readFileSync(path.join(folder,f),'utf8'));if(old.batchKey!==batchKey||!old.scriptId)continue;
+     const script=await request('/api/scripts/'+old.scriptId);
+     if(script.studioSource?.planningBatchId!==old.id||JSON.stringify(script.shots)!==JSON.stringify(old.shots)||JSON.stringify(script.layoutRuleContract)!==JSON.stringify(contract))continue;
+     json(res,200,{scriptId:old.scriptId,contract,reused:true,mode:'preproduction-layout'});return true;
+    }catch{}
+   }
    const id=randomUUID(),batch={id,batchKey,project:structuredClone(p),projectHash:hash,shots,contract};
    fs.writeFileSync(path.join(folder,id+'.json'),JSON.stringify(batch));
    const result=await request('/api/integration/import',{projectId:p.id,revision:p.revision,title:p.title+' · 第'+ep.episode+'话前期统一版式',episode:ep.episode,shots,learningProjectId:contract.id,layoutRuleContract:contract,planningBatchId:id});

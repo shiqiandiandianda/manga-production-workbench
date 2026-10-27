@@ -130,14 +130,14 @@ test('默认同时运行两个格子，第三格等待；释放一个位置后�
   await waitFor(() => bridge.calls.length === 2, '两个独立格子没有同时进入生图');
   const state = await stateAt(url);
   assert.deepEqual(state.jobs.map(job => job.status), ['running', 'running', 'queued']);
-  assert.deepEqual(state.scheduler, {concurrency:2, active:2, queued:1});
+  assert.deepEqual(state.scheduler, {concurrency:2, active:2, queued:1, episodeBatches:[]});
   assert.equal(bridge.active, 2);
 
   bridge.calls[0].release();
   await waitFor(() => bridge.calls.length === 3, '完成一格后没有启动等待中的第三格');
   const resumed = await stateAt(url);
   assert.deepEqual(resumed.jobs.map(job => job.status), ['done', 'running', 'running']);
-  assert.deepEqual(resumed.scheduler, {concurrency:2, active:2, queued:0});
+  assert.deepEqual(resumed.scheduler, {concurrency:2, active:2, queued:0, episodeBatches:[]});
   assert.equal(bridge.peak, 2);
   bridge.releaseAll();
   assert.deepEqual((await completed(url)).jobs.map(job => job.status), ['done', 'done', 'done']);
@@ -236,7 +236,7 @@ for (const concurrency of [1, 3, 6]) {
     const state = await stateAt(url);
     assert.equal(state.jobs.filter(job => job.status === 'running').length, concurrency);
     assert.equal(state.jobs.filter(job => job.status === 'queued').length, total - concurrency);
-    assert.deepEqual(state.scheduler, {concurrency, active:concurrency, queued:total - concurrency});
+    assert.deepEqual(state.scheduler, {concurrency, active:concurrency, queued:total - concurrency, episodeBatches:[]});
     bridge.calls[0].release();
     await waitFor(() => bridge.calls.length === concurrency + 1, '指定并行队列没有补充等待任务');
     assert.equal(bridge.peak, concurrency);

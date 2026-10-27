@@ -84,6 +84,7 @@ body.modern-workbench {grid-template-rows: max-content max-content max-content m
 .bubble-speaker-info strong {font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
 .bubble-speaker-info button {font-size: 11px; padding: 5px 6px; flex: 0 0 auto;}
 .bubble-speaker-chip {position: fixed; z-index: 24; pointer-events: none; max-width: min(260px, -24px + 100vw); filter: drop-shadow(rgba(0, 0, 0, 0.4) 0px 3px 7px);}
+.bubble-speaker-chip:not([hidden]){display:flex;align-items:center;gap:4px}.bubble-speaker-chip .speaker-order-number{font-weight:700;font-size:16px;color:#fff;background:#245677;border-radius:5px;padding:4px 7px}.bubble-speaker-chip .speaker-order-scope{pointer-events:auto;padding:4px 6px;font-size:11px;cursor:pointer}
 .bubble-speaker-chip .bubble-speaker-info {margin: 0px; padding: 6px 9px; background: rgb(24, 51, 70);}
 .bubble-speaker-chip img,  .bubble-speaker-chip .speaker-initial {width: 28px; height: 28px;}
 @media (max-width: 650px) {

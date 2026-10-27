@@ -109,7 +109,7 @@ test('configured six-image scheduler starts six images and queues a seventh with
  assert.equal((await request(url,'/api/projects/'+project.id,'PUT',project)).status,200);
  const submitted=await request(url,'/api/jobs','POST',{projectId:project.id,panelIds:project.pages[0].panels.slice(0,7).map(p=>p.id),provider:'codex'});assert.equal(submitted.status,202);
  await until(()=>calls===6,'six mock images did not start');
- const state=(await request(url,'/api/state')).data;assert.deepEqual(state.scheduler,{concurrency:6,active:6,queued:1});assert.deepEqual(studio.generationSlots.snapshot(),{running:6,concurrency:6,platforms:{main:{running:6,concurrency:6},repair:{running:0,concurrency:2}}});
+ const state=(await request(url,'/api/state')).data;assert.deepEqual({concurrency:state.scheduler.concurrency,active:state.scheduler.active,queued:state.scheduler.queued},{concurrency:6,active:6,queued:1});assert.deepEqual(state.scheduler.episodeBatches,[]);assert.deepEqual(studio.generationSlots.snapshot(),{running:6,concurrency:6,platforms:{main:{running:6,concurrency:6},repair:{running:0,concurrency:2}}});
  await delay(25);assert.equal(calls,6);releases[0]();await until(()=>calls===7,'seventh image did not enter after one finished');assert.equal(peak,6);
  releases.forEach(resolve=>resolve());await until(()=>studio.store.db.jobs.every(j=>j.status==='done'),'six-image mock jobs did not finish');assert.equal(studio.generationSlots.snapshot().running,0);
 });

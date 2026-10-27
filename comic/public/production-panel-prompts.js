@@ -36,6 +36,9 @@ export function productionPanelDataIssues(record,{referenceAudit}={}){
   if(!declared&&!selected)issues.push('人物服装未对应：'+actor);
  }
  if(!String(fields['当前场景']||'').trim())issues.push('当前场景未填写');
- if(!Object.hasOwn(fields,'出现道具'))issues.push('出镜道具未声明（无道具请写无或空数组）');
+ // The 2.2 storyboard explicitly records both no held props and no prop references.
+ // Only accept this as no props when its asset index contains character/scene entries alone.
+ const index=fields['资产索引'],explicitNoProps=Array.isArray(fields['道具持用'])&&!fields['道具持用'].length&&Array.isArray(fields['需要道具参考'])&&!fields['需要道具参考'].length&&Array.isArray(index)&&index.every(entry=>Array.isArray(entry)&&typeof entry[0]==='string'&&/^[CL]\d+$/u.test(entry[0]));
+ if(!Object.hasOwn(fields,'出现道具')&&!explicitNoProps)issues.push('出镜道具未声明（无道具请写无或空数组）');
  return issues;
 }

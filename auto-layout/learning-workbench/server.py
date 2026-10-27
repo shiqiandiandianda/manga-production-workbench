@@ -1,6 +1,7 @@
 """Local-only layout workbench. Does not connect to or modify Comic Agent."""
 import argparse
 import os
+import hmac
 import base64
 import hashlib
 import io
@@ -13,6 +14,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
+import unified_layout as unified
 from PIL import Image
 Image.MAX_IMAGE_PIXELS=250_000_000
 from lib.core import learned_profile, public_profile, plan_layout, validate_geometry, backgrounds
@@ -21,9 +23,15 @@ from lib.model_pipeline import call_codex,STYLE_SCHEMA,LAYOUT_SCHEMA,RHYTHM_LAYO
 
 ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get('AUTO_LAYOUT_DATA_DIR',str(ROOT/'data')))
+for _directory in ('scripts','references','drafts','runs','history'):
+    (DATA/_directory).mkdir(parents=True,exist_ok=True)
 LOCK = threading.RLock()
 ID = re.compile(r'^[a-zA-Z0-9_-]{1,90}$')
 ACTIVE_JOBS={}
+from model_requests import ModelRequests
+MODEL_REQUESTS=ModelRequests(DATA)
+from script_archive import ScriptArchive
+SCRIPT_ARCHIVE=ScriptArchive(DATA)
 
 
 def model_worker(job_id,script,profile):
@@ -176,6 +184,7 @@ def profile_for(project):
 
 
 def check_project(project):
+    if project==unified.BUILTIN:return
     if project not in [p['id'] for p in read(DATA/'projects.json')]:
         raise ValueError('项目不存在')
 
@@ -212,7 +221,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Length',str(len(raw)))
         self.send_header('Cache-Control','no-store')
         self.send_header('X-Content-Type-Options','nosniff')
-        self.send_header('Content-Security-Policy',"default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors "+os.environ.get('AUTO_LAYOUT_EDITOR_ORIGIN','http://127.0.0.1:18909'))
+        self.send_header('Content-Security-Policy',"default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors http://127.0.0.1:18924")
         self.end_headers()
         self.wfile.write(raw)
 
@@ -226,14 +235,26 @@ class Handler(BaseHTTPRequestHandler):
             if not self.origin_ok():
                 return self.send(403,{'error':'仅允许本机访问'})
             path=unquote(urlparse(self.path).path)
+            if path=='/api/integration/status':
+                return self.send(200,{'app':'comic-layout-learning-workbench','root':str(ROOT),'busy':bool(ACTIVE_JOBS or LIBRARY.active_learning or MODEL_REQUESTS.unresolved()),'version':'10.24-integrated','requestRecovery':'durable-request-v1','editorOrigin':os.environ.get('LAYOUT_PARENT_ORIGIN','http://127.0.0.1:18924')})
             if path=='/api/health':
-                return self.send(200,{'app':'comic-layout-learning-workbench','version':'0.3.1','pid':os.getpid(),'root':str(ROOT)})
-            if path=='/api/library':return self.send(200,LIBRARY.status())
+                return self.send(200,{'app':'comic-layout-learning-workbench','version':'0.3.0','root':str(ROOT)})
+            if path=='/api/integration/rules':return self.send(200,{'entries':unified.catalog(ROOT,LIBRARY,read(DATA/'projects.json'))})
+            if path=='/api/library':
+                result=LIBRARY.status();preset=unified.builtin(ROOT);result['projects'].append({'id':unified.BUILTIN,'name':preset['name'],'activeVersion':preset['version'],'versions':[{'id':preset['version'],'label':'原工作台规则快照','status':'active','trialPassed':True}]});return self.send(200,result)
             library_match=re.fullmatch(r'/api/library/version/([\w-]+)/([\w-]+)',path)
-            if library_match:return self.send(200,LIBRARY.version_details(*library_match.groups()))
+            if library_match:
+                if library_match[1]==unified.BUILTIN:
+                    p=unified.builtin(ROOT)
+                    if library_match[2]!=p['version']:raise ValueError('规则版本不存在')
+                    return self.send(200,{'project':{'referenceIds':[]},'policy':{},'parameterOrigin':'原工作台规则快照','style':{'summary':p['name'],'patterns':[{'name':'原版设计判据','transferRule':p['rules']['designCriteria']}]}})
+                return self.send(200,LIBRARY.version_details(*library_match.groups()))
+            if path=='/api/script-archive':return self.send(200,{'entries':list(SCRIPT_ARCHIVE.entries().values())})
             if path=='/api/state':
-                refs=records('references'); scripts=records('scripts'); projects=read(DATA/'projects.json')
+                refs=records('references'); scripts=[s for s in records('scripts') if s['id'] not in SCRIPT_ARCHIVE.entries()]; projects=read(DATA/'projects.json')
                 profiles={p['id']:profile_for(p['id']) for p in projects}
+                projects.append({'id':unified.BUILTIN,'name':unified.BUILTIN_NAME})
+                profiles[unified.BUILTIN]={'sourceFiles':[],'checkedCount':0,'candidateCount':0,'referenceCount':0,'referenceEpisodes':[]}
                 active={s['id'] for profile in profiles.values() for s in profile['sourceFiles']}
                 return self.send(200,{'projects':projects,'references':[{k:r[k] for k in ('id','projectId','name','sourceWidth','sourceHeight')}|{'episode':reference_episode(r),'checked':sum(f['review']=='checked' for f in r['frames']),'candidates':len(r['frames']),'learningSelected':r['id'] in active} for r in refs], 'scripts':[{'id':s['id'],'projectId':s['projectId'],'episode':s['episode'],'title':s['title'],'count':len(s['shots'])} for s in scripts], 'profiles':{key:public_profile(profile) for key,profile in profiles.items()}})
             match=re.fullmatch(r'/api/(references|scripts|drafts)/([\w-]+)',path)
@@ -253,7 +274,7 @@ class Handler(BaseHTTPRequestHandler):
                 if target.suffix=='.json':return self.send(200,read(target))
                 mime={'.html':'text/html; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.txt':'text/plain; charset=utf-8','.js':'text/javascript; charset=utf-8'}.get(target.suffix,'application/octet-stream')
                 return self.send(200,target.read_bytes(),mime)
-            static={'/':'index.html','/app.js':'app.js','/integration-client.js':'integration-client.js','/library.js':'library.js','/style.css':'style.css','/preview-zoom.js':'preview-zoom.js'}
+            static={'/studio-bridge.js':'studio-bridge.js','/':'index.html','/app.js':'app.js','/library.js':'library.js','/script-library.js':'script-library.js','/style.css':'style.css','/preview-zoom.js':'preview-zoom.js'}
             if path in static:
                 name=static[path]
                 mime='text/html; charset=utf-8' if name.endswith('html') else 'text/javascript; charset=utf-8' if name.endswith('js') else 'text/css; charset=utf-8'
@@ -268,6 +289,10 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if not self.origin_ok():
                 return self.send(403,{'error':'仅接受本机同源操作'})
+            if urlparse(self.path).path=='/api/integration/stop':
+                if not os.environ.get('LAYOUT_CONTROL_TOKEN') or not hmac.compare_digest(self.headers.get('X-Layout-Control',''),os.environ['LAYOUT_CONTROL_TOKEN']):return self.send(403,{'error':'停止凭据无效'})
+                if ACTIVE_JOBS or LIBRARY.active_learning or MODEL_REQUESTS.unresolved():return self.send(409,{'error':'排版任务仍在运行'})
+                self.send(200,{'stopped':True});threading.Thread(target=self.server.shutdown,daemon=True).start();return
             if urlparse(self.path).path=='/api/import/reference-binary':
                 return self.send(200,self.import_binary_reference())
             size=int(self.headers.get('Content-Length','0'))
@@ -275,13 +300,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(413,{'error':'请求超过160MB或为空'})
             value=json.loads(self.rfile.read(size),parse_constant=lambda x: (_ for _ in ()).throw(ValueError('不接受NaN或Infinity')))
             path=urlparse(self.path).path
-            with LOCK:
-                result=self.mutate(path,value)
+            if path=='/api/integration/apply':
+                from manual_apply import apply_selection
+                # The editor validates/exports via this service; do not hold LOCK across that callback.
+                result=apply_selection(DATA,value,os.environ.get('LAYOUT_PARENT_ORIGIN',''),ACTIVE_JOBS,read)
+            else:
+                with LOCK:
+                    result=self.mutate(path,value)
             self.send(200,result)
         except FileNotFoundError:
             self.send(404,{'error':'找不到所需资料'})
         except (ValueError,TypeError,KeyError,IndexError) as exc:
-            self.send(400,{'error':str(exc)})
+            self.send(400,{'error':str(exc),'preDispatch':bool(getattr(exc,'pre_dispatch',False))})
         except Exception as exc:
             print(type(exc).__name__,str(exc),file=sys.stderr,flush=True)
             self.send(500,{'error':'处理失败；请查看服务日志，原文件未被修改'})
@@ -290,6 +320,7 @@ class Handler(BaseHTTPRequestHandler):
         size=int(self.headers.get('Content-Length','0'))
         if size<=0 or size>350*1024*1024:raise ValueError('参考图需小于350MB')
         project=self.headers.get('X-Project-Id','');check_project(project)
+        if project==unified.BUILTIN:raise ValueError('内置规则为固定快照；请在自己的学习项目中添加参考')
         filename=Path(unquote(self.headers.get('X-File-Name',''))).name
         suffix=Path(filename).suffix.lower()
         if suffix not in ('.png','.jpg','.jpeg'):raise ValueError('只支持PNG/JPG成品长图')
@@ -317,13 +348,41 @@ class Handler(BaseHTTPRequestHandler):
         finally:upload.unlink(missing_ok=True)
 
     def mutate(self,path,v):
+        if path=='/api/script/archive':return SCRIPT_ARCHIVE.archive(v['id'],v['script'],v.get('packet'),v['id'] in ACTIVE_JOBS)
+        if path=='/api/script/restore':return SCRIPT_ARCHIVE.restore(v['id'])
+        if path=='/api/integration/rules/resolve':return unified.resolve(ROOT,LIBRARY,v)
+        if path=='/api/integration/import':
+            project=v['learningProjectId'];check_project(project)
+            if not re.fullmatch(r'project_[0-9a-f-]{36}',v['projectId']):raise ValueError('原工程ID无效')
+            raw=json.dumps({'title':v['title'],'episode':v['episode'],'shots':v['shots']},ensure_ascii=False,sort_keys=True).encode('utf-8')
+            source={'kind':'studio-snapshot','filename':v['title']+'.json','sha256':hashlib.sha256(raw).hexdigest(),'projectId':v['projectId'],'revision':v['revision']}
+            from lib.importers import normalize_script
+            script=normalize_script(v,source)
+            if len(script['shots'])>800:raise ValueError('最多800格')
+            name=project+'-studio-'+hashlib.sha256(raw+str(v['revision']).encode()+str(v.get('reflowBatchId','')).encode()).hexdigest()[:16]
+            studio_source={'projectId':v['projectId'],'revision':v['revision']}
+            if v.get('reflowBatchId'):
+                if not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}',v['reflowBatchId']):raise ValueError('重排批次无效')
+                studio_source.update(reflowBatchId=v['reflowBatchId'],mode='screen-crop-reflow');source.update(mode='screen-crop-reflow',reflowBatchId=v['reflowBatchId'])
+            if v.get('planningBatchId'):
+                if not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}',v['planningBatchId']):raise ValueError('规划批次无效')
+                studio_source.update(planningBatchId=v['planningBatchId'],mode='preproduction-layout');source.update(mode='preproduction-layout')
+            if v.get('layoutRuleContract'):
+                contract=unified.resolve(ROOT,LIBRARY,{'contract':v['layoutRuleContract']})
+                if contract['id']!=project:raise ValueError('规则与所选项目不一致')
+                script['layoutRuleContract']=contract
+                name=project+'-studio-'+hashlib.sha256(raw+str(v['revision']).encode()+str(v.get('reflowBatchId',v.get('planningBatchId',''))).encode()+contract['digest'].encode()).hexdigest()[:16]
+            script.update(id=name,projectId=project,studioSource=studio_source)
+            write(file_for('scripts',name),script);SCRIPT_ARCHIVE.restore(name);return {'id':name}
         if path=='/api/projects':
+            if str(v.get('name','')).strip()==unified.BUILTIN_NAME:raise ValueError('这是内置规则名称，请为新学习项目使用其他名称')
             project=LIBRARY.create(v.get('name'))
             target=DATA/'reference-selections.json';selections=read(target) if target.exists() else {}
             selections[project['id']]=[];write(target,selections)
             return project
         if path=='/api/library/learn':
             check_project(v['projectId'])
+            if v['projectId']==unified.BUILTIN:raise ValueError('原规则已经内置，无需学习；请选择自己的作品项目学习新风格')
             if not selected_references(v['projectId']):raise ValueError('请先在“选择学习参考范围”中保存至少一份本项目参考')
             return LIBRARY.learn(v['projectId'])
         if path=='/api/library/activate':return LIBRARY.activate(v['projectId'],v['version'])
@@ -332,13 +391,32 @@ class Handler(BaseHTTPRequestHandler):
             refs={r['id'] for r in records('references') if r['projectId']==project};chosen=v['referenceIds']
             if not isinstance(chosen,list) or any(not isinstance(value,str) for value in chosen) or len(set(chosen))!=len(chosen) or not set(chosen).issubset(refs):raise ValueError('学习范围只能包含本项目的参考，且不能重复')
             target=DATA/'reference-selections.json';selections=read(target) if target.exists() else {};selections[project]=chosen;write(target,selections);return {'saved':True,'referenceIds':chosen,'selectedCount':len(chosen)}
-        if path=='/api/model/generate':
+        if path in ('/api/model/generate','/api/model/resolve'):
+            if v['id'] in SCRIPT_ARCHIVE.entries():raise ValueError('这份分镜已删除，旧结果保留，不自动恢复')
             script=read(file_for('scripts',v['id']))
-            if script['id'] in ACTIVE_JOBS:return {'jobId':ACTIVE_JOBS[script['id']]}
-            job_id='model-'+time.strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:6]
-            ACTIVE_JOBS[script['id']]=job_id
-            try:return LIBRARY.generate(script,job_id,lambda:ACTIVE_JOBS.pop(script['id'],None),v.get('styleVersion'),v.get('reasoningEffort','high'))
-            except Exception:ACTIVE_JOBS.pop(script['id'],None);raise
+            if path.endswith('/resolve'):
+                def validate_preview(packet,fixed):
+                    if fixed.get('layoutRuleContract'):
+                        unified.resolve(ROOT,LIBRARY,{'contract':fixed['layoutRuleContract']})
+                        unified.validate_packet(packet,fixed,ROOT)
+                    else:validate_geometry(packet,fixed)
+                    if packet.get('generator',{}).get('mode') not in ('model-generated','native-style-rules'):raise ValueError('该稿不是已验证的排版预览')
+                return MODEL_REQUESTS.resolve(script,ACTIVE_JOBS,v.get('requestId'),bool(v.get('allowPreview')),validate_preview,v.get('resumeJob'))
+            if script['projectId']==unified.BUILTIN and not script.get('layoutRuleContract'):
+                script['layoutRuleContract']=unified.freeze(ROOT,LIBRARY,unified.BUILTIN);write(file_for('scripts',script['id']),script)
+            # Preflight failure is definitive: no receipt, worker or model was created.
+            if script.get('layoutRuleContract'):
+                try:unified.resolve(ROOT,LIBRARY,{'contract':script['layoutRuleContract']})
+                except (ValueError,KeyError,TypeError) as exc:
+                    exc.pre_dispatch=True
+                    raise
+            def launch(job_id,on_finish):
+                if script.get('layoutRuleContract'):
+                    unified.resolve(ROOT,LIBRARY,{'contract':script['layoutRuleContract']})
+                    return unified.start_job(ROOT,DATA,script,job_id,on_finish,v.get('reasoningEffort','high'))
+                return LIBRARY.generate(script,job_id,on_finish,v.get('styleVersion'),v.get('reasoningEffort','high'))
+            return MODEL_REQUESTS.dispatch(script,ACTIVE_JOBS,launch,request_id=v.get('requestId'),
+                effort=v.get('reasoningEffort','high'),force_new=v.get('forceNew',False),busy_learning=bool(LIBRARY.active_learning))
         if path=='/api/reference/save':
             target=file_for('references',v['id']); original=read(target)
             ref=dict(original,frames=v['frames'])
@@ -347,6 +425,7 @@ class Handler(BaseHTTPRequestHandler):
             return {'saved':True,'profile':public_profile(profile_for(ref['projectId']))}
         if path=='/api/generate':
             script=read(file_for('scripts',v['id']))
+            if script.get('layoutRuleContract'):raise ValueError('统一规则任务请使用Codex自动排版，不能用另一套试排规则替换')
             packet=plan_layout(script,profile_for(script['projectId']),script['projectId'],int(v.get('variant',0)))
             write(file_for('drafts',v['id']),packet)
             return packet
@@ -355,12 +434,14 @@ class Handler(BaseHTTPRequestHandler):
             # User edits coordinates; derived scene bands follow the edited positions.
             if len(packet.get('panels',[]))!=len(script['shots']):
                 raise ValueError('格数改变，拒绝保存或导出')
-            if packet.get('generator',{}).get('mode')!='model-generated':packet['backgrounds']=backgrounds(packet,script)
+            if packet.get('generator',{}).get('mode')=='native-style-rules':unified.validate_packet(packet,script,ROOT)
+            elif packet.get('generator',{}).get('mode')!='model-generated':packet['backgrounds']=backgrounds(packet,script)
             validate_geometry(packet,script)
             write(file_for('drafts',v['id']),packet)
             return {'saved':True,'packet':packet}
         if path in ('/api/import/script','/api/import/reference'):
             project=v['projectId']; check_project(project)
+            if project==unified.BUILTIN and path.endswith('/reference'):raise ValueError('内置规则不可追加参考，请选择自己的学习项目')
             filename=Path(v['filename']).name
             raw=base64.b64decode(v['base64'],validate=True)
             if path.endswith('/script'):
@@ -369,7 +450,7 @@ class Handler(BaseHTTPRequestHandler):
                 for i,script in enumerate(scripts):
                     name=f'{project}-{hashlib.sha256(raw).hexdigest()[:12]}-{i}'
                     script.update(id=name,projectId=project)
-                    write(file_for('scripts',name),script); ids.append(name)
+                    write(file_for('scripts',name),script);SCRIPT_ARCHIVE.restore(name); ids.append(name)
                 return {'ids':ids}
             if Path(filename).suffix.lower() not in ('.png','.jpg','.jpeg'):
                 raise ValueError('参考只支持PNG/JPG长图')

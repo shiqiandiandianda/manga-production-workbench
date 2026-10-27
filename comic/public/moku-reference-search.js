@@ -3,10 +3,11 @@ import {assetUnavailable} from './asset-availability.js';
 import {isCollaborationFile} from './collaboration-files.js';
 import {libraryProjectScopes} from './library-project-scope.js';
 import {createAsyncCache} from './bounded-cache.js';
+import {filterAssetCandidateTypes,candidateAssetRole} from './asset-candidate-types.js';
 const uuid=value=>/^[a-f0-9-]{36}$/i.test(value||'');
 export const mokuRevision=item=>item.displayRevisionId||item.recommendedRevisionId;
 export const usableMokuImage=item=>!isCollaborationFile(item)&&!item.deletedAt&&!assetUnavailable(item)&&uuid(item.id)&&uuid(mokuRevision(item));
-export function mokuCandidate(item){return {...item,id:'remote_'+item.id,filePath:'remote:'+item.id,library:{assetId:item.id,revisionId:mokuRevision(item),projectId:item.projectId,category:item.category,tags:item.tags||[],characterGroupId:item.characterGroupId,characterName:item.characterName,outfitName:item.outfitName}};}
+export function mokuCandidate(item){return {...item,id:'remote_'+item.id,filePath:'remote:'+item.id,libraryRole:candidateAssetRole(item),library:{assetId:item.id,revisionId:mokuRevision(item),projectId:item.projectId,category:item.category,assetType:item.assetType,tags:item.tags||[],characterGroupId:item.characterGroupId,characterName:item.characterName,outfitName:item.outfitName}};}
 
 /** One catalogue for the drive. New selections always come from an immutable Moku revision. */
 export function createMokuReferenceSearch({api,project,assets=[],verify=()=>{}}){
@@ -14,7 +15,7 @@ export function createMokuReferenceSearch({api,project,assets=[],verify=()=>{}})
  async function request(route){const controller=new AbortController();controllers.add(controller);const timer=setTimeout(()=>controller.abort(),20000);try{return await api(route,'GET',undefined,{signal:controller.signal});}finally{clearTimeout(timer);controllers.delete(controller);}}
  const cachedPage=route=>queryPages.load(route,()=>request(route));
  const projects=()=>catalogue||=(async()=>{const result=await request('/api/library/projects');verify();return (result.items||[]).filter(p=>!p.deletedAt&&uuid(p.id));})().catch(error=>{catalogue=null;throw error;});
- return {projects,clear(){for(const controller of controllers)controller.abort();controllers.clear();catalogue=null;queryPages.clear();},stats:()=>queryPages.stats(),async search(query,{scope='all',maxPages=10,onProgress=()=>{},verifySearch=()=>{}}={}){
+ return {projects,clear(){for(const controller of controllers)controller.abort();controllers.clear();catalogue=null;queryPages.clear();},stats:()=>queryPages.stats(),async search(query,{scope='all',maxPages=10,role,allTypes=false,onProgress=()=>{},verifySearch=()=>{}}={}){
   const check=()=>{verify();verifySearch();};check();const libraries=await projects(),preferred=libraryProjectScopes(project,assets,libraries).ids;
   const ids=scope==='all'?[...new Set([...preferred,'public',...libraries.map(p=>p.id)])]:[scope];
   // An empty query browses the current production, rather than downloading the entire drive.
@@ -33,6 +34,6 @@ export function createMokuReferenceSearch({api,project,assets=[],verify=()=>{}})
   }catch(error){check();complete=false;notes.push((names.get(projectId)||'项目库')+'：'+error.message);}pages[index]=items;}}
   await Promise.all(Array.from({length:Math.min(4,scopes.length)},worker));check();
   const items=[...new Map(pages.flat().filter(Boolean).map(item=>[item.id+'@'+mokuRevision(item),item])).values()];
-  return {items:fuzzyAssetCandidates(items,query),complete,notes,searched:scopes.length};
+  return {items:fuzzyAssetCandidates(filterAssetCandidateTypes(items,role,{allTypes}),query),complete,notes,searched:scopes.length};
  }};
 }

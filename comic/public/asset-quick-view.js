@@ -10,6 +10,7 @@ import {createAsyncCache} from './bounded-cache.js';
 import {novelReaderUrl} from './novel-reader-core.js';
 import {stateReferenceMetadata,characterIdentityMatches} from './character-state-references.js';
 import {mokuCandidate,mokuRevision,usableMokuImage} from './moku-reference-search.js';
+import {filterAssetCandidateTypes,candidateAssetRole} from './asset-candidate-types.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function shortAssetState(state=''){
  if(unknownState(state))return '服装未指定';
@@ -25,7 +26,7 @@ export function sameCharacterCandidate(project,row,asset){
  return meta.role!=='other'||!/纸伞|雨伞|令牌|腰牌|武器|长剑|纯阳剑|道具|佩剑/u.test(asset.name||'')||/人物|角色|立绘|全身|儒衫|长衫|官服|衣裙|长袍/u.test(asset.name||'');
 }
 const categoryOf=item=>{const category=item.assetType||item.library?.assetType||item.category||item.library?.category||item.libraryRole;return ['character','scene','prop','pet','bubble','nameplate','sfx_text','font'].includes(category)?category:'';};
-export const matchesAssetCategory=(row,item)=>!categoryOf(item)||categoryOf(item)===row.role;
+export const matchesAssetCategory=(row,item)=>filterAssetCandidateTypes([item],row.role).length>0;
 export function quickCharacterCandidates(project,row,assets,items=[],{includeOtherTypes=false}={}){
  const chosen=assets.find(a=>a.id===row.assetIds[0]),key=a=>a.library?.revisionId?'version:'+a.library.revisionId:'asset:'+a.id,seen=new Set(chosen?[key(chosen)]:[]),result=[];
  for(const item of items){const a=mokuCandidate(item);if(!usableMokuImage(item)||seen.has(key(a))||!includeOtherTypes&&!matchesAssetCategory(row,item))continue;seen.add(key(a));result.push({...item,kind:'remote',id:item.id,label:item.outfitName||item.name,revisionId:mokuRevision(item),thumbnail:'/api/library/revisions/'+mokuRevision(item)+'/preview/thumb.webp'});}

@@ -16,10 +16,11 @@ export function automaticGalleryMatch(row,items,{projectIds=[],complete=true}={}
  return complete&&unique.length===1?unique[0]:null;
 }
 export function galleryGenerationState(row,records=[],{candidateCount=0}={}){
- if(row.status==='text')return 'text';
  if(records.some(r=>['queued','running','claimed','recoverable','delegated','awaiting_confirmation'].includes(r.status)))return 'active';
- if(row.assetIds.length||row.availableIds.length||candidateCount)return 'image';
+ if(row.assetIds.length)return 'image';
  if(records.some(r=>r.available))return 'result';
+ if(row.status==='text')return 'text';
+ if(row.availableIds.length||candidateCount)return 'image';
  return 'missing';
 }
 
@@ -28,14 +29,14 @@ export function galleryRecordAssignments(rows,record,{projectId}={}){
  if(record.context?.projectId!==projectId||record.source?.projectId&&record.source.projectId!==projectId)return [];
  const exact=record.role==='scene'&&record.source?.projectId===projectId?rows.filter(row=>row.role==='scene'&&assetNameKey(row.name)===assetNameKey(record.name)):[];
  const candidates=exact.length?exact:rows.filter(row=>row.uses.some(u=>u.panelId===record.context.panelId&&u.needId===record.context.needId));
- return candidates.map(row=>{const use=row.uses.find(u=>u.panelId===record.source?.panelId&&u.needId===record.source?.needId)||row.uses.find(u=>u.panelId===record.context.panelId&&u.needId===record.context.needId)||row.uses[0];return {row,record:{...record,context:{projectId,panelId:use.panelId,needId:use.needId},...(exact.length&&record.matchNote==='场景名称相近，请核对后采用'?{matchNote:''}:{})}};});
+ return candidates.map(row=>{const use=row.uses.find(u=>u.panelId===record.source?.panelId&&u.needId===record.source?.needId)||row.uses.find(u=>u.panelId===record.context.panelId&&u.needId===record.context.needId)||row.uses[0];return {row,record:{...record,requirementKey:row.key,context:{projectId,panelId:use.panelId,needId:use.needId},...(exact.length&&record.matchNote==='场景名称相近，请核对后采用'?{matchNote:''}:{})}};});
 }
 
-/** Only fill missing, editable uses with one complete and unambiguous result. */
-export function galleryReturnDecision(row,records=[],{projectId}={}){
- const targets=row.uses.filter(u=>u.missing&&!u.locked&&!u.skipped&&!u.text).map(u=>({panelId:u.panelId,needId:u.needId}));
+/** Explicit result return may replace text-only references; ordinary background checks preserve them. */
+export function galleryReturnDecision(row,records=[],{projectId,includeText=false}={}){
+ const targets=row.uses.filter(u=>!u.locked&&!u.skipped&&(u.text?includeText:u.missing)).map(u=>({panelId:u.panelId,needId:u.needId}));
  if(!targets.length)return {status:'skip',reason:'已有图片、文生，或使用位置不可编辑'};
- const relevant=records.filter(r=>!r.deletedAt&&!row.removedRecordIds?.includes(r.id)&&r.context?.projectId===projectId&&(!r.source?.projectId||r.source.projectId===projectId)&&r.role===row.role&&assetNameKey(r.name)===assetNameKey(row.name));
+ const relevant=records.filter(r=>!r.deletedAt&&!row.removedRecordIds?.includes(r.id)&&r.context?.projectId===projectId&&(!r.source?.projectId||r.source.projectId===projectId)&&r.role===row.role&&(r.requirementKey===row.key||assetNameKey(r.name)===assetNameKey(row.name)));
  if(relevant.some(r=>['queued','running','claimed','recoverable','delegated','awaiting_confirmation'].includes(r.status)))return {status:'skip',reason:'已有任务进行中，完成后可再次接回'};
  const available=relevant.filter(r=>r.available);
  const generatedForRequirement=r=>libraryStatePlaceholder(row.state)&&r.source?.projectId===projectId&&row.uses.some(u=>u.panelId===r.source.panelId&&u.needId===r.source.needId);

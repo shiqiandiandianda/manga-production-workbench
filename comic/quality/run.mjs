@@ -98,6 +98,7 @@ fs.mkdirSync(path.join(output,'logs'), {recursive:true});
 fs.writeFileSync(path.join(output,'inventory.json'), JSON.stringify(inventory,null,2));
 const results = [];
 let interrupted = false;
+let stoppedReason = '';
 const active = new Set();
 function kill(child) {
   if (!child.pid) return;
@@ -115,7 +116,7 @@ function report() {
   const counts = {}; for (const result of results) counts[result.status] = (counts[result.status] || 0) + 1;
   const complete = !interrupted && results.length === selected.length;
   const passed = complete && results.every(r => r.status === 'passed');
-  const summary = {mode, complete, passed, counts, total:selected.length, filtered:!!filter||ranged,range:{start,end,available:available.length},interrupted, results, limits:plan.limits};
+  const summary = {mode, complete, passed, counts, total:selected.length, filtered:!!filter||ranged,range:{start,end,available:available.length},interrupted, stoppedReason, results, limits:plan.limits};
   const mapped = {features:coverage(catalog.features), flows:coverage(catalog.flows)};
   fs.writeFileSync(path.join(output,'results.json'),JSON.stringify(summary,null,2));
   fs.writeFileSync(path.join(output,'coverage.json'),JSON.stringify(mapped,null,2));
@@ -179,6 +180,10 @@ async function run(file,index,stage) {
     });
   });
 }
+function checkDiskSpace(){
+  try{const stat=fs.statfsSync(output),free=Number(stat.bavail)*Number(stat.bsize);if(Number.isFinite(free)&&free<3*1024**3){stoppedReason='测试盘可用空间不足 3 GiB，已停止启动后续测试；已完成结果保留。';interrupted=true;console.error(stoppedReason);return false;}}catch(error){console.warn('无法读取测试盘剩余空间：'+error.message);}
+  return true;
+}
 report();let cursor=0;
-await Promise.all(Array.from({length:workers},async(_,worker)=>{for(;;){const index=cursor++;if(interrupted||index>=selected.length)return;await run(selected[index],index,stages[worker]);}}));
+await Promise.all(Array.from({length:workers},async(_,worker)=>{for(;;){const index=cursor++;if(interrupted||index>=selected.length||!checkDiskSpace())return;await run(selected[index],index,stages[worker]);}}));
 const result=report();console.log('报告：'+path.join(output,'report.html'));process.exitCode=result.passed?0:1;

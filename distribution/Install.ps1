@@ -1,4 +1,4 @@
-﻿param([string]$CodeDirectory=(Split-Path $PSScriptRoot -Parent),[string]$MokuSessionFile,[string]$PackageDirectory,[switch]$Interactive,[switch]$SkipJoin,[switch]$NoStart)
+param([string]$CodeDirectory=(Split-Path $PSScriptRoot -Parent),[string]$MokuSessionFile,[string]$PackageDirectory,[switch]$Interactive,[switch]$SkipJoin,[switch]$NoStart)
 $ErrorActionPreference='Stop'
 $taskRoot=[IO.Path]::GetFullPath($CodeDirectory).TrimEnd('\')
 if($taskRoot -notmatch '^[d-zD-Z]:\\'){throw '请把完整代码目录解压到 D 盘或其他数据盘，不能安装到 C 盘。'}

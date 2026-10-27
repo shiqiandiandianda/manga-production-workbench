@@ -2,7 +2,7 @@
 if(viewParams.get('integrated')==='1'){
  const editorOrigin=new URL(document.referrer||'http://127.0.0.1:18909/').origin,send=data=>window.parent.postMessage(data,editorOrigin);
  const current=()=>typeof script!=='undefined'&&script,geometry=()=>typeof packet!=='undefined'&&packet;
- const canApply=()=>{const s=current(),p=geometry();return !!(s&&p&&p.generator?.mode==='model-generated'&&s.layoutRuleContract?.digest===p.layoutRuleDigest);};
+ const canApply=()=>{const s=current(),p=geometry();return !!(s&&p&&(p.generator?.mode==='model-generated'||p.generator?.mode==='native-style-rules'&&p.generator?.engine==='dazhou-native-style-v1')&&s.layoutRuleContract?.digest===p.layoutRuleDigest);};
  const apply=document.createElement('button');apply.textContent='使用当前排版';apply.className='primary';apply.disabled=true;document.querySelector('.actions').append(apply);
  async function requestApply(){if(!canApply())throw Error('请先完成本话排版并查看预览');const s=current(),r=await api('/api/export',{id:s.id,packet:geometry()});packet=r.packet;dirty=false;send({type:'comic-layout:apply',scriptId:s.id});}
  apply.onclick=()=>requestApply().catch(e=>status(e.message,true));

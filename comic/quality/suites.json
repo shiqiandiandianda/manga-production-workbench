@@ -34,7 +34,8 @@
     "comic/quality/cases/repair-integrated.test.mjs",
     "comic/quality/cases/toolbar-layout.test.mjs",
     "comic/tests/state-sync.test.mjs",
-    "comic/tests/production-package.test.mjs"
+    "comic/tests/production-package.test.mjs",
+    "comic/tests/asset-trash.test.mjs"
   ],
   "limits": [
     "本测试使用合成数据与替身；不连接生产墨库、不使用真实生成账号、不自动触发付费生图",

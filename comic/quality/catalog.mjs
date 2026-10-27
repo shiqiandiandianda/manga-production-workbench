@@ -60,7 +60,7 @@ const features = [
   feature('文字和气泡','手工对白、旁白、说话人与文字内容','文字工具','comic/public/bubble-editor.js','lettering,bubble-editor',true),
   feature('文字和气泡','移动文字框、气泡框、尾巴及节点','文字属性','comic/public/bubble-editor.js','bubble-editor,browser-bubble-text-frame',true),
   feature('文字和气泡','字体、字号、间距、颜色与排版','文字属性','comic/public/bubble-text-flow.js','unified-typography,browser-bubble-text-frame'),
-  feature('文字和气泡','气泡素材、样式与墨库固定版本','气泡选择','comic/public/bubble-material.js','bubble-material,bubble-recovery'),
+  feature('文字和气泡','气泡素材、样式与墨库固定版本','气泡选择','comic/public/bubble-material.js','bubble-material,bubble-recovery,browser-bubble-material',true,'浏览器验证内置样式及合成纹理的切换、撤销与保存；墨库样式页面联动仍需验收'),
   feature('文字和气泡','特效字及气泡效果','文字与特效','comic/public/sfx-library.js','sfx-sprint-layer,browser-sfx-library'),
   feature('文字和气泡','范围统一文字样式','制作资料样式','comic/public/batch-style.js','batch-style,production-lettering-style'),
   feature('文字和气泡','对白资料导入与归档','制作资料','comic/public/dialogue-archive.js','dialogue-import-flow,dialogue-archive'),

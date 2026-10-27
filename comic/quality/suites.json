@@ -48,6 +48,8 @@
     "comic/quality/cases/toolbar-layout.test.mjs",
     "comic/tests/state-sync.test.mjs",
     "comic/tests/production-package.test.mjs",
+    "comic/tests/storyboard-json-selection.test.mjs",
+    "comic/tests/novel-reader-efficiency.test.mjs",
     "comic/tests/asset-trash.test.mjs",
     "comic/tests/asset-gallery-return.test.mjs",
     "comic/tests/asset-gallery-layout.test.mjs",

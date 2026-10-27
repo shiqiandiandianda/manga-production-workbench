@@ -71,7 +71,12 @@ export async function inspectProductionPackage(files){
   else if(Array.isArray(data['格'])){
    // 底稿仍保留在来源清单中，不能与正式分镜竞争同一话的生产来源。
    if(isStoryboardDraft(file,data))continue;
-   const sources=boardSources.get(data['话'])||[];sources.push({data,file:file.relativePath,priority:storyboardFilePriority(file.relativePath)});boardSources.set(data['话'],sources);
+   const priority=storyboardFilePriority(file.relativePath),declared=/^分镜\s*JSON(?:\s|\d|$)/i.test(String(data['格式']||''));
+   // A generic JSON with a 格 array is not enough to infer that it is the
+   // storyboard. Keep its original in the manifest and report a missing
+   // storyboard if there is no explicitly declared or named candidate.
+   if(!priority&&!declared)continue;
+   const sources=boardSources.get(data['话'])||[];sources.push({data,file:file.relativePath,priority});boardSources.set(data['话'],sources);
   }
  }
  // Only official storyboard files participate in episode matching; other JSON originals remain in the manifest.

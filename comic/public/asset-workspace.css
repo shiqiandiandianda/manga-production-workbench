@@ -237,3 +237,4 @@ body.asset-workspace-open .asset-sidebar-resize{display:none!important}
 #asset-gallery-workspace .asset-detail-heading .asset-detail-outfit{display:inline-block;max-width:100%;padding:5px 12px;border:1px solid #9c814f;border-radius:6px;background:#3b3525;color:#fff0bd;font-size:20px;font-weight:750;line-height:1.45;white-space:normal;overflow-wrap:anywhere}
 #asset-gallery-workspace .asset-detail-heading>div{flex:1}
 #asset-gallery-workspace .asset-detail-heading>[data-asset-close]{flex-shrink:0}
+.asset-unified-summary button[data-reference-status="text"]{background:#214b43;border-color:#529b8c;color:#b6edda}

@@ -64,7 +64,7 @@ async function processProductionMokuReferences({project,panel,getAssets,api,onAs
  // Retain explicit bindings. The drive is the only source of new automatic selections.
  const before=panelReferenceIds(project,panel),kept=new Set(before),bound=()=>getAssets().filter(a=>kept.has(a.id));
  const initial=planPanelReferenceProcessing(project,panel,bound()),search=createMokuReferenceSearch({api,project,assets:getAssets(),verify}),queries=new Map(),notes=[],candidates=[];
- for(const need of initial.needs.filter(n=>!n.predecessor&&!n.skipped&&!n.selectedIds.length)){
+ for(const need of initial.needs.filter(n=>n.status!=='text'&&!n.predecessor&&!n.skipped&&!n.selectedIds.length)){
   const query=need.role==='character'?need.name:need.state.match(/[^\s（）()]+\.(?:png|jpe?g|webp)/i)?.[0]||need.name;
   if(!queries.has(query)){onProgress('搜索墨库 · '+need.name);let result;try{result=await search.search(query,{onProgress});}catch(error){verify();result={items:[],complete:false,notes:['墨库搜索未完成：'+error.message]};}queries.set(query,result);notes.push(...result.notes);}
   const result=queries.get(query);if(result.complete)candidates.push(...result.items.map(mokuCandidate));

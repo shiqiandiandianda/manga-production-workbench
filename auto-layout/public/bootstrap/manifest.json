@@ -1,6 +1,981 @@
 {
   "format": "comic-layout-bootstrap-v1",
-  "source": "公开源码空白初始化",
-  "sourceSha256": null,
-  "files": []
+  "source": "自动排版工具_0.3.1_Windows便携交付包_含大周21至25话参考.zip",
+  "sourceSha256": "2cfb897f743ab94629cceeff6f87c804ed7352b6b7b14d194b2b0a91a02ef4d0",
+  "files": [
+    {
+      "path": "engine/data/approved-scripts/dazhou-ep21.json",
+      "blob": "public/bootstrap/blobs/3c4caa7dd9ed25e7d5c7af467af78259bee41bdfbe27e6a63d787d550c238c27.json",
+      "sha256": "3c4caa7dd9ed25e7d5c7af467af78259bee41bdfbe27e6a63d787d550c238c27",
+      "bytes": 18443
+    },
+    {
+      "path": "engine/data/approved-scripts/dazhou-ep22.json",
+      "blob": "public/bootstrap/blobs/3e328063689f88548f8ac0f3063c463b9f57848940759e3db900c1cc5cfca07e.json",
+      "sha256": "3e328063689f88548f8ac0f3063c463b9f57848940759e3db900c1cc5cfca07e",
+      "bytes": 13564
+    },
+    {
+      "path": "engine/data/approved-scripts/dazhou-ep23.json",
+      "blob": "public/bootstrap/blobs/eda459c8cad8205fe2fb9fde21c1ad3f933578d6a10983cdcfd5267b14d67c5f.json",
+      "sha256": "eda459c8cad8205fe2fb9fde21c1ad3f933578d6a10983cdcfd5267b14d67c5f",
+      "bytes": 16508
+    },
+    {
+      "path": "engine/data/approved-scripts/dazhou-ep24.json",
+      "blob": "public/bootstrap/blobs/f8c850ac60627f10de52b394492ad15ba94095692a5e467ce8c4dd9e8868bf5a.json",
+      "sha256": "f8c850ac60627f10de52b394492ad15ba94095692a5e467ce8c4dd9e8868bf5a",
+      "bytes": 14112
+    },
+    {
+      "path": "engine/data/approved-scripts/dazhou-ep25.json",
+      "blob": "public/bootstrap/blobs/5e3a4cbbd33f212bd68965cbc026f652fb93fa9912ceccef1373fdf6d958c4f9.json",
+      "sha256": "5e3a4cbbd33f212bd68965cbc026f652fb93fa9912ceccef1373fdf6d958c4f9",
+      "bytes": 12991
+    },
+    {
+      "path": "engine/data/approved-scripts/dazhou-ep27.json",
+      "blob": "public/bootstrap/blobs/2618f77157860750c2924e02638d7e4bb33bb66d6361c7dad87c1567070b9366.json",
+      "sha256": "2618f77157860750c2924e02638d7e4bb33bb66d6361c7dad87c1567070b9366",
+      "bytes": 18086
+    },
+    {
+      "path": "engine/data/dialogue-layout-rules.json",
+      "blob": "public/bootstrap/blobs/33e8c02c0a4b20dd6d30e8f9c2f69df0c38eb3c63e8a1f7c2f4c920d99467e93.json",
+      "sha256": "33e8c02c0a4b20dd6d30e8f9c2f69df0c38eb3c63e8a1f7c2f4c920d99467e93",
+      "bytes": 2938
+    },
+    {
+      "path": "engine/data/learned-style-source.json",
+      "blob": "public/bootstrap/blobs/6c69a2609f05445e69073eb8042d9c1085e9b4eff6b11365ebe1e2f5e47aeb56.json",
+      "sha256": "6c69a2609f05445e69073eb8042d9c1085e9b4eff6b11365ebe1e2f5e47aeb56",
+      "bytes": 357
+    },
+    {
+      "path": "engine/data/learned-style.json",
+      "blob": "public/bootstrap/blobs/5fbb7404df3539220cc3630ab95a892238dd3a2d4454ea5d52db99d7b052b18a.json",
+      "sha256": "5fbb7404df3539220cc3630ab95a892238dd3a2d4454ea5d52db99d7b052b18a",
+      "bytes": 23680
+    },
+    {
+      "path": "engine/data/learning-profile.json",
+      "blob": "public/bootstrap/blobs/1671b1c236e0112f56d793c9df942d19e2431df53e3ff33cc47b0dafd8694b00.json",
+      "sha256": "1671b1c236e0112f56d793c9df942d19e2431df53e3ff33cc47b0dafd8694b00",
+      "bytes": 134940
+    },
+    {
+      "path": "engine/data/manifest.json",
+      "blob": "public/bootstrap/blobs/57aed524a15135c6004d3184e408d04ad1d6ad904cdee86c715c022308bad56d.json",
+      "sha256": "57aed524a15135c6004d3184e408d04ad1d6ad904cdee86c715c022308bad56d",
+      "bytes": 3798
+    },
+    {
+      "path": "engine/data/palette-evidence/dazhou-ep21-overview.jpg",
+      "blob": "public/bootstrap/blobs/e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c.jpg",
+      "sha256": "e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c",
+      "bytes": 1453329
+    },
+    {
+      "path": "engine/data/palette-evidence/dazhou-ep22-overview.jpg",
+      "blob": "public/bootstrap/blobs/b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6.jpg",
+      "sha256": "b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6",
+      "bytes": 1392393
+    },
+    {
+      "path": "engine/data/palette-evidence/dazhou-ep23-overview.jpg",
+      "blob": "public/bootstrap/blobs/25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a.jpg",
+      "sha256": "25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a",
+      "bytes": 1382440
+    },
+    {
+      "path": "engine/data/palette-evidence/dazhou-ep24-overview.jpg",
+      "blob": "public/bootstrap/blobs/1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7.jpg",
+      "sha256": "1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7",
+      "bytes": 1320698
+    },
+    {
+      "path": "engine/data/palette-evidence/dazhou-ep25-overview.jpg",
+      "blob": "public/bootstrap/blobs/5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a.jpg",
+      "sha256": "5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a",
+      "bytes": 1310362
+    },
+    {
+      "path": "engine/data/palette-evidence/palette-ep23-R017.jpg",
+      "blob": "public/bootstrap/blobs/6e5bfd48d454ad608966adf6110e65d65d395f55fac625331267d8abb2a9337d.jpg",
+      "sha256": "6e5bfd48d454ad608966adf6110e65d65d395f55fac625331267d8abb2a9337d",
+      "bytes": 434489
+    },
+    {
+      "path": "engine/data/palette-evidence/palette-ep23-R020-R021-R022.jpg",
+      "blob": "public/bootstrap/blobs/69578019092a9008bdc2df1153d9bc06033d6d1a669a1baa5bffe8e56767351b.jpg",
+      "sha256": "69578019092a9008bdc2df1153d9bc06033d6d1a669a1baa5bffe8e56767351b",
+      "bytes": 525668
+    },
+    {
+      "path": "engine/data/palette-evidence/palette-ep25-R017-R018.jpg",
+      "blob": "public/bootstrap/blobs/6e88fd14f299873461b9a4f45a5b6964b58c3bdbcb5cd85f6fe2dc6c272b386f.jpg",
+      "sha256": "6e88fd14f299873461b9a4f45a5b6964b58c3bdbcb5cd85f6fe2dc6c272b386f",
+      "bytes": 365841
+    },
+    {
+      "path": "engine/data/palette-evidence/palette-ep25-R025-R026.jpg",
+      "blob": "public/bootstrap/blobs/72f623672c5499b91cff3144b13fe49879de4e879e0f4286f2e2926d1d5dc739.jpg",
+      "sha256": "72f623672c5499b91cff3144b13fe49879de4e879e0f4286f2e2926d1d5dc739",
+      "bytes": 407273
+    },
+    {
+      "path": "engine/data/palette-evidence-dazhou-ep21.json",
+      "blob": "public/bootstrap/blobs/bd3316b232e8b559e077b5effa867fb4883ff4b960229d0d10b44847fc913414.json",
+      "sha256": "bd3316b232e8b559e077b5effa867fb4883ff4b960229d0d10b44847fc913414",
+      "bytes": 5960
+    },
+    {
+      "path": "engine/data/palette-evidence-dazhou-ep22.json",
+      "blob": "public/bootstrap/blobs/6ad1d007194663bc108139cff23acdfa7d73693d717ecb4099fdf9985d614ad9.json",
+      "sha256": "6ad1d007194663bc108139cff23acdfa7d73693d717ecb4099fdf9985d614ad9",
+      "bytes": 4251
+    },
+    {
+      "path": "engine/data/palette-evidence-dazhou-ep23.json",
+      "blob": "public/bootstrap/blobs/bd958e53e72127d4bdde7ff7f26052926e993ad7e493062780b3d170da7f288c.json",
+      "sha256": "bd958e53e72127d4bdde7ff7f26052926e993ad7e493062780b3d170da7f288c",
+      "bytes": 4104
+    },
+    {
+      "path": "engine/data/palette-evidence-dazhou-ep24.json",
+      "blob": "public/bootstrap/blobs/52859abb35262baebbbdcdfa6f70634e8e194a96c53bc5bab03a0e86eaeba6c7.json",
+      "sha256": "52859abb35262baebbbdcdfa6f70634e8e194a96c53bc5bab03a0e86eaeba6c7",
+      "bytes": 5189
+    },
+    {
+      "path": "engine/data/palette-evidence-dazhou-ep25.json",
+      "blob": "public/bootstrap/blobs/0c888f49bf531c41a0df8915f71583aee86b32355e791974943b56027cee5f32.json",
+      "sha256": "0c888f49bf531c41a0df8915f71583aee86b32355e791974943b56027cee5f32",
+      "bytes": 4258
+    },
+    {
+      "path": "engine/data/palette-evidence-dazhou-ep27.json",
+      "blob": "public/bootstrap/blobs/e33926fbce7bf0a32a9a84c5335fbce681b496000e9190e3e984ec0b83f814d4.json",
+      "sha256": "e33926fbce7bf0a32a9a84c5335fbce681b496000e9190e3e984ec0b83f814d4",
+      "bytes": 3680
+    },
+    {
+      "path": "engine/data/palette-evidence-dazhou-ep28.json",
+      "blob": "public/bootstrap/blobs/b541ecf51d3ed1ece521fcdd8a96d55877e0664af2c93b8f5cf55630d03b15e0.json",
+      "sha256": "b541ecf51d3ed1ece521fcdd8a96d55877e0664af2c93b8f5cf55630d03b15e0",
+      "bytes": 267
+    },
+    {
+      "path": "engine/data/palette-evidence-dazhou-ep29.json",
+      "blob": "public/bootstrap/blobs/5576697f665eb66eff80cc49ba101c318b3939e263d2f63e2140ac603c268a3c.json",
+      "sha256": "5576697f665eb66eff80cc49ba101c318b3939e263d2f63e2140ac603c268a3c",
+      "bytes": 267
+    },
+    {
+      "path": "engine/data/palette-evidence-dazhou-ep30.json",
+      "blob": "public/bootstrap/blobs/043c4312918e2ed9ae9f977ce8f62f4f0cce701512e32c837ec315991366bc8b.json",
+      "sha256": "043c4312918e2ed9ae9f977ce8f62f4f0cce701512e32c837ec315991366bc8b",
+      "bytes": 267
+    },
+    {
+      "path": "engine/data/palette-evidence.json",
+      "blob": "public/bootstrap/blobs/23f1077c710ce05926cd7b9225f799fdbeead429673d6d1016aa46e488452391.json",
+      "sha256": "23f1077c710ce05926cd7b9225f799fdbeead429673d6d1016aa46e488452391",
+      "bytes": 2838
+    },
+    {
+      "path": "engine/data/references/dazhou-ep21-overview.jpg",
+      "blob": "public/bootstrap/blobs/e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c.jpg",
+      "sha256": "e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c",
+      "bytes": 1453329
+    },
+    {
+      "path": "engine/data/references/dazhou-ep22-overview.jpg",
+      "blob": "public/bootstrap/blobs/b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6.jpg",
+      "sha256": "b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6",
+      "bytes": 1392393
+    },
+    {
+      "path": "engine/data/references/dazhou-ep23-overview.jpg",
+      "blob": "public/bootstrap/blobs/25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a.jpg",
+      "sha256": "25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a",
+      "bytes": 1382440
+    },
+    {
+      "path": "engine/data/references/dazhou-ep24-overview.jpg",
+      "blob": "public/bootstrap/blobs/1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7.jpg",
+      "sha256": "1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7",
+      "bytes": 1320698
+    },
+    {
+      "path": "engine/data/references/dazhou-ep25-overview.jpg",
+      "blob": "public/bootstrap/blobs/5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a.jpg",
+      "sha256": "5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a",
+      "bytes": 1310362
+    },
+    {
+      "path": "learning-workbench/data/dialogue-layout-rules.json",
+      "blob": "public/bootstrap/blobs/33e8c02c0a4b20dd6d30e8f9c2f69df0c38eb3c63e8a1f7c2f4c920d99467e93.json",
+      "sha256": "33e8c02c0a4b20dd6d30e8f9c2f69df0c38eb3c63e8a1f7c2f4c920d99467e93",
+      "bytes": 2938
+    },
+    {
+      "path": "learning-workbench/data/learning-preferences.json",
+      "blob": "public/bootstrap/blobs/4da876ad043cd7ac02dc04769691fc38fa545119b01a8ba8559da23c48baf78d.json",
+      "sha256": "4da876ad043cd7ac02dc04769691fc38fa545119b01a8ba8559da23c48baf78d",
+      "bytes": 12748
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C01_ep21-R005-R006.jpg",
+      "blob": "public/bootstrap/blobs/f5da698c85caaf6b49ec2f2a3d3d36a53f7f811af07340bb5db9676af59330d3.jpg",
+      "sha256": "f5da698c85caaf6b49ec2f2a3d3d36a53f7f811af07340bb5db9676af59330d3",
+      "bytes": 146989
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C02_ep21-R012-R013.jpg",
+      "blob": "public/bootstrap/blobs/b2ee28062eebbc1173ad31f59e90fc2eb55d988f981fe8c7c9fa10eb78753d6b.jpg",
+      "sha256": "b2ee28062eebbc1173ad31f59e90fc2eb55d988f981fe8c7c9fa10eb78753d6b",
+      "bytes": 126202
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C03_ep23-opening.jpg",
+      "blob": "public/bootstrap/blobs/f4209a91868c68edfac7997151f1134fc9e6b34d9942904ff9be2bc835f65311.jpg",
+      "sha256": "f4209a91868c68edfac7997151f1134fc9e6b34d9942904ff9be2bc835f65311",
+      "bytes": 473967
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C04_ep24-R017-R018.jpg",
+      "blob": "public/bootstrap/blobs/951143f77ea678ec21f6428e4f52aaf183b65920b9b1b999ce42abdd1f3c9a7c.jpg",
+      "sha256": "951143f77ea678ec21f6428e4f52aaf183b65920b9b1b999ce42abdd1f3c9a7c",
+      "bytes": 763769
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C05_ep24-R023-R024.jpg",
+      "blob": "public/bootstrap/blobs/0bb93a4e4eaa2d8724d905afa75123c24ea3cc88ecf25ecc5a37d5786a5ada7b.jpg",
+      "sha256": "0bb93a4e4eaa2d8724d905afa75123c24ea3cc88ecf25ecc5a37d5786a5ada7b",
+      "bytes": 564137
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C06_ep25-R002-R003.jpg",
+      "blob": "public/bootstrap/blobs/35fb080be820dbda04cd57cec3b9c6210d63f708e061d3308bfff1f20b2407a4.jpg",
+      "sha256": "35fb080be820dbda04cd57cec3b9c6210d63f708e061d3308bfff1f20b2407a4",
+      "bytes": 253334
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C07_ep25-bookroom.jpg",
+      "blob": "public/bootstrap/blobs/5dfd782539ce8700cba9b4a53586d323af873fd3c7c1f5b528090d1396f55a5e.jpg",
+      "sha256": "5dfd782539ce8700cba9b4a53586d323af873fd3c7c1f5b528090d1396f55a5e",
+      "bytes": 798045
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C08_ep22-R012-R013-R014.jpg",
+      "blob": "public/bootstrap/blobs/7c92fa0007ff35fa0814eae02f187d7a7d27eab6dae139ca51bc401329572a3b.jpg",
+      "sha256": "7c92fa0007ff35fa0814eae02f187d7a7d27eab6dae139ca51bc401329572a3b",
+      "bytes": 583883
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C09_ep22-gate.jpg",
+      "blob": "public/bootstrap/blobs/e81c914dbe86e52f6774809cfe8dd1e6beb47f31c810781721cec9db231ca45e.jpg",
+      "sha256": "e81c914dbe86e52f6774809cfe8dd1e6beb47f31c810781721cec9db231ca45e",
+      "bytes": 1018224
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C10_ep22-ending.jpg",
+      "blob": "public/bootstrap/blobs/ccc4adb8657234a291aeed44fedb757735f82b809bb5e5f9a7d8c6052c8beae7.jpg",
+      "sha256": "ccc4adb8657234a291aeed44fedb757735f82b809bb5e5f9a7d8c6052c8beae7",
+      "bytes": 687577
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C11_ep23-R020-R021-R022.jpg",
+      "blob": "public/bootstrap/blobs/16746854f101677d698c14c6c93ef8629aa60fc6b55b44332672e5e3e46972fc.jpg",
+      "sha256": "16746854f101677d698c14c6c93ef8629aa60fc6b55b44332672e5e3e46972fc",
+      "bytes": 523223
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C12_ep21-R037-R038.jpg",
+      "blob": "public/bootstrap/blobs/ca32e228748d6468c9afe3cc4218b2097dfdd89fbbb2ea538dc43c689d827269.jpg",
+      "sha256": "ca32e228748d6468c9afe3cc4218b2097dfdd89fbbb2ea538dc43c689d827269",
+      "bytes": 340780
+    },
+    {
+      "path": "learning-workbench/data/overlap-evidence/C13_ep24-R009-R010-R011.jpg",
+      "blob": "public/bootstrap/blobs/ea4513234ead2e1e67e137a699c600a3c41089c1bea92cc1bff342f7afcff6c8.jpg",
+      "sha256": "ea4513234ead2e1e67e137a699c600a3c41089c1bea92cc1bff342f7afcff6c8",
+      "bytes": 549893
+    },
+    {
+      "path": "learning-workbench/data/overlap-review-v2.json",
+      "blob": "public/bootstrap/blobs/eb6a130cd2adc70fd8ae5986457a66c2db2754f0bc3e032b1cf0d7e04e37d73d.json",
+      "sha256": "eb6a130cd2adc70fd8ae5986457a66c2db2754f0bc3e032b1cf0d7e04e37d73d",
+      "bytes": 33051
+    },
+    {
+      "path": "learning-workbench/data/projects.json",
+      "blob": "public/bootstrap/blobs/9277cf7e455fe98f77b7aa67a3d126e7da757b714f7c22d6c8eee06623402709.json",
+      "sha256": "9277cf7e455fe98f77b7aa67a3d126e7da757b714f7c22d6c8eee06623402709",
+      "bytes": 86
+    },
+    {
+      "path": "learning-workbench/data/reference-selections.json",
+      "blob": "public/bootstrap/blobs/d5faae9d3aa8b4c5d7ec179a74341e80f6d20e548ef711a31372babcd389ee20.json",
+      "sha256": "d5faae9d3aa8b4c5d7ec179a74341e80f6d20e548ef711a31372babcd389ee20",
+      "bytes": 123
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep21-overview.jpg",
+      "blob": "public/bootstrap/blobs/e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c.jpg",
+      "sha256": "e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c",
+      "bytes": 1453329
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep21.jpg",
+      "blob": "public/bootstrap/blobs/572df495be2eb81edbaf70ccd47ae05acb247b2fe8cdbb85b065af3a9096bce7.jpg",
+      "sha256": "572df495be2eb81edbaf70ccd47ae05acb247b2fe8cdbb85b065af3a9096bce7",
+      "bytes": 3634489
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep21.json",
+      "blob": "public/bootstrap/blobs/660c6a71fd1df88a6c2a3058f6420a192b17676f43bfed57505deba4618efd51.json",
+      "sha256": "660c6a71fd1df88a6c2a3058f6420a192b17676f43bfed57505deba4618efd51",
+      "bytes": 12034
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep22-overview.jpg",
+      "blob": "public/bootstrap/blobs/b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6.jpg",
+      "sha256": "b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6",
+      "bytes": 1392393
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep22.jpg",
+      "blob": "public/bootstrap/blobs/55effebbcbeb5aae5c540c6f30da060b7943019ff201f262853443b4ee8b900c.jpg",
+      "sha256": "55effebbcbeb5aae5c540c6f30da060b7943019ff201f262853443b4ee8b900c",
+      "bytes": 3627951
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep22.json",
+      "blob": "public/bootstrap/blobs/d7c69085b9fab80ee6a4f2459e2df59cc4ffe9f5c9cf70b184d6c815c4231db6.json",
+      "sha256": "d7c69085b9fab80ee6a4f2459e2df59cc4ffe9f5c9cf70b184d6c815c4231db6",
+      "bytes": 8818
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep23-overview.jpg",
+      "blob": "public/bootstrap/blobs/25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a.jpg",
+      "sha256": "25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a",
+      "bytes": 1382440
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep23.jpg",
+      "blob": "public/bootstrap/blobs/cf43b07b2a83585646d280a16160de93fd03f7d074938bd94fdee8e99122b064.jpg",
+      "sha256": "cf43b07b2a83585646d280a16160de93fd03f7d074938bd94fdee8e99122b064",
+      "bytes": 3456748
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep23.json",
+      "blob": "public/bootstrap/blobs/aecb38c48a99c02f63c9588adec5ef9335c5bdce84f9340be8e914ca129fe769.json",
+      "sha256": "aecb38c48a99c02f63c9588adec5ef9335c5bdce84f9340be8e914ca129fe769",
+      "bytes": 9306
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep24-overview.jpg",
+      "blob": "public/bootstrap/blobs/1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7.jpg",
+      "sha256": "1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7",
+      "bytes": 1320698
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep24.jpg",
+      "blob": "public/bootstrap/blobs/19d744e2bddc75be0443c73b8b1e205478be5f26cdb5605d30d642dfd490dbe6.jpg",
+      "sha256": "19d744e2bddc75be0443c73b8b1e205478be5f26cdb5605d30d642dfd490dbe6",
+      "bytes": 3412532
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep24.json",
+      "blob": "public/bootstrap/blobs/1d6b5322dcc8f63bc3d7acad9649f4a29a30bdddeca2c0d493283b6aefbab357.json",
+      "sha256": "1d6b5322dcc8f63bc3d7acad9649f4a29a30bdddeca2c0d493283b6aefbab357",
+      "bytes": 8710
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep25-overview.jpg",
+      "blob": "public/bootstrap/blobs/5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a.jpg",
+      "sha256": "5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a",
+      "bytes": 1310362
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep25.jpg",
+      "blob": "public/bootstrap/blobs/a6e7327cfe30ec9441b0950c3cedc9ef50bf87ebf3a8be49c0a44a9bb028f7a0.jpg",
+      "sha256": "a6e7327cfe30ec9441b0950c3cedc9ef50bf87ebf3a8be49c0a44a9bb028f7a0",
+      "bytes": 3405708
+    },
+    {
+      "path": "learning-workbench/data/references/dazhou-ep25.json",
+      "blob": "public/bootstrap/blobs/969cf3dccc7f00194ef14cb6d0049434ba45357dd5e2b01e72ab8522abb18dac.json",
+      "sha256": "969cf3dccc7f00194ef14cb6d0049434ba45357dd5e2b01e72ab8522abb18dac",
+      "bytes": 7789
+    },
+    {
+      "path": "learning-workbench/data/relationship-evidence.json",
+      "blob": "public/bootstrap/blobs/dc911c4a15d7c87a94ed2f7bffaa637265fed5814d6a204f1cfcc3610a8e9612.json",
+      "sha256": "dc911c4a15d7c87a94ed2f7bffaa637265fed5814d6a204f1cfcc3610a8e9612",
+      "bytes": 1694
+    },
+    {
+      "path": "learning-workbench/data/rhythm-evidence/ep21-R005-R006.jpg",
+      "blob": "public/bootstrap/blobs/f5da698c85caaf6b49ec2f2a3d3d36a53f7f811af07340bb5db9676af59330d3.jpg",
+      "sha256": "f5da698c85caaf6b49ec2f2a3d3d36a53f7f811af07340bb5db9676af59330d3",
+      "bytes": 146989
+    },
+    {
+      "path": "learning-workbench/data/rhythm-evidence/ep21-R012-R013.jpg",
+      "blob": "public/bootstrap/blobs/b2ee28062eebbc1173ad31f59e90fc2eb55d988f981fe8c7c9fa10eb78753d6b.jpg",
+      "sha256": "b2ee28062eebbc1173ad31f59e90fc2eb55d988f981fe8c7c9fa10eb78753d6b",
+      "bytes": 126202
+    },
+    {
+      "path": "learning-workbench/data/rhythm-evidence/ep25-R002-R003.jpg",
+      "blob": "public/bootstrap/blobs/35fb080be820dbda04cd57cec3b9c6210d63f708e061d3308bfff1f20b2407a4.jpg",
+      "sha256": "35fb080be820dbda04cd57cec3b9c6210d63f708e061d3308bfff1f20b2407a4",
+      "bytes": 253334
+    },
+    {
+      "path": "learning-workbench/data/scripts/dazhou-ep21.json",
+      "blob": "public/bootstrap/blobs/3c4caa7dd9ed25e7d5c7af467af78259bee41bdfbe27e6a63d787d550c238c27.json",
+      "sha256": "3c4caa7dd9ed25e7d5c7af467af78259bee41bdfbe27e6a63d787d550c238c27",
+      "bytes": 18443
+    },
+    {
+      "path": "learning-workbench/data/scripts/dazhou-ep22.json",
+      "blob": "public/bootstrap/blobs/3e328063689f88548f8ac0f3063c463b9f57848940759e3db900c1cc5cfca07e.json",
+      "sha256": "3e328063689f88548f8ac0f3063c463b9f57848940759e3db900c1cc5cfca07e",
+      "bytes": 13564
+    },
+    {
+      "path": "learning-workbench/data/scripts/dazhou-ep23.json",
+      "blob": "public/bootstrap/blobs/eda459c8cad8205fe2fb9fde21c1ad3f933578d6a10983cdcfd5267b14d67c5f.json",
+      "sha256": "eda459c8cad8205fe2fb9fde21c1ad3f933578d6a10983cdcfd5267b14d67c5f",
+      "bytes": 16508
+    },
+    {
+      "path": "learning-workbench/data/scripts/dazhou-ep24.json",
+      "blob": "public/bootstrap/blobs/f8c850ac60627f10de52b394492ad15ba94095692a5e467ce8c4dd9e8868bf5a.json",
+      "sha256": "f8c850ac60627f10de52b394492ad15ba94095692a5e467ce8c4dd9e8868bf5a",
+      "bytes": 14112
+    },
+    {
+      "path": "learning-workbench/data/scripts/dazhou-ep25.json",
+      "blob": "public/bootstrap/blobs/5e3a4cbbd33f212bd68965cbc026f652fb93fa9912ceccef1373fdf6d958c4f9.json",
+      "sha256": "5e3a4cbbd33f212bd68965cbc026f652fb93fa9912ceccef1373fdf6d958c4f9",
+      "bytes": 12991
+    },
+    {
+      "path": "learning-workbench/data/support-evidence/ep21-R032-R033-R034.jpg",
+      "blob": "public/bootstrap/blobs/a3b9f07867e04873850c48bc977fb3e25d5d45bcb0b2637fe874c5ccece998d5.jpg",
+      "sha256": "a3b9f07867e04873850c48bc977fb3e25d5d45bcb0b2637fe874c5ccece998d5",
+      "bytes": 144940
+    },
+    {
+      "path": "learning-workbench/data/support-evidence/ep21-R042-R043.jpg",
+      "blob": "public/bootstrap/blobs/9beebd45ef1303d026821095e24348c6a19f7c3b57fc189262f449afa83c6bc7.jpg",
+      "sha256": "9beebd45ef1303d026821095e24348c6a19f7c3b57fc189262f449afa83c6bc7",
+      "bytes": 239688
+    },
+    {
+      "path": "learning-workbench/data/support-evidence/ep22-R012-R013-R014.jpg",
+      "blob": "public/bootstrap/blobs/7c92fa0007ff35fa0814eae02f187d7a7d27eab6dae139ca51bc401329572a3b.jpg",
+      "sha256": "7c92fa0007ff35fa0814eae02f187d7a7d27eab6dae139ca51bc401329572a3b",
+      "bytes": 583883
+    },
+    {
+      "path": "learning-workbench/data/support-evidence/ep23-R020-R021-R022.jpg",
+      "blob": "public/bootstrap/blobs/16746854f101677d698c14c6c93ef8629aa60fc6b55b44332672e5e3e46972fc.jpg",
+      "sha256": "16746854f101677d698c14c6c93ef8629aa60fc6b55b44332672e5e3e46972fc",
+      "bytes": 523223
+    },
+    {
+      "path": "learning-workbench/data/support-evidence/ep24-R009-R010-R011.jpg",
+      "blob": "public/bootstrap/blobs/ea4513234ead2e1e67e137a699c600a3c41089c1bea92cc1bff342f7afcff6c8.jpg",
+      "sha256": "ea4513234ead2e1e67e137a699c600a3c41089c1bea92cc1bff342f7afcff6c8",
+      "bytes": 549893
+    },
+    {
+      "path": "learning-workbench/data/support-evidence/ep25-R017-R018.jpg",
+      "blob": "public/bootstrap/blobs/58d8a91c5201336b299e7146aed40f82fb26ccdcd6cca364c4eac081aeb387c0.jpg",
+      "sha256": "58d8a91c5201336b299e7146aed40f82fb26ccdcd6cca364c4eac081aeb387c0",
+      "bytes": 368519
+    },
+    {
+      "path": "learning-workbench/data/support-rule-evidence.json",
+      "blob": "public/bootstrap/blobs/87a699146776f7162093d5d1c99e5e653f1649c89a6c4ff9dd8d955ef9c559ca.json",
+      "sha256": "87a699146776f7162093d5d1c99e5e653f1649c89a6c4ff9dd8d955ef9c559ca",
+      "bytes": 4694
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/approved-scripts/dazhou-ep21.json",
+      "blob": "public/bootstrap/blobs/3c4caa7dd9ed25e7d5c7af467af78259bee41bdfbe27e6a63d787d550c238c27.json",
+      "sha256": "3c4caa7dd9ed25e7d5c7af467af78259bee41bdfbe27e6a63d787d550c238c27",
+      "bytes": 18443
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/approved-scripts/dazhou-ep22.json",
+      "blob": "public/bootstrap/blobs/3e328063689f88548f8ac0f3063c463b9f57848940759e3db900c1cc5cfca07e.json",
+      "sha256": "3e328063689f88548f8ac0f3063c463b9f57848940759e3db900c1cc5cfca07e",
+      "bytes": 13564
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/approved-scripts/dazhou-ep23.json",
+      "blob": "public/bootstrap/blobs/eda459c8cad8205fe2fb9fde21c1ad3f933578d6a10983cdcfd5267b14d67c5f.json",
+      "sha256": "eda459c8cad8205fe2fb9fde21c1ad3f933578d6a10983cdcfd5267b14d67c5f",
+      "bytes": 16508
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/approved-scripts/dazhou-ep24.json",
+      "blob": "public/bootstrap/blobs/f8c850ac60627f10de52b394492ad15ba94095692a5e467ce8c4dd9e8868bf5a.json",
+      "sha256": "f8c850ac60627f10de52b394492ad15ba94095692a5e467ce8c4dd9e8868bf5a",
+      "bytes": 14112
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/approved-scripts/dazhou-ep25.json",
+      "blob": "public/bootstrap/blobs/5e3a4cbbd33f212bd68965cbc026f652fb93fa9912ceccef1373fdf6d958c4f9.json",
+      "sha256": "5e3a4cbbd33f212bd68965cbc026f652fb93fa9912ceccef1373fdf6d958c4f9",
+      "bytes": 12991
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/approved-scripts/dazhou-ep27.json",
+      "blob": "public/bootstrap/blobs/2618f77157860750c2924e02638d7e4bb33bb66d6361c7dad87c1567070b9366.json",
+      "sha256": "2618f77157860750c2924e02638d7e4bb33bb66d6361c7dad87c1567070b9366",
+      "bytes": 18086
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/dialogue-layout-rules.json",
+      "blob": "public/bootstrap/blobs/33e8c02c0a4b20dd6d30e8f9c2f69df0c38eb3c63e8a1f7c2f4c920d99467e93.json",
+      "sha256": "33e8c02c0a4b20dd6d30e8f9c2f69df0c38eb3c63e8a1f7c2f4c920d99467e93",
+      "bytes": 2938
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/learned-style-source.json",
+      "blob": "public/bootstrap/blobs/6c69a2609f05445e69073eb8042d9c1085e9b4eff6b11365ebe1e2f5e47aeb56.json",
+      "sha256": "6c69a2609f05445e69073eb8042d9c1085e9b4eff6b11365ebe1e2f5e47aeb56",
+      "bytes": 357
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/learned-style.json",
+      "blob": "public/bootstrap/blobs/5fbb7404df3539220cc3630ab95a892238dd3a2d4454ea5d52db99d7b052b18a.json",
+      "sha256": "5fbb7404df3539220cc3630ab95a892238dd3a2d4454ea5d52db99d7b052b18a",
+      "bytes": 23680
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/learning-profile.json",
+      "blob": "public/bootstrap/blobs/1671b1c236e0112f56d793c9df942d19e2431df53e3ff33cc47b0dafd8694b00.json",
+      "sha256": "1671b1c236e0112f56d793c9df942d19e2431df53e3ff33cc47b0dafd8694b00",
+      "bytes": 134940
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/manifest.json",
+      "blob": "public/bootstrap/blobs/57aed524a15135c6004d3184e408d04ad1d6ad904cdee86c715c022308bad56d.json",
+      "sha256": "57aed524a15135c6004d3184e408d04ad1d6ad904cdee86c715c022308bad56d",
+      "bytes": 3798
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence/dazhou-ep21-overview.jpg",
+      "blob": "public/bootstrap/blobs/e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c.jpg",
+      "sha256": "e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c",
+      "bytes": 1453329
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence/dazhou-ep22-overview.jpg",
+      "blob": "public/bootstrap/blobs/b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6.jpg",
+      "sha256": "b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6",
+      "bytes": 1392393
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence/dazhou-ep23-overview.jpg",
+      "blob": "public/bootstrap/blobs/25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a.jpg",
+      "sha256": "25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a",
+      "bytes": 1382440
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence/dazhou-ep24-overview.jpg",
+      "blob": "public/bootstrap/blobs/1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7.jpg",
+      "sha256": "1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7",
+      "bytes": 1320698
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence/dazhou-ep25-overview.jpg",
+      "blob": "public/bootstrap/blobs/5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a.jpg",
+      "sha256": "5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a",
+      "bytes": 1310362
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence/palette-ep23-R017.jpg",
+      "blob": "public/bootstrap/blobs/6e5bfd48d454ad608966adf6110e65d65d395f55fac625331267d8abb2a9337d.jpg",
+      "sha256": "6e5bfd48d454ad608966adf6110e65d65d395f55fac625331267d8abb2a9337d",
+      "bytes": 434489
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence/palette-ep23-R020-R021-R022.jpg",
+      "blob": "public/bootstrap/blobs/69578019092a9008bdc2df1153d9bc06033d6d1a669a1baa5bffe8e56767351b.jpg",
+      "sha256": "69578019092a9008bdc2df1153d9bc06033d6d1a669a1baa5bffe8e56767351b",
+      "bytes": 525668
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence/palette-ep25-R017-R018.jpg",
+      "blob": "public/bootstrap/blobs/6e88fd14f299873461b9a4f45a5b6964b58c3bdbcb5cd85f6fe2dc6c272b386f.jpg",
+      "sha256": "6e88fd14f299873461b9a4f45a5b6964b58c3bdbcb5cd85f6fe2dc6c272b386f",
+      "bytes": 365841
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence/palette-ep25-R025-R026.jpg",
+      "blob": "public/bootstrap/blobs/72f623672c5499b91cff3144b13fe49879de4e879e0f4286f2e2926d1d5dc739.jpg",
+      "sha256": "72f623672c5499b91cff3144b13fe49879de4e879e0f4286f2e2926d1d5dc739",
+      "bytes": 407273
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence-dazhou-ep21.json",
+      "blob": "public/bootstrap/blobs/bd3316b232e8b559e077b5effa867fb4883ff4b960229d0d10b44847fc913414.json",
+      "sha256": "bd3316b232e8b559e077b5effa867fb4883ff4b960229d0d10b44847fc913414",
+      "bytes": 5960
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence-dazhou-ep22.json",
+      "blob": "public/bootstrap/blobs/6ad1d007194663bc108139cff23acdfa7d73693d717ecb4099fdf9985d614ad9.json",
+      "sha256": "6ad1d007194663bc108139cff23acdfa7d73693d717ecb4099fdf9985d614ad9",
+      "bytes": 4251
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence-dazhou-ep23.json",
+      "blob": "public/bootstrap/blobs/bd958e53e72127d4bdde7ff7f26052926e993ad7e493062780b3d170da7f288c.json",
+      "sha256": "bd958e53e72127d4bdde7ff7f26052926e993ad7e493062780b3d170da7f288c",
+      "bytes": 4104
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence-dazhou-ep24.json",
+      "blob": "public/bootstrap/blobs/52859abb35262baebbbdcdfa6f70634e8e194a96c53bc5bab03a0e86eaeba6c7.json",
+      "sha256": "52859abb35262baebbbdcdfa6f70634e8e194a96c53bc5bab03a0e86eaeba6c7",
+      "bytes": 5189
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence-dazhou-ep25.json",
+      "blob": "public/bootstrap/blobs/0c888f49bf531c41a0df8915f71583aee86b32355e791974943b56027cee5f32.json",
+      "sha256": "0c888f49bf531c41a0df8915f71583aee86b32355e791974943b56027cee5f32",
+      "bytes": 4258
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence-dazhou-ep27.json",
+      "blob": "public/bootstrap/blobs/e33926fbce7bf0a32a9a84c5335fbce681b496000e9190e3e984ec0b83f814d4.json",
+      "sha256": "e33926fbce7bf0a32a9a84c5335fbce681b496000e9190e3e984ec0b83f814d4",
+      "bytes": 3680
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence-dazhou-ep28.json",
+      "blob": "public/bootstrap/blobs/b541ecf51d3ed1ece521fcdd8a96d55877e0664af2c93b8f5cf55630d03b15e0.json",
+      "sha256": "b541ecf51d3ed1ece521fcdd8a96d55877e0664af2c93b8f5cf55630d03b15e0",
+      "bytes": 267
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence-dazhou-ep29.json",
+      "blob": "public/bootstrap/blobs/5576697f665eb66eff80cc49ba101c318b3939e263d2f63e2140ac603c268a3c.json",
+      "sha256": "5576697f665eb66eff80cc49ba101c318b3939e263d2f63e2140ac603c268a3c",
+      "bytes": 267
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence-dazhou-ep30.json",
+      "blob": "public/bootstrap/blobs/043c4312918e2ed9ae9f977ce8f62f4f0cce701512e32c837ec315991366bc8b.json",
+      "sha256": "043c4312918e2ed9ae9f977ce8f62f4f0cce701512e32c837ec315991366bc8b",
+      "bytes": 267
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/palette-evidence.json",
+      "blob": "public/bootstrap/blobs/23f1077c710ce05926cd7b9225f799fdbeead429673d6d1016aa46e488452391.json",
+      "sha256": "23f1077c710ce05926cd7b9225f799fdbeead429673d6d1016aa46e488452391",
+      "bytes": 2838
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/references/dazhou-ep21-overview.jpg",
+      "blob": "public/bootstrap/blobs/e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c.jpg",
+      "sha256": "e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c",
+      "bytes": 1453329
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/references/dazhou-ep22-overview.jpg",
+      "blob": "public/bootstrap/blobs/b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6.jpg",
+      "sha256": "b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6",
+      "bytes": 1392393
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/references/dazhou-ep23-overview.jpg",
+      "blob": "public/bootstrap/blobs/25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a.jpg",
+      "sha256": "25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a",
+      "bytes": 1382440
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/references/dazhou-ep24-overview.jpg",
+      "blob": "public/bootstrap/blobs/1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7.jpg",
+      "sha256": "1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7",
+      "bytes": 1320698
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/data/references/dazhou-ep25-overview.jpg",
+      "blob": "public/bootstrap/blobs/5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a.jpg",
+      "sha256": "5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a",
+      "bytes": 1310362
+    },
+    {
+      "path": "library/dazhou/versions/approved-cc94887b4f1d/project.json",
+      "blob": "public/bootstrap/blobs/2ee3e1b39f5c0513cce78567268991abbd7a0632ae5bc532ea72004dd8a1358c.json",
+      "sha256": "2ee3e1b39f5c0513cce78567268991abbd7a0632ae5bc532ea72004dd8a1358c",
+      "bytes": 316
+    },
+    {
+      "path": "library/projects.json",
+      "blob": "public/bootstrap/blobs/38215da40fccddb3d3e1d241fbf9adbb568f3b361b2838089e1378fcaafc699a.json",
+      "sha256": "38215da40fccddb3d3e1d241fbf9adbb568f3b361b2838089e1378fcaafc699a",
+      "bytes": 402
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/approved-scripts/dazhou-ep21.json",
+      "blob": "public/bootstrap/blobs/3c4caa7dd9ed25e7d5c7af467af78259bee41bdfbe27e6a63d787d550c238c27.json",
+      "sha256": "3c4caa7dd9ed25e7d5c7af467af78259bee41bdfbe27e6a63d787d550c238c27",
+      "bytes": 18443
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/approved-scripts/dazhou-ep22.json",
+      "blob": "public/bootstrap/blobs/3e328063689f88548f8ac0f3063c463b9f57848940759e3db900c1cc5cfca07e.json",
+      "sha256": "3e328063689f88548f8ac0f3063c463b9f57848940759e3db900c1cc5cfca07e",
+      "bytes": 13564
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/approved-scripts/dazhou-ep23.json",
+      "blob": "public/bootstrap/blobs/eda459c8cad8205fe2fb9fde21c1ad3f933578d6a10983cdcfd5267b14d67c5f.json",
+      "sha256": "eda459c8cad8205fe2fb9fde21c1ad3f933578d6a10983cdcfd5267b14d67c5f",
+      "bytes": 16508
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/approved-scripts/dazhou-ep24.json",
+      "blob": "public/bootstrap/blobs/f8c850ac60627f10de52b394492ad15ba94095692a5e467ce8c4dd9e8868bf5a.json",
+      "sha256": "f8c850ac60627f10de52b394492ad15ba94095692a5e467ce8c4dd9e8868bf5a",
+      "bytes": 14112
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/approved-scripts/dazhou-ep25.json",
+      "blob": "public/bootstrap/blobs/5e3a4cbbd33f212bd68965cbc026f652fb93fa9912ceccef1373fdf6d958c4f9.json",
+      "sha256": "5e3a4cbbd33f212bd68965cbc026f652fb93fa9912ceccef1373fdf6d958c4f9",
+      "bytes": 12991
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/approved-scripts/dazhou-ep26.json",
+      "blob": "public/bootstrap/blobs/620871b12d59eb14de7d8e53a4bfab2a1fb367132341c6bcfa48b909eed1d89a.json",
+      "sha256": "620871b12d59eb14de7d8e53a4bfab2a1fb367132341c6bcfa48b909eed1d89a",
+      "bytes": 16640
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/approved-scripts/dazhou-ep27.json",
+      "blob": "public/bootstrap/blobs/2618f77157860750c2924e02638d7e4bb33bb66d6361c7dad87c1567070b9366.json",
+      "sha256": "2618f77157860750c2924e02638d7e4bb33bb66d6361c7dad87c1567070b9366",
+      "bytes": 18086
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/approved-scripts/dazhou-ep28.json",
+      "blob": "public/bootstrap/blobs/255f5851f29bcf55dd6dcf0aa2bb729789d436507035c096e88b0d93562a48ea.json",
+      "sha256": "255f5851f29bcf55dd6dcf0aa2bb729789d436507035c096e88b0d93562a48ea",
+      "bytes": 16023
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/approved-scripts/dazhou-ep29.json",
+      "blob": "public/bootstrap/blobs/c9691e15e9d8fa0c0391f808f04c717352fecece913d430be685b470037e9d55.json",
+      "sha256": "c9691e15e9d8fa0c0391f808f04c717352fecece913d430be685b470037e9d55",
+      "bytes": 16600
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/approved-scripts/dazhou-ep30.json",
+      "blob": "public/bootstrap/blobs/cb11077c70b9230b99eca5f4b8582ff5d956df9dda86dc25e79b2284199132e2.json",
+      "sha256": "cb11077c70b9230b99eca5f4b8582ff5d956df9dda86dc25e79b2284199132e2",
+      "bytes": 21336
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/dialogue-layout-rules.json",
+      "blob": "public/bootstrap/blobs/33e8c02c0a4b20dd6d30e8f9c2f69df0c38eb3c63e8a1f7c2f4c920d99467e93.json",
+      "sha256": "33e8c02c0a4b20dd6d30e8f9c2f69df0c38eb3c63e8a1f7c2f4c920d99467e93",
+      "bytes": 2938
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/learned-style-source.json",
+      "blob": "public/bootstrap/blobs/6c69a2609f05445e69073eb8042d9c1085e9b4eff6b11365ebe1e2f5e47aeb56.json",
+      "sha256": "6c69a2609f05445e69073eb8042d9c1085e9b4eff6b11365ebe1e2f5e47aeb56",
+      "bytes": 357
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/learned-style.json",
+      "blob": "public/bootstrap/blobs/4c69d2dd85c12161f6d456dc6a1b07acfadb74ddfa725b20e49d5fa836ef9ad2.json",
+      "sha256": "4c69d2dd85c12161f6d456dc6a1b07acfadb74ddfa725b20e49d5fa836ef9ad2",
+      "bytes": 25277
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/learning-profile.json",
+      "blob": "public/bootstrap/blobs/6649b604d4e7f06a1f7a78fdca4bbf00a2e05e37c8bf019d362dab7b2bdfe517.json",
+      "sha256": "6649b604d4e7f06a1f7a78fdca4bbf00a2e05e37c8bf019d362dab7b2bdfe517",
+      "bytes": 136729
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/manifest.json",
+      "blob": "public/bootstrap/blobs/9349c27f6c3d37ad2e70f1ae2a3951d7af055c851036ca3e62cab2e8b14e2fa9.json",
+      "sha256": "9349c27f6c3d37ad2e70f1ae2a3951d7af055c851036ca3e62cab2e8b14e2fa9",
+      "bytes": 4238
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence/dazhou-ep21-overview.jpg",
+      "blob": "public/bootstrap/blobs/e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c.jpg",
+      "sha256": "e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c",
+      "bytes": 1453329
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence/dazhou-ep22-overview.jpg",
+      "blob": "public/bootstrap/blobs/b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6.jpg",
+      "sha256": "b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6",
+      "bytes": 1392393
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence/dazhou-ep23-overview.jpg",
+      "blob": "public/bootstrap/blobs/25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a.jpg",
+      "sha256": "25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a",
+      "bytes": 1382440
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence/dazhou-ep24-overview.jpg",
+      "blob": "public/bootstrap/blobs/1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7.jpg",
+      "sha256": "1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7",
+      "bytes": 1320698
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence/dazhou-ep25-overview.jpg",
+      "blob": "public/bootstrap/blobs/5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a.jpg",
+      "sha256": "5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a",
+      "bytes": 1310362
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence/palette-ep23-R017.jpg",
+      "blob": "public/bootstrap/blobs/6e5bfd48d454ad608966adf6110e65d65d395f55fac625331267d8abb2a9337d.jpg",
+      "sha256": "6e5bfd48d454ad608966adf6110e65d65d395f55fac625331267d8abb2a9337d",
+      "bytes": 434489
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence/palette-ep23-R020-R021-R022.jpg",
+      "blob": "public/bootstrap/blobs/69578019092a9008bdc2df1153d9bc06033d6d1a669a1baa5bffe8e56767351b.jpg",
+      "sha256": "69578019092a9008bdc2df1153d9bc06033d6d1a669a1baa5bffe8e56767351b",
+      "bytes": 525668
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence/palette-ep25-R017-R018.jpg",
+      "blob": "public/bootstrap/blobs/6e88fd14f299873461b9a4f45a5b6964b58c3bdbcb5cd85f6fe2dc6c272b386f.jpg",
+      "sha256": "6e88fd14f299873461b9a4f45a5b6964b58c3bdbcb5cd85f6fe2dc6c272b386f",
+      "bytes": 365841
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence/palette-ep25-R025-R026.jpg",
+      "blob": "public/bootstrap/blobs/72f623672c5499b91cff3144b13fe49879de4e879e0f4286f2e2926d1d5dc739.jpg",
+      "sha256": "72f623672c5499b91cff3144b13fe49879de4e879e0f4286f2e2926d1d5dc739",
+      "bytes": 407273
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence-dazhou-ep21.json",
+      "blob": "public/bootstrap/blobs/bd3316b232e8b559e077b5effa867fb4883ff4b960229d0d10b44847fc913414.json",
+      "sha256": "bd3316b232e8b559e077b5effa867fb4883ff4b960229d0d10b44847fc913414",
+      "bytes": 5960
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence-dazhou-ep22.json",
+      "blob": "public/bootstrap/blobs/6ad1d007194663bc108139cff23acdfa7d73693d717ecb4099fdf9985d614ad9.json",
+      "sha256": "6ad1d007194663bc108139cff23acdfa7d73693d717ecb4099fdf9985d614ad9",
+      "bytes": 4251
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence-dazhou-ep23.json",
+      "blob": "public/bootstrap/blobs/bd958e53e72127d4bdde7ff7f26052926e993ad7e493062780b3d170da7f288c.json",
+      "sha256": "bd958e53e72127d4bdde7ff7f26052926e993ad7e493062780b3d170da7f288c",
+      "bytes": 4104
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence-dazhou-ep24.json",
+      "blob": "public/bootstrap/blobs/52859abb35262baebbbdcdfa6f70634e8e194a96c53bc5bab03a0e86eaeba6c7.json",
+      "sha256": "52859abb35262baebbbdcdfa6f70634e8e194a96c53bc5bab03a0e86eaeba6c7",
+      "bytes": 5189
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence-dazhou-ep25.json",
+      "blob": "public/bootstrap/blobs/0c888f49bf531c41a0df8915f71583aee86b32355e791974943b56027cee5f32.json",
+      "sha256": "0c888f49bf531c41a0df8915f71583aee86b32355e791974943b56027cee5f32",
+      "bytes": 4258
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence-dazhou-ep27.json",
+      "blob": "public/bootstrap/blobs/e33926fbce7bf0a32a9a84c5335fbce681b496000e9190e3e984ec0b83f814d4.json",
+      "sha256": "e33926fbce7bf0a32a9a84c5335fbce681b496000e9190e3e984ec0b83f814d4",
+      "bytes": 3680
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence-dazhou-ep28.json",
+      "blob": "public/bootstrap/blobs/b541ecf51d3ed1ece521fcdd8a96d55877e0664af2c93b8f5cf55630d03b15e0.json",
+      "sha256": "b541ecf51d3ed1ece521fcdd8a96d55877e0664af2c93b8f5cf55630d03b15e0",
+      "bytes": 267
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence-dazhou-ep29.json",
+      "blob": "public/bootstrap/blobs/5576697f665eb66eff80cc49ba101c318b3939e263d2f63e2140ac603c268a3c.json",
+      "sha256": "5576697f665eb66eff80cc49ba101c318b3939e263d2f63e2140ac603c268a3c",
+      "bytes": 267
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence-dazhou-ep30.json",
+      "blob": "public/bootstrap/blobs/043c4312918e2ed9ae9f977ce8f62f4f0cce701512e32c837ec315991366bc8b.json",
+      "sha256": "043c4312918e2ed9ae9f977ce8f62f4f0cce701512e32c837ec315991366bc8b",
+      "bytes": 267
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/palette-evidence.json",
+      "blob": "public/bootstrap/blobs/23f1077c710ce05926cd7b9225f799fdbeead429673d6d1016aa46e488452391.json",
+      "sha256": "23f1077c710ce05926cd7b9225f799fdbeead429673d6d1016aa46e488452391",
+      "bytes": 2838
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/references/dazhou-ep21-overview.jpg",
+      "blob": "public/bootstrap/blobs/e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c.jpg",
+      "sha256": "e7324f05077e7b0a597af33cdd50c12a0f3d089b544022051ffb14b7719dce8c",
+      "bytes": 1453329
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/references/dazhou-ep22-overview.jpg",
+      "blob": "public/bootstrap/blobs/b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6.jpg",
+      "sha256": "b985806097eb280fb286b6a1522a55cf5bba251ec07cbc1e399b3dea808ce9d6",
+      "bytes": 1392393
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/references/dazhou-ep23-overview.jpg",
+      "blob": "public/bootstrap/blobs/25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a.jpg",
+      "sha256": "25ba04623509bbea5f315d7f400d543f9d86fd4bdd89d7b4e8e8374a2ff3fb1a",
+      "bytes": 1382440
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/references/dazhou-ep24-overview.jpg",
+      "blob": "public/bootstrap/blobs/1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7.jpg",
+      "sha256": "1298e8a9f79e0c778605034a9cb49ae6279134f86d1b24df114978b90a2048d7",
+      "bytes": 1320698
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/data/references/dazhou-ep25-overview.jpg",
+      "blob": "public/bootstrap/blobs/5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a.jpg",
+      "sha256": "5e338f2c0beab6c8cf3b34bf2e39f81a1a0a45381be05aeba7cef1d3443f232a",
+      "bytes": 1310362
+    },
+    {
+      "path": "library/dazhou/versions/approved-selective-20261024-v1/project.json",
+      "blob": "public/bootstrap/blobs/221a56f992804c1eb3126bc1e9fe2b036d3e740064ad1a95a83d3869db7bf633.json",
+      "sha256": "221a56f992804c1eb3126bc1e9fe2b036d3e740064ad1a95a83d3869db7bf633",
+      "bytes": 525
+    }
+  ],
+  "additionalSources": [
+    {
+      "kind": "preserved-frozen-layout-reference",
+      "version": "approved-selective-20261024-v1",
+      "files": 40,
+      "sha256Verified": true
+    }
+  ]
 }

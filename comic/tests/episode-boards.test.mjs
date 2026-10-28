@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import {createRequire} from 'node:module';
 import {createProject,id,clone,panel,rectangle} from '../public/model.js';
 import {migrateLayerDocument} from '../public/layers.js';
@@ -13,7 +14,7 @@ import {createStudio} from '../server.mjs';
 import {writeXlsx} from '../lib/xlsx.mjs';
 
 
-const require=createRequire(import.meta.url),runtime=path.resolve((process.env.CODEX_TEST_NODE_MODULES || 'node_modules')),canvas=require(path.join(runtime,'@napi-rs/canvas'));
+const require=createRequire(import.meta.url),runtime=path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'),canvas=require(path.join(runtime,'@napi-rs/canvas'));
 const qaRoot=path.resolve('../verification/inline-boards-20261022'),output=path.join(qaRoot,'evidence');fs.mkdirSync(output,{recursive:true});
 const outline={version:1,sourceKey:'synthetic-outline',workTitle:'合成测试漫画',episodes:[{episode:11,title:'长生会与两个月后的消息'},{episode:14,title:'第一战'},{episode:15,title:'第二战'},{episode:21,title:'终局'}]};
 const fixture=(number=14)=>{const p=migrateLayerDocument(createProject('合成测试漫画')).project;p.pages[0].storyboard={episode:number};p.pages[0].height=500;p.pages[0].panels=[];p.shots=[];p.layerOrder=[];p.episodeOutline=clone(outline);ensureEpisodeBoards(p);return p;};
@@ -26,8 +27,8 @@ test('细纲优先、中文话数、自动下一话以及单话修改 / 恢复',
  delete p.episodeBoards.episodes[14].episodeTitle;assert.equal(boardContext(p,14).episodeTitle,'第一战');assert.equal(boardContext(p,21).nextMissing,true);validateEpisodeBoards(p);
 });
 
-test('长话名缩小 / 换行 / 竖排共用测量，独立底图与工程资产映射',()=>{
- const p=fixture(11),ctx=canvas.createCanvas(100,100).getContext('2d'),title=resolveBoard(p,'cover',11).layers[2];const small=boardTextLayout(ctx,title);assert.ok(small.fontSize<title.fontSize);assert.ok(small.fits);
+test('长话名保留指定字号 / 换行 / 竖排共用测量，独立底图与工程资产映射',()=>{
+ const p=fixture(11),ctx=canvas.createCanvas(100,100).getContext('2d'),title=resolveBoard(p,'cover',11).layers[2];const small=boardTextLayout(ctx,title);assert.equal(small.fontSize,title.fontSize);assert.equal(small.glyphs.map(g=>g.text).join(''),title.text);
  const wrapped=boardTextLayout(ctx,{...title,fit:'wrap',h:500});assert.equal(wrapped.fontSize,title.fontSize);assert.ok(wrapped.glyphs.length>=2);
  const vertical=boardTextLayout(ctx,{...title,writingMode:'vertical',fit:'wrap',h:500,w:500});assert.ok(vertical.glyphs.length>=title.text.length);assert.ok(vertical.glyphs.every(g=>g.x>=title.x&&g.x<=title.x+500));
  const common=id('asset'),own=id('asset');p.episodeBoards.templates.cover.backgroundAssetId=common;p.episodeBoards.episodes[11]={cover:{useOwnBackground:true,backgroundAssetId:own}};
@@ -45,15 +46,15 @@ test('共用模板跨同一作品生效，单话覆盖保留',()=>{
 
 test('多话与分散的同话画板只各加一组封面 / 尾图，按指定话数完整导出',()=>{
  const p=fixture(14),second=clone(p.pages[0]);second.id=id('page');second.storyboard.episode=15;const third=clone(p.pages[0]);third.id=id('page');p.pages.push(second,third);
- const all=episodeExportLayout(p);assert.deepEqual(all.episodeBoardParts.map(p=>p.kind),['cover','comic','comic','tail','cover','comic','tail']);const only=episodeExportLayout(p,{episode:14});assert.equal(only.height,4600);assert.deepEqual(only.episodeBoardParts.filter(p=>p.kind==='comic').map(p=>p.sourceY),[0,1000]);assert.equal(episodeExportLayout(p,{episode:21}).height,0);
+ const all=episodeExportLayout(p);assert.deepEqual(all.episodeBoardParts.map(p=>p.kind),['cover','comic','comic','tail','cover','comic','tail']);const only=episodeExportLayout(p,{episode:14});assert.equal(only.height,5560);assert.deepEqual(only.episodeBoardParts.filter(p=>p.kind==='comic').map(p=>p.sourceY),[0,1000]);assert.equal(episodeExportLayout(p,{episode:21}).height,0);
 });
 
-test('封面、漫画、尾图按序合成，跨分段不移动漫画坐标，整话 PNG 包含模板',async()=>{
+test('封面、漫画、尾图按序合成，跨分段不移动漫画坐标',async()=>{
  const p=fixture();p.pages[0].background='#0055ff';p.episodeBoards.templates.cover.background='#ff3300';p.episodeBoards.templates.tail.background='#00cc55';for(const kind of ['cover','tail'])p.episodeBoards.templates[kind].layers.forEach(l=>l.visible=false);
- const before=clone(p),plan=episodeExportLayout(p);assert.equal(plan.height,4100);assert.deepEqual(plan.episodeBoardParts.map(p=>p.kind),['cover','comic','tail']);
- const factory=()=>{const c=canvas.createCanvas(1,1);c.toBlob=callback=>callback(new Blob([c.toBuffer('image/png')],{type:'image/png'}));return c;};
- const segment=await renderStripSegment(plan,{y:1750,height:700},{project:p,canvasFactory:factory});const ctx=segment.getContext('2d');assert.deepEqual([...ctx.getImageData(10,10,1,1).data],[255,51,0,255]);assert.deepEqual([...ctx.getImageData(10,300,1,1).data],[0,85,255,255]);assert.deepEqual([...ctx.getImageData(10,650,1,1).data],[0,204,85,255]);
- let downloaded;const result=await exportEpisode(p,()=>{},{canvasFactory:factory,download:(blob,name)=>downloaded={blob,name}});assert.equal(result.height,4100);assert.equal(result.parts,1);assert.match(downloaded.name,/整话\.png$/);fs.writeFileSync(path.join(output,'export-full-episode.png'),Buffer.from(await downloaded.blob.arrayBuffer()));assert.deepEqual(p,before);
+ const before=clone(p),plan=episodeExportLayout(p);assert.equal(plan.height,5060);assert.deepEqual(plan.episodeBoardParts.map(p=>p.kind),['cover','comic','tail']);
+ const factory=()=>{const c=canvas.createCanvas(1,1);c.toBlob=callback=>callback(new Blob([c.toBuffer('image/png')],{type:'image/png'}));return c;},segment=await renderStripSegment(plan,{y:1750,height:1560},{project:p,canvasFactory:factory}),ctx=segment.getContext('2d');
+ assert.deepEqual([...ctx.getImageData(10,10,1,1).data],[255,51,0,255]);assert.deepEqual([...ctx.getImageData(10,530,1,1).data],[0,85,255,255]);assert.deepEqual([...ctx.getImageData(10,1029,1,1).data],[0,85,255,255]);assert.deepEqual([...ctx.getImageData(10,1510,1,1).data],[0,204,85,255]);
+ const session='export_11111111-1111-4111-8111-111111111111',request=async(url,init)=>{const input=JSON.parse(init.body),data=url.endsWith('/parts')?{received:input.index+1,nextY:Math.min(plan.height,input.y+4096)}:url.endsWith('/complete')?{width:1280,height:plan.height,files:1,url:'/api/strip-exports/'+session+'/download'}:{id:session,width:1280,height:plan.height};return {ok:true,json:async()=>data};};let downloaded;const result=await exportEpisode(p,()=>{},{canvasFactory:factory,request,downloadURL:(url,name)=>downloaded={url,name}});assert.equal(result.height,5060);assert.equal(result.partsRendered,2);assert.match(downloaded.name,/整话\.png$/);assert.deepEqual(p,before);
 });
 
 test('模板真实界面：固定位置、底图、自动标题、单话改名恢复、拖动、字体与导出回读',{timeout:90000},async t=>{
@@ -72,9 +73,9 @@ test('模板真实界面：固定位置、底图、自动标题、单话改名�
  await page.route('**/api/library/assets?*',route=>route.fulfill({json:{items:[{id:'moku-test',name:'封面底图.png',category:'header',mime:'image/png',recommendedRevisionId:'synthetic-version',tags:[]}]}}));
  await page.route('**/api/library/import',route=>route.fulfill({json:{kind:'image',asset:registered}}));await page.route('**/api/library/revisions/**',route=>route.fulfill({contentType:'image/png',body:background.toBuffer('image/png')}));
  await page.locator('[data-board-background]').click();await page.locator('#library-refresh').click();await page.locator('[data-library-use="image"]').click();await page.waitForFunction(()=>!!document.querySelector('#stage [data-fixed-board="cover"] image'));
- await page.locator('#stage [data-fixed-board="cover"] [data-board-layer="workTitle"]').scrollIntoViewIfNeeded();await page.waitForTimeout(150);assert.equal(await page.locator('#episode-board-editor').count(),0);const initialX=Number(await page.locator('[data-board-style="x"]').inputValue()),svgBox=await page.locator('#stage').boundingBox(),target=await page.locator('#stage [data-fixed-board="cover"] [data-board-layer="workTitle"]').boundingBox();
+ await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');await page.waitForTimeout(300);await page.locator('#stage [data-fixed-board="cover"] [data-board-layer="workTitle"]').evaluate(el=>el.scrollIntoView({block:'center'}));await page.waitForTimeout(150);assert.equal(await page.locator('#episode-board-editor').count(),0);const initialX=Number(await page.locator('[data-board-style="x"]').inputValue()),svgBox=await page.locator('#stage').boundingBox(),target=await page.locator('#stage [data-fixed-board="cover"] [data-board-layer="workTitle"]').boundingBox();
  await page.mouse.move(target.x+target.width/2,target.y+target.height/2);await page.mouse.down();await page.mouse.move(target.x+target.width/2+25,target.y+target.height/2+20,{steps:8});await page.mouse.up();assert.ok(Number(await page.locator('[data-board-style="x"]').inputValue())>initialX);
- await page.locator('[data-board-style="fontFamily"]').selectOption('source-han-serif');await page.locator('[data-board-style="writingMode"]').selectOption('vertical');await page.screenshot({path:path.join(output,'cover-template.png')});
+ await page.locator('[data-board-style="fontFamily"]').selectOption('source-han-serif');await page.locator('details.board-advanced>summary').click();await page.locator('[data-board-style="writingMode"]').selectOption('vertical');await page.screenshot({path:path.join(output,'cover-template.png')});
  await page.locator('[data-episode-board="tail"]').click();assert.equal(await page.locator('[data-board-meta="nextEpisodeTitle"]').inputValue(),'第二战');await page.locator('[data-board-episode]').selectOption('21');await page.waitForFunction(()=>document.querySelector('#inspector-title').textContent.includes('第 21 话'));assert.equal(await page.locator('[data-board-meta="nextEpisodeTitle"]').inputValue(),'');assert.ok(await page.locator('.board-field-status.pending').count()>0);
  await page.locator('[data-board-meta="nextEpisodeTitle"]').fill('新篇章');await page.locator('[data-board-meta="nextEpisodeTitle"]').blur();await page.screenshot({path:path.join(output,'tail-template.png')});await page.waitForFunction(()=>document.querySelector('#save-state').textContent==='已保存到本机');
  const saved=studio.store.project(p.id);assert.equal(saved.episodeBoards.episodes[21].nextEpisodeTitle,'新篇章');assert.equal(boardContext(saved,14).nextEpisodeTitle,'第二战');assert.equal(saved.episodeBoards.templates.cover.layers[0].writingMode,'vertical');assert.equal(boardAssetIds(saved).length,1);

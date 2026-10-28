@@ -1,4 +1,6 @@
 import {episodeExportLayout} from '../public/episode-board-export.js';
+import {ensureProjectBoardTransitionSafety,imageBoardsForTransition} from '../public/episode-board-transitions.js';
+import {createRequire} from 'node:module';
 import {layoutLongStrip} from '../public/model.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -6,7 +8,7 @@ import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {uid,check,imageInfo} from './store.mjs';
 import {sendFile} from './send-file.mjs';
-const root=fileURLToPath(new URL('../',import.meta.url));
+const root=fileURLToPath(new URL('../',import.meta.url)),require=createRequire(import.meta.url);
 export function createStripExports({dataDir,store,body,json,projectView=p=>p}){
  const sessions=new Map(),directory=path.join(dataDir,'exports');
  function ownedPath(id){
@@ -25,7 +27,7 @@ export function createStripExports({dataDir,store,body,json,projectView=p=>p}){
   if(method==='POST'&&pathname==='/api/strip-exports'){
    const input=await body(request),project=store.project(input.projectId);
    check(input.expectedRevision===project.revision,'工程已经修改，请保存后重新导出',409);
-   check(input.episode===undefined||input.episode===null||Number.isInteger(input.episode)&&input.episode>=1&&input.episode<=9999,'导出话数无效');const visible=projectView(project),page=input.pageId?visible.pages.find(p=>p.id===input.pageId):null;check(!input.pageId||page,'导出画板不存在',404);const layout=page?layoutLongStrip([page]):episodeExportLayout(visible,{episode:input.episode??null,assets:store.db.assets});check(layout.height>0&&layout.height<=2000000,'单张 PNG 支持高度 1—2000000 px；工程数据不截断');
+   check(input.episode===undefined||input.episode===null||Number.isInteger(input.episode)&&input.episode>=1&&input.episode<=9999,'导出话数无效');const visible=projectView(project),page=input.pageId?visible.pages.find(p=>p.id===input.pageId):null;check(!input.pageId||page,'导出画板不存在',404);if(!page&&imageBoardsForTransition(visible,{episode:input.episode??null,assets:store.db.assets}).length){let native;try{native=require(process.env.COMIC_CANVAS_MODULE||'@napi-rs/canvas');}catch{throw Object.assign(new Error('本机图片检测组件不可用，请修复工作台环境后导出'),{status:503});}await ensureProjectBoardTransitionSafety(visible,{episode:input.episode??null,assets:store.db.assets,imageLoader:id=>native.loadImage(store.assetPath(id)),canvasFactory:()=>native.createCanvas(1,1),refresh:true});}const layout=page?layoutLongStrip([page]):episodeExportLayout(visible,{episode:input.episode??null,assets:store.db.assets});check(layout.height>0&&layout.height<=2000000,'单张 PNG 支持高度 1—2000000 px；工程数据不截断');
    const id=uid('export'),s={id,width:layout.width,height:layout.height,nextY:0,parts:[],time:Date.now(),running:false,complete:false};
    fs.mkdirSync(ownedPath(id),{recursive:true});sessions.set(id,s);json(response,201,{id,width:s.width,height:s.height});return true;
   }

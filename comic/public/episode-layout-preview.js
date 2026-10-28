@@ -1,6 +1,7 @@
 import {episodePreviewSource,acceptsPreviewPacket,previewRows} from './episode-preview-model.js';
 import {layoutLongStrip} from './model.js';
 import {paintSceneRegion} from './render.js';
+import {storyFadeSteps} from './story-fade-curve.js';
 const NS='http://www.w3.org/2000/svg',svgNode=(tag,attrs={},text)=>{const n=document.createElementNS(NS,tag);for(const [k,v]of Object.entries(attrs))n.setAttribute(k,String(v));if(text!==undefined)n.textContent=text;return n;};
 const safeColor=value=>/^#[\da-f]{6}$/i.test(value||'')?value:'#ffffff';
 export function mountEpisodeLayoutPreview({container,project,episode,origin,scriptId,geometry:providedGeometry}){
@@ -26,7 +27,7 @@ export function mountEpisodeLayoutPreview({container,project,episode,origin,scri
   const svg=svgNode('svg',{viewBox:`0 0 ${size.width} ${size.height}`,role:'img','aria-label':'第'+source.episode+'话连续版式，共'+geometry.panels.length+'格'}),defs=svgNode('defs');svg.append(defs);
   svg.append(svgNode('rect',{width:size.width,height:size.height,fill:'#ffffff'}));
   for(const [i,bg]of (geometry.backgrounds||[]).entries()){
-   let fill=safeColor(bg.color);if(bg.mode==='linear'){const id='episode-background-'+i,gradient=svgNode('linearGradient',{id,x1:0,y1:0,x2:0,y2:1});gradient.append(svgNode('stop',{offset:'0%','stop-color':fill}),svgNode('stop',{offset:'100%','stop-color':safeColor(bg.endColor)}));defs.append(gradient);fill='url(#'+id+')';}
+   let fill=safeColor(bg.color);if(bg.mode==='linear'){const id='episode-background-'+i,gradient=svgNode('linearGradient',{id,x1:0,y1:0,x2:0,y2:1});if(bg.easing==='smoothstep'){const a=[1,3,5].map(j=>parseInt(fill.slice(j,j+2),16)),end=safeColor(bg.endColor),b=[1,3,5].map(j=>parseInt(end.slice(j,j+2),16));for(const v of storyFadeSteps){const color='#'+a.map((n,j)=>Math.round(n+(b[j]-n)*v.amount).toString(16).padStart(2,'0')).join('');gradient.append(svgNode('stop',{offset:v.offset,'stop-color':color}));}}else gradient.append(svgNode('stop',{offset:'0%','stop-color':fill}),svgNode('stop',{offset:'100%','stop-color':safeColor(bg.endColor)}));defs.append(gradient);fill='url(#'+id+')';}
    svg.append(svgNode('rect',{x:bg.x,y:bg.y,width:bg.w,height:bg.h,fill}));
   }
   const byKey=new Map(rows.map(row=>[row.key,row]));
@@ -59,7 +60,7 @@ export function mountEpisodeLayoutPreview({container,project,episode,origin,scri
  function onPacket(event){
   if(disposed||event.origin!==origin||event.source!==helper?.contentWindow||event.data?.type!=='comic-layout:preview-packet'||event.data.requestId!==requestId)return;
   const data=event.data;if(!acceptsPreviewPacket(source,project,data.script,data.packet)){if(source.kind==='frozen')summary.textContent='当前工程已接回的'+source.geometry.panels.length+'格版式。排版库中的稿件已有变化，预览保留本工程框位；底色暂用白色。';stopHelper();return;}
-  geometryPreview(source.kind==='frozen'?{...data.packet,panels:source.geometry.panels}:data.packet,data.script.shots,{exact:true});stopHelper();
+  geometryPreview(source.kind==='frozen'?source.geometry:data.packet,data.script.shots,{exact:true});stopHelper();
  }
  const requestId=crypto.randomUUID();
  if(source.kind==='artwork')void artworkPreview();

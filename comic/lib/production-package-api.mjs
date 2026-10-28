@@ -8,6 +8,7 @@ import {FONT_FAMILIES} from '../public/lettering.js';
 import {dialogueSegments} from '../public/bubble-dialogue-segments.js';
 import {PRODUCTION_BOX_KINDS,PRODUCTION_FONT_FIELDS,productionStyleKind,updateProductionStyle,resolveProductionStyle,applyProductionStyle} from '../public/production-lettering-style.js';
 import {resolveAssistantEpisode} from './assistant-episode-source.mjs';
+import {applyEpisodeLocalBackgrounds} from './episode-local-backgrounds.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {randomUUID,createHash} from 'node:crypto';
@@ -62,7 +63,9 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
   const project=store.project(match[1]),pkg=project.productionPackage;check(pkg,'当前工程不是制作资料包工程',404);
   if(method==='GET'&&match[2]==='episode-preview'){
    const number=Number(url.searchParams.get('episode'));check(Number.isInteger(number),'请选择当前话');const source=resolveAssistantEpisode(project,number,{scriptId:url.searchParams.get('scriptId')||undefined});
-   json(res,200,source?{available:true,projectId:project.id,episode:number,scriptId:source.scriptId,...(url.searchParams.get('summary')==='1'?{}:{geometry:source.geometry}),contract:source.contract,packetHash:createHash('sha256').update(JSON.stringify(source.geometry)).digest('hex')}:{available:false,projectId:project.id,episode:number});return true;
+   let previewGeometry=source?.geometry;
+   if(source&&url.searchParams.get('summary')!=='1'){const preview=structuredClone(project);layoutAssistantEpisode(preview,number,source,{assets:store.db.assets});previewGeometry=await applyEpisodeLocalBackgrounds(preview,number,source,{store});}
+   json(res,200,source?{available:true,projectId:project.id,episode:number,scriptId:source.scriptId,...(url.searchParams.get('summary')==='1'?{}:{geometry:previewGeometry}),contract:source.contract,packetHash:createHash('sha256').update(JSON.stringify(source.geometry)).digest('hex')}:{available:false,projectId:project.id,episode:number});return true;
   }
   if(method==='GET'&&match[2]==='source'){const rel=packagePath(url.searchParams.get('path')),file=pkg.manifest.find(f=>f.relativePath===rel);check(file,'原始资料不存在',404);const bytes=fs.readFileSync(sourcePath(pkg.hash,rel));check(packageDigest(bytes)===file.sha256,'缓存原件摘要不符，请重新导入',409);res.writeHead(200,{'Content-Type':/\.xlsx$/i.test(rel)?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'text/plain; charset=utf-8','Content-Disposition':"inline; filename*=UTF-8''"+encodeURIComponent(path.posix.basename(rel)),'Cache-Control':'no-store'});res.end(bytes);return true;}
   check(method==='POST','制作资料接口不存在',404);const input=await body(req);check(project.revision===input.expectedRevision,'工程已改变，请保存并重试',409);if(!['references','unit','panels','panel','panel-lettering','episode-lettering'].includes(match[2])&&!(match[2]==='mode'&&input.gridId))idle(project);
@@ -95,7 +98,7 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
   }
   if(match[2]==='episode-layout'){
    check(Number.isInteger(input.episode),'请选择当前话');const source=resolveAssistantEpisode(project,input.episode,{scriptId:input.scriptId,expectedPacketHash:input.expectedPacketHash});if(!source){json(res,200,{requiresPreview:true,episode:input.episode});return true;}
-   const sourceChecked=performance.now();const result=layoutAssistantEpisode(next,input.episode,source,{assets:store.db.assets});const geometryApplied=performance.now();
+   const sourceChecked=performance.now();const result=layoutAssistantEpisode(next,input.episode,source,{assets:store.db.assets});await applyEpisodeLocalBackgrounds(next,input.episode,source,{store});check(store.project(project.id).revision===input.expectedRevision,'读取底色依据期间工程已改变，请重新读取',409);const geometryApplied=performance.now();
    const backup=path.join(dataDir,'backups',project.id+'_before_assistant_layout_'+project.revision+'.json');fs.mkdirSync(path.dirname(backup),{recursive:true});if(!fs.existsSync(backup))fs.writeFileSync(backup,JSON.stringify(project),{flag:'wx'});const backupDone=performance.now();
    const saved=commit({referenceSegments:new Set()}),committed=performance.now();
    json(res,200,{project:saved,...result,backupCreated:true,returnTiming:{sourceAndCloneMs:sourceChecked-returnStarted,geometryMs:geometryApplied-sourceChecked,backupMs:backupDone-geometryApplied,normalizeValidateSaveMs:committed-backupDone,totalMs:committed-returnStarted}});return true;

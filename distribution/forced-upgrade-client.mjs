@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {parsedReleaseVersion} from '../comic/public/team-version.js';
-import {stageUpdate,applyRelease,writeJson} from './updates.mjs';
+import {stageUpdate,preflightRelease,applyRelease,writeJson} from './updates.mjs';
 import {isPrimaryInstallation} from './master-startup.mjs';
 import {upgradeMemberId,verifyUpgradeCommand} from './forced-upgrades.mjs';
 
@@ -24,6 +24,7 @@ export function createForcedUpgradeReceiver({root,channel,stop,restart,readiness
    const response=await request(channel.masterUrl+'/api/releases/latest',{signal:AbortSignal.timeout(10000)});if(!response.ok)throw Error('暂时无法读取主版本');
    const envelope=await response.json();if(envelope.manifest?.contentId!==command.contentId)throw Error('主机版本已更新，等待重新核对升级指令');
    const staged=await stageUpdate(root,channel,envelope); // Signature, path, length and file digests are verified before any stop.
+   preflightRelease(root,staged.bundle); // Keep services running if local code already conflicts.
    const local=await readiness();
    if(!local.allowed){await progress('waiting','本机任务尚未结束或状态待确认，保留任务继续执行；结束后自动升级，其他同事照常升级。');return;}
    await progress('stopping','本机已空闲，正在安全关闭本机服务');stopped=true;await stop();

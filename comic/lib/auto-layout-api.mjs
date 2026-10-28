@@ -12,7 +12,7 @@ export function createAutoLayoutAPI({store,dataDir,body,json,validateProject,che
  const origin=process.env.AUTO_LAYOUT_ORIGIN||'http://127.0.0.1:19848',receipts=path.join(dataDir,'auto-layout-receipts.json');let importing=false;
  const request=async(route,input)=>{const r=await fetch(origin+route,{signal:AbortSignal.timeout(15000),...(input?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)}:{})});const v=await r.json();if(!r.ok)throw Error(v.error||'自动排版服务请求失败');return v;};
  const reflow=createScreenReflow({store,dataDir,body,json,request,addAsset,validateProject,checkAssets,saveProject});
- const planning=createLayoutPlanning({store,dataDir,body,json,request,validateProject,checkAssets});
+ const planning=createLayoutPlanning({store,dataDir,body,json,request,validateProject,checkAssets,saveProject});
  return {async handle(req,res,{pathname,method}){
   if(method==='POST'&&['/api/auto-layout/task/resolve','/api/auto-layout/task/start'].includes(pathname)){
    const input=await body(req),safe=value=>typeof value==='string'&&/^[-\w]{1,90}$/.test(value);

@@ -1,4 +1,5 @@
 import {coverView,coverSettings} from './artwork-framing.mjs';
+import {ensureReflowZoom,reflowCoverViewFromTransform} from './reflow-image-zoom.mjs';
 import {scaleReflowLettering} from './reflow-lettering.mjs';
 import {assertNativeAspect} from './unified-layout-rules.js';
 import {buildLayoutProject} from './auto-layout-adapter.mjs';
@@ -70,6 +71,8 @@ export function buildReflowProject({original,script,geometry,items,batchId,views
   }
   const declared=original.productionPackage.episodes.find(e=>e.episode===episode).texts.filter(t=>t['格ID']===item.key&&t['渲染']==='工具');
   for(const t of declared)if(!nativeIds.has(t['文字ID'])&&!pendingText.some(p=>p.textId===t['文字ID']))pendingText.push({gridId:item.key,textId:t['文字ID'],text:t['文本'],speaker:t['说话人']||'',reason:'来源工程尚无可复用的已定位文字框；原文保留在制作资料中'});
+  // This is the same 100% fill as the editor control; lettering geometry stays fixed.
+  if(ensureReflowZoom(f,item.asset)&&cover)f.autoLayoutCrop.view=reflowCoverViewFromTransform(f,item.asset);
  }
  page.panels=[...archivePanels,...page.panels];page.bubbles=[...archiveBubbles,...page.bubbles];
  if(project.layoutHistory){project.autoLayoutOriginalHistory=project.layoutHistory;delete project.layoutHistory;}

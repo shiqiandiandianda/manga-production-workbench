@@ -13,7 +13,7 @@ test('episode workspace scopes pages, source shots and director gradients withou
  const project=createProject('合成两话'),first=project.pages[0];first.storyboard={episode:11};first.height=500;project.shots[0].episode=11;
  const second=makePage([],'overlay',1280,600);second.storyboard={episode:12};const shot={...clone(project.shots[0]),id:'shot-second',episode:12};project.shots.push(shot);second.panels=[panel(shot.id,30,40,300,200)];project.pages.push(second);project.gradients=[{id:'g11',designEpisode:11},{id:'g12',designEpisode:12}];ensureEpisodeBoards(project);
  const before=clone(project);assert.deepEqual(episodePages(project,second),[second]);assert.deepEqual(episodeShots(project,second),[shot]);assert.deepEqual(episodeLayerProject(project,second).gradients.map(g=>g.id),['g12']);
- const decorations=canvasEpisodeBoards(project,second),state={mode:'continuous',decorations,layout:layoutLongStrip([decorations.cover.page,second,decorations.tail.page])};assert.equal(comicViewOffset(project,state,layoutLongStrip(project.pages)),500-1800);assert.deepEqual(project,before);
+ const decorations=canvasEpisodeBoards(project,second),state={mode:'continuous',decorations,layout:layoutLongStrip([decorations.cover.page,second,decorations.tail.page])};assert.equal(comicViewOffset(project,state,layoutLongStrip(project.pages)),500-decorations.cover.page.height);assert.deepEqual(project,before);
  const legacy=createProject();legacy.pages.push(makePage([]));assert.equal(episodePages(legacy,legacy.pages[0]).length,2);
 });
 test('costume alias and physical states merge by character, preserving both source columns and genuine empty props',()=>{

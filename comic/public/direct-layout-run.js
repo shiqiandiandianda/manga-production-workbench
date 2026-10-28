@@ -37,7 +37,7 @@ export function createDirectLayoutRun({api,getContext,flushSave,open,onChange=()
    }
    if(!planningMode){input.records=records;input.uniformFraming=!!c.uniformFraming;}
    const source=await api(planningMode?'/api/auto-layout/planning/source':'/api/auto-layout/reflow/source','POST',input);
-   const run={runToken:token(),projectId:c.projectId,episode:c.episode,learningProjectId:c.learningProjectId,revision:c.revision,scriptId:source.scriptId,planningMode,autoReturn:!!autoReturn,canvasEpisode:c.activeEpisode??c.episode,ruleVersion:source.contract?.version||c.ruleVersion,preferExisting:!!source.reused&&!input.forceNew,forceNew:!!input.forceNew,status:'starting',created:new Date().toISOString()};
+   const run={runToken:token(),projectId:c.projectId,episode:c.episode,learningProjectId:c.learningProjectId,revision:c.revision,scriptId:source.scriptId,planningMode,autoReturn:!!autoReturn,previewBeforeApply:!!c.previewBeforeApply,canvasEpisode:c.activeEpisode??c.episode,ruleVersion:source.contract?.version||c.ruleVersion,preferExisting:!!source.reused&&!input.forceNew,forceNew:!!input.forceNew,status:'starting',created:new Date().toISOString()};
    // Persist before opening the frame, where the costly model request happens.
    save(run);open(run,{fresh:true});return run;
   }finally{starting=false;onChange();}

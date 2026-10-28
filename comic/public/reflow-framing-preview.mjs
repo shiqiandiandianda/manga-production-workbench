@@ -1,3 +1,4 @@
+import {ensureReflowZoom} from './reflow-image-zoom.mjs';
 import {coverView} from './artwork-framing.mjs';
 import {paintSceneRegion} from './render.js';
 import {assetUrl} from './asset-url.js';
@@ -9,14 +10,14 @@ export async function showReflowFramingPreview(data,{onApply,onCancel=()=>{}}){
  dialog.style.cssText='position:fixed;inset:20px;margin:auto;width:min(1040px,94vw);height:90vh;max-height:90vh;padding:18px;background:#122230;color:#deebf7;border:1px solid #527999;border-radius:12px;z-index:10020;box-sizing:border-box;overflow:auto';
  const header=document.createElement('header');header.style.cssText='position:sticky;top:-18px;background:#122230;padding:12px 0;z-index:2';
  const title=document.createElement('strong');title.textContent='成图重排 · 实际图片与对白预览';header.append(title);
- const note=document.createElement('p');note.textContent='先按排版规则确定框位，再等比缩放取景。原图完整保留；接回后仍可用图片工具调整。横向有意画格保留，滑块只调整本次修正的扁图。';note.style.cssText='font-size:13px;line-height:1.6';header.append(note);
- const apply=document.createElement('button'),cancel=document.createElement('button'),message=document.createElement('span');apply.textContent='确认取景，另存并接回新工程';cancel.textContent='保留来源，暂不接回';for(const b of [apply,cancel])b.style.cssText='padding:10px 14px;margin:0 10px 8px 0;border-radius:6px;cursor:pointer';header.append(apply,cancel,message);dialog.append(header);
+ const note=document.createElement('p');note.textContent='先按排版规则确定框位，再等比缩放取景。原图完整保留；接回后仍可用图片工具调整。横向有意画格保留，滑块只调整本次修正的扁图。';const decisions=data.backgroundDecisions||[],pending=decisions.filter(d=>d.status==='pending').length,preconfigured=decisions.filter(d=>['script-preconfigured','reference-preconfigured'].includes(d.status)).length;note.textContent+=' 底图按剧情段落判断并保持同场景连贯；渐变避开画格、文字、气泡及泡尾。';if(pending)note.textContent+=' '+pending+'段主色待确认，暂用中性底。';if(preconfigured)note.textContent+=' '+preconfigured+'段为脚本或同场景参考预配，并非目标成图实测。';note.style.cssText='font-size:13px;line-height:1.6';header.append(note);
+ const apply=document.createElement('button'),cancel=document.createElement('button'),message=document.createElement('span');apply.textContent='确认取景，接回原画布';cancel.textContent='保留来源，暂不接回';for(const b of [apply,cancel])b.style.cssText='padding:10px 14px;margin:0 10px 8px 0;border-radius:6px;cursor:pointer';header.append(apply,cancel,message);dialog.append(header);
  const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px';dialog.append(grid);document.body.append(dialog);dialog.showModal();
  const views={},images=new Map(),project=structuredClone(data.project),page=project.pages[0];let closed=false;
  const imageLoader=key=>{if(!images.has(key))images.set(key,new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('原图或文字样式图片读取失败'));image.src=data.imageUrls[key]||assetUrl(key);}));return images.get(key);};
  const cleanup=()=>{closed=true;dialog.close();dialog.remove();};
  cancel.onclick=()=>{cleanup();onCancel();};dialog.oncancel=e=>{e.preventDefault();cancel.click();};
- apply.disabled=true;apply.onclick=async()=>{apply.disabled=true;cancel.disabled=true;try{await onApply({projectId:data.projectId,revision:data.revision,packetHash:data.packetHash,views:Object.entries(views).map(([key,v])=>({key,...v}))});cleanup();}catch(e){message.textContent=e.message;apply.disabled=false;cancel.disabled=false;}};
+ apply.disabled=true;apply.onclick=async()=>{apply.disabled=true;cancel.disabled=true;try{await onApply({projectId:data.projectId,revision:data.revision,packetHash:data.packetHash,backgroundPolicyVersion:data.backgroundPolicyVersion,views:Object.entries(views).map(([key,v])=>({key,...v}))});cleanup();}catch(e){message.textContent=e.message;apply.disabled=false;cancel.disabled=false;}};
  try{
   await document.fonts?.ready;
   for(const row of data.frames){
@@ -33,7 +34,7 @@ export async function showReflowFramingPreview(data,{onApply,onCancel=()=>{}}){
    if(row.fit==='cover'){
     const originalTransform=structuredClone(f.imageTransform),initialView=row.view||{focusX:.5,focusY:.5,zoom:1};views[row.key]={...initialView};
     const controls=document.createElement('div');controls.style.cssText='font-size:12px;display:grid;gap:7px';section.append(controls);const sliders=[];
-    for(const [key,text,min,max,step]of [['focusX','左右取景',0,1,.01],['focusY','上下取景',0,1,.01],['zoom','等比放大',1,3,.01]]){const wrap=document.createElement('label'),input=document.createElement('input');wrap.textContent=text+' ';input.type='range';input.min=min;input.max=max;input.step=step;input.value=views[row.key][key];input.style.width='70%';input.setAttribute('aria-label',row.key+' '+text);wrap.append(input);controls.append(wrap);sliders.push([key,input]);input.oninput=()=>{views[row.key][key]=Number(input.value);f.imageTransform=coverView(f,row,views[row.key]);void paint().catch(e=>message.textContent=e.message);};}
+    for(const [key,text,min,max,step]of [['focusX','左右取景',0,1,.01],['focusY','上下取景',0,1,.01],['zoom','等比放大',1.08,3,.01]]){const wrap=document.createElement('label'),input=document.createElement('input');wrap.textContent=text+' ';input.type='range';input.min=min;input.max=max;input.step=step;input.value=views[row.key][key];input.style.width='70%';input.setAttribute('aria-label',row.key+' '+text);wrap.append(input);controls.append(wrap);sliders.push([key,input]);input.oninput=()=>{views[row.key][key]=Number(input.value);f.imageTransform=coverView(f,row,views[row.key]);ensureReflowZoom(f,row);void paint().catch(e=>message.textContent=e.message);};}
     const reset=document.createElement('button');reset.textContent='恢复本次初始取景';reset.onclick=()=>{views[row.key]={...initialView};for(const [key,input]of sliders)input.value=views[row.key][key];f.imageTransform=structuredClone(originalTransform);void paint();};controls.append(reset);
    }
    await paint();

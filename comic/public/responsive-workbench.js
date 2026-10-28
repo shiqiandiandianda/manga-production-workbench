@@ -37,9 +37,10 @@ export function mountResponsiveWorkbench({onOpenInspector,getInspectorState,onAd
 
  const generate=$('.generation-actionbar');
  const generationPanel=menu(generate,'generation-menu','生图');
- caption(generationPanel,'按分镜表提示词生成');move(generationPanel,'#generate-current-panel','#generate-current-episode','#prompt-source-batch','#reference-review-episode');
+ move(generationPanel,'#generate-current-episode');
+ for(const selector of ['#generate-current-panel','#prompt-source-batch','#reference-review-episode']){const node=$(selector);if(node)node.hidden=true;}
  $('#generate-current-episode').textContent='生成本话缺图';
- const settings=document.createElement('button');settings.textContent='生图设置';settings.onclick=()=>$('[data-open-generation-settings]').click();generationPanel.append(settings);
+ $('#generate-current-episode').classList.remove('primary');
  $('.topbar').insertBefore(generate,$('.export-wrap'));
  const footer=$('.job-heading');footer.insertBefore($('#generation-scope-status'),$('#job-latest-status'));
  const projectTools=menu($('.topbar'),'project-tools-menu','更多');

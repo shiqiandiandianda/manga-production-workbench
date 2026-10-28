@@ -2,6 +2,7 @@ import {openMokuProject} from './project-library-open.js';
 import {openFormalEngineeringVersions} from './formal-engineering-versions.js';
 import {mountTaskRailNavigation,updateTaskRailNavigation} from './task-rail-navigation.js';
 import {episodeBatchLabel} from './episode-generation-batches.js';
+import {confirmGeneration} from './generation-confirmation.js';
 import {mountPromptRewriteUI} from './prompt-rewrite-ui.js';
 import {addDialogueSegment,dialogueSegments,defaultDialogueBox} from './bubble-dialogue-segments.js';
 import {mountLocalRegionUI} from './local-region-ui.js';
@@ -116,7 +117,8 @@ import {id,clone,rectangle,panel,makePage,bounds,validPolygon,fitImage,clamp,COM
 import {projectManagerMarkup} from './project-manager.js';
 import {panelInspectorMarkup} from './inspector-ui.js';
 import {taskGroups,taskSummary} from './workbench-state.js';
-import {pageCanvas,exportPage,exportLayoutPage,exportEpisode,exportEpisodeBoard,download,clearImageCache} from "./render.js";
+import {pageCanvas,exportPage,exportLayoutPage,exportEpisode,exportEpisodeBoard,download,clearImageCache,loadImage} from "./render.js";
+import {requestBoardTransitionSafety} from "./episode-board-transitions.js";
 import {svgBubbleMarkup,bubbleLayout} from "./lettering.js";
 import {BubbleEditor,applyBubbleEdit} from './bubble-editor.js';
 import {selectionPage,localPagePoint,bubbleFieldChange} from './editor-state.js';
@@ -439,11 +441,13 @@ function renderCanvas(state=null){
   stripSpaceUI?.sync();
   if(!project||!page()){panelInfoUI.render([],false);frameStatusUI.render();return;}const displayProject=stripSpaceUI?.previewProject||project,p=displayProject.pages.find(p=>p.id===pageId)||displayProject.pages[0],mode=viewport.getMode(),displayWidth=mode==='continuous'?COMIC_PAGE_WIDTH:p.width,availableWidth=Math.max(80,$('#canvas-scroll').clientWidth-50),availableHeight=Math.max(80,$('#canvas-scroll').clientHeight-50),choice=$('#zoom').value;
   zoom=choice==='page'?Math.max(Number.MIN_VALUE,Math.min(availableWidth/displayWidth,availableHeight/(p.height*(mode==='continuous'?COMIC_PAGE_WIDTH/p.width:1)))):choice==='fit'?availableWidth/displayWidth:Number(choice);
-  const displayedPages=episodePages(displayProject,p),scopedProject=episodeLayerProject(displayProject,p);
-  state=viewport.set({pages:displayedPages,decorations:canvasEpisodeBoards(displayProject,p,assets),currentPageId:pageId,zoom:state?.zoom||zoom});state.episodePageIds=new Set(displayedPages.map(page=>page.id));state.episodeLayerIds=new Set(allLayers(scopedProject).map(entry=>entry.item.id));state.fixedBoardSelection=episodeBoardUI?.selection;viewState=state;zoom=state.zoom;
-  
+  const displayedPages=episodePages(displayProject,p),scopedProject=episodeLayerProject(displayProject,p),episodeLayerIds=new Set(allLayers(scopedProject).map(entry=>entry.item.id));
   const hiddenLayerIds=new Set();
   if(displayProject.productionPackage){const frames=displayProject.pages.flatMap(pg=>pg.panels),sources=displayProject.pages.filter(pg=>!displayProject.productionEpisodeViews?.[pg.storyboard?.episode]&&productionEpisodeUnit(displayProject,pg.storyboard?.episode)==='panel').flatMap(pg=>pg.panels).filter(f=>f.productionGrid).map(f=>f.productionGrid),segments=new Set(sources.map(s=>s.segmentId));for(const source of sources)hiddenLayerIds.add(source.rootPanelId);for(const f of frames)if(segments.has(f.productionBackground?.replace(/-BG$/,'')))hiddenLayerIds.add(f.id);for(const f of frames)if(hiddenLayerIds.has(f.cutoutLayer?.parentPanelId))hiddenLayerIds.add(f.id);}
+  const decorations=canvasEpisodeBoards(displayProject,p,assets,{hiddenLayerIds,episodeLayerIds,draft:draftMode});
+  state=viewport.set({pages:displayedPages,decorations,currentPageId:pageId,zoom:state?.zoom||zoom});state.episodePageIds=new Set(displayedPages.map(page=>page.id));state.episodeLayerIds=episodeLayerIds;state.fixedBoardSelection=episodeBoardUI?.selection;viewState=state;zoom=state.zoom;
+  const safetyProjectId=displayProject.id;for(const kind of ['cover','tail']){const board=state.decorations?.[kind]?.board,checking=board&&requestBoardTransitionSafety(board,{imageLoader:loadImage});if(checking)void checking.then(()=>{if(project?.id===safetyProjectId)renderCanvas();});}
+
   const scene=renderSceneSvg(displayProject,state,{assets:assetMap(),missingAssets:missingImageAssets,hiddenLayerIds,measurement,selection:tool==='insert-space'||selectedLayerIds.size>1||selectionBox?null:selection,selectionIds:selectedLayerIds.size>1||selectionBox?selectedLayerIds:null,selectionBox,showPanelInfo,panelInfoLayer:true,panelDisplayMode,panelNotesVisible:showPanelNotes,tool,nodeIndex,draft:draftMode,brush,brushCursor,escape,shotFor,activeJob});
   stage.innerHTML=`<defs>${scene.defs}</defs>${scene.content}${historyLocateMarkup(state)}${stripSpaceUI?.markup(state)||''}`;stage.dataset.paintMode=tool;frameStatusUI.render();panelInfoUI.render(scene.panelInfos,selection?.type!=='gradient'&&tool!=='mask'&&showPanelNotes&&(showPanelInfo||scene.panelInfos.some(info=>info.placeholder)));
   $('#page-heading').textContent='第'+currentBoardEpisode(project,p)+'话 · '+(state.mode==='continuous'?'连续长图 · ':'')+displayedPages.length+' 个正文画板';
@@ -532,12 +536,13 @@ function currentPanelGenerationState(){
  if(project?.autoLayoutSource?.mode==='screen-crop-reflow')return {disabled:true,pending:false,reason:'成图重排工程仅复用已有图片，不重新生图'};
  const frame=project&&!episodeBoardUI?.active&&selection?.type==='panel'&&selectedLayerIds.size<=1?selected():null;
  if(frame&&(scheduler.episodeBatches||[]).some(p=>p.projectId===project.id&&p.active&&p.pendingPanelIds?.includes(frame.id)))return {disabled:true,pending:true,reason:'已加入自动批次'};
- return panelGenerationAvailability(frame,jobs,submitting);
+ return panelGenerationAvailability(frame,jobs,submitting,project);
 }
 function refreshGenerationShortcuts(){
  promptSourceUI?.refresh();
  const inspectorSource=$('#inspector-body').querySelector('[data-panel-prompt-source]'),promptState=promptSourceUI?.currentState();if(inspectorSource&&promptState){inspectorSource.value=promptState.source;inspectorSource.disabled=promptState.disabled;}
  const state=currentPanelGenerationState();for(const button of document.querySelectorAll('#generate-current-panel,#canvas-generate-current-panel,[data-action="generate-current-panel"]')){button.disabled=state.disabled;(button.querySelector('[data-generation-label]')||button).textContent=state.pending?state.reason:'生成本格图片';button.title=state.reason||'使用'+providerLabel()+'，按当前画格宽高与提示词生成；已有图片可在候选中查看';button.setAttribute('aria-busy',String(state.pending));}
+ const reason=$('#inspector-body').querySelector('[data-panel-generation-status]');if(reason){reason.textContent=state.disabled?state.reason:'';reason.hidden=!state.disabled;}
  const ids=project&&!episodeBoardUI?.active?episodeGenerationPanelIds(project,page(),jobs,submitting):[],episode=project?currentBoardEpisode(project,page()):null;
  const generateEpisodeButton=$('#generate-current-episode');generateEpisodeButton.disabled=!ids.length||!!(scheduler.episodeBatches||[]).find(p=>p.projectId===project?.id&&p.episode===episode&&p.active);generateEpisodeButton.textContent=generateEpisodeButton.disabled&&ids.length?'本话正在自动提交':'生成本话缺图';generateEpisodeButton.title=project?'仅生成第'+episode+'话的 '+ids.length+' 个缺图画格；按并发数自动分批，每批结束后随机间隔 1–3 分钟':'请先导入或新建漫画工程';
  const paused=scheduler?.pausedUntil&&scheduler.pausedUntil>Date.now()?' · 账号限流，队列暂停到 '+new Date(scheduler.pausedUntil).toLocaleTimeString('zh-CN',{hour12:false})+' 自动继续':'';
@@ -550,9 +555,14 @@ async function generateCurrentPanel(){
 }
 async function generateCurrentEpisode(){
  quickUI?.finish();if(!project||episodeBoardUI?.active)throw Error('请先返回当前话的正文画格');
- const episode=currentBoardEpisode(project,page()),ids=episodeGenerationPanelIds(project,page(),jobs,submitting);
+ const projectId=project.id,provider=generationProvider,episode=currentBoardEpisode(project,page()),ids=episodeGenerationPanelIds(project,page(),jobs,submitting);
  if(!ids.length)throw Error('本话没有可生成的缺图格子');
- await generateFrames(ids,'generate','',()=>{if(episodeBoardUI?.active||currentBoardEpisode(project,page())!==episode)throw Error('当前话已切换，请重新发起本话生成');},{episode,pageId:page().id});
+ if(document.querySelector('[data-generation-confirmation]'))return;
+ const approved=await confirmGeneration({title:'生成第'+episode+'话缺图？',message:'将生成本话 '+ids.length+' 个缺图画格，使用 '+providerLabel()+'。已有图片、锁定格及其他话保持不变。',confirmLabel:'确认生成 '+ids.length+' 格'});
+ if(!approved)return;
+ const verifyEpisode=()=>{if(project?.id!==projectId||generationProvider!==provider||episodeBoardUI?.active||currentBoardEpisode(project,page())!==episode)throw Error('项目、话或生成渠道已切换，请重新发起本话生成');};verifyEpisode();
+ const available=new Set(episodeGenerationPanelIds(project,page(),jobs,submitting)),remaining=ids.filter(id=>available.has(id));if(!remaining.length)throw Error('本话缺图已处理，无需重复生成');
+ await generateFrames(remaining,'generate','',verifyEpisode,{episode,pageId:page().id});
 }
 function updateConnectionLabel(){
  codexConnectionUI?.update(status);

@@ -36,7 +36,7 @@ export function createViewportController({scroll,stage,onRender=()=>{},onModeCha
   const viewportHeight=()=>Math.max(1,scroll.clientHeight-padding*2);
   function buildLayout() {
     const current=pages.find(page=>page.id===currentPageId)||pages[0];
-    const displayed=decorations&&pages.length?[decorations.cover.page,...pages,decorations.tail.page]:pages;
+    const displayed=decorations&&pages.length?[decorations.cover?.page,...pages,decorations.tail?.page].filter(Boolean):pages;
     layout=layoutLongStrip(displayed,{width:COMIC_PAGE_WIDTH});
   }
   function snapshot() {

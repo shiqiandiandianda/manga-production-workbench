@@ -1,0 +1,23 @@
+{
+  "format": "comic-release-library-code-v1",
+  "files": [
+    {
+      "path": "auto-layout/library/dazhou/versions/approved-cc94887b4f1d/project.json",
+      "blob": "auto-layout/public/bootstrap/blobs/2ee3e1b39f5c0513cce78567268991abbd7a0632ae5bc532ea72004dd8a1358c.json",
+      "bytes": 316,
+      "sha256": "2ee3e1b39f5c0513cce78567268991abbd7a0632ae5bc532ea72004dd8a1358c"
+    },
+    {
+      "path": "auto-layout/library/dazhou/versions/approved-selective-20261024-v1/project.json",
+      "blob": "auto-layout/public/bootstrap/blobs/221a56f992804c1eb3126bc1e9fe2b036d3e740064ad1a95a83d3869db7bf633.json",
+      "bytes": 525,
+      "sha256": "221a56f992804c1eb3126bc1e9fe2b036d3e740064ad1a95a83d3869db7bf633"
+    },
+    {
+      "path": "auto-layout/library/projects.json",
+      "blob": "auto-layout/public/bootstrap/blobs/7dd0e7110eb640852da4455625ed46e2bf36f4674d8c6b4d826ab943acc483c8.json",
+      "bytes": 442,
+      "sha256": "7dd0e7110eb640852da4455625ed46e2bf36f4674d8c6b4d826ab943acc483c8"
+    }
+  ]
+}

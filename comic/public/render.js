@@ -3,6 +3,7 @@ import {episodeExportLayout} from './episode-board-export.js';
 import {exportCompleteStrip} from './complete-strip-export.js';
 import {isCircleFrame} from './frame-primitives.js';
 import {paintEpisodeBoard} from './episode-boards.js';
+import {ensureProjectBoardTransitionSafety,paintBoardBridge} from './episode-board-transitions.js';
 import {isSfxImage,sfxImageRotation,sfxImageBounds} from './sfx-image-layer.js';
 import {paintArtworkImage} from './artwork-transform.js';
 import {sceneLayers} from "./layers.js";
@@ -115,7 +116,15 @@ export async function paintSceneRegion(context,project,{layout=layoutLongStrip(p
  const visible=intersectRegion(region,{x:0,y:0,w:layout.width,h:layout.height});if(!visible)return;context.save();try{context.beginPath();context.rect(visible.x,visible.y,visible.w,visible.h);context.clip();
  for(const e of layout.pages){const area=intersectRegion(visible,{x:0,y:e.y,w:layout.width,h:e.height});if(area){context.fillStyle=e.page.background;context.fillRect(area.x,area.y,area.w,area.h);}}
  if(!draft)for(const gap of stripBackgroundGaps(project,layout)){const area=intersectRegion(visible,{x:gap.x,y:gap.y,w:gap.w,h:gap.h});if(!area)continue;context.save();try{context.translate(gap.x,gap.y);paintGradient(context,gap,backgroundPaintRegion(gap,{x:visible.x-gap.x,y:visible.y-gap.y,w:visible.w,h:visible.h},1/renderScale));}finally{context.restore();}}
- for(const d of sceneLayers(project,layout)){if(!d.frame.visible)continue;context.save();try{context.translate(0,d.offsetY);context.scale(d.scale,d.scale);const local={x:visible.x/d.scale,y:(visible.y-d.offsetY)/d.scale,w:visible.w/d.scale,h:visible.h/d.scale};if(d.type==='bubble')await paintStyledBubble(context,d.frame,imageLoader);else{if(d.type==='gradient'&&draft)continue;const shot=shots.find(s=>s.id===d.frame.shotId);await paintPanel(context,d.frame,{draft,label:shot?shot.code+(shot.title&&shot.title!==shot.code?' · '+shot.title:''):'镜头',description:shot?.description||'',region:local,renderScale:renderScale*d.scale,imageLoader,canvasFactory});}}finally{context.restore();}}
+ const entries=sceneLayers(project,layout);
+ async function drawEntry(target,d,additive=false){if(!d.frame.visible)return;target.save();try{if(additive)target.globalCompositeOperation='lighter';target.translate(0,d.offsetY);target.scale(d.scale,d.scale);const local={x:visible.x/d.scale,y:(visible.y-d.offsetY)/d.scale,w:visible.w/d.scale,h:visible.h/d.scale};if(d.type==='bubble')await paintStyledBubble(target,d.frame,imageLoader);else{if(d.type==='gradient'&&draft)return;const shot=shots.find(s=>s.id===d.frame.shotId);await paintPanel(target,d.frame,{draft,label:shot?shot.code+(shot.title&&shot.title!==shot.code?' · '+shot.title:''):'镜头',description:shot?.description||'',region:local,renderScale:renderScale*d.scale,imageLoader,canvasFactory});}}finally{target.restore();}}
+ for(let i=0;i<entries.length;){const d=entries[i],group=!draft&&d.type==='gradient'&&d.frame.storyCrossfade?.version===1&&typeof d.frame.storyCrossfade.group==='string'?d.frame.storyCrossfade.group:null;
+  if(!group){await drawEntry(context,d);i++;continue;}
+  let end=i+1;while(end<entries.length&&entries[end].type==='gradient'&&entries[end].frame.storyCrossfade?.version===1&&entries[end].frame.storyCrossfade.group===group)end++;
+  const selected=entries.slice(i,end).filter(e=>e.frame.visible&&intersectRegion(visible,{x:e.frame.x,y:e.frame.y,w:e.frame.w,h:e.frame.h}));
+  if(selected.length){const buffer=createSafeCanvas(visible.w*renderScale,visible.h*renderScale,canvasFactory),layer=buffer.getContext('2d');try{layer.scale(renderScale,renderScale);layer.translate(-visible.x,-visible.y);for(const e of selected)await drawEntry(layer,e,true);context.drawImage(buffer,visible.x,visible.y,buffer.width/renderScale,buffer.height/renderScale);}finally{buffer.width=1;buffer.height=1;}}
+  i=end;
+ }
  }finally{context.restore();}
 }
 /** Region coordinates are local to the page; every bubble uses the shared painter and crosses segments intact. */
@@ -168,14 +177,17 @@ export function zipStore(files){
 }
 export async function renderStripSegment(layout,segment,{draft=false,shots=[],project=null,canvasFactory=defaultCanvasFactory,imageLoader=loadImage}={}){
  const canvas=createSafeCanvas(layout.width,segment.height,canvasFactory),context=canvas.getContext('2d');context.translate(0,-segment.y);const document=project||{pages:layout.pages.map(e=>e.page),shots};
- if(layout.episodeBoardParts){for(const part of layout.episodeBoardParts){const area=intersectRegion({x:0,y:segment.y,w:layout.width,h:segment.height},{x:0,y:part.y,w:layout.width,h:part.height});if(!area)continue;context.save();try{context.beginPath();context.rect(area.x,area.y,area.w,area.h);context.clip();if(part.kind==='comic'){context.translate(0,part.y-part.sourceY);await paintSceneRegion(context,document,{layout:layout.originalLayout,region:{x:0,y:part.sourceY+area.y-part.y,w:layout.width,h:area.h},draft,shots,canvasFactory,imageLoader});}else{context.translate(0,part.y);await paintEpisodeBoard(context,part.board,{imageLoader});}}finally{context.restore();}}return canvas;}
+ if(layout.episodeBoardParts){
+  for(const part of layout.episodeBoardParts){const area=intersectRegion({x:0,y:segment.y,w:layout.width,h:segment.height},{x:0,y:part.y,w:layout.width,h:part.height});if(!area)continue;context.save();try{context.beginPath();context.rect(area.x,area.y,area.w,area.h);context.clip();if(part.kind==='comic'){context.translate(0,part.y-part.sourceY);await paintSceneRegion(context,document,{layout:layout.originalLayout,region:{x:0,y:part.sourceY+area.y-part.y,w:layout.width,h:area.h},draft,shots,canvasFactory,imageLoader});}else{const plan=part.transition,bridgeHeight=plan?.height||0,boardY=part.y+(part.kind==='tail'?bridgeHeight:0),bridgeY=part.y+(part.kind==='cover'?part.board.height:0);if(intersectRegion(area,{x:0,y:boardY,w:layout.width,h:part.board.height})){context.save();try{context.translate(0,boardY);await paintEpisodeBoard(context,part.board,{imageLoader});}finally{context.restore();}}if(plan&&intersectRegion(area,{x:0,y:bridgeY,w:layout.width,h:bridgeHeight}))await paintBoardBridge(context,part.board,plan,{y:bridgeY,imageLoader,canvasFactory});}}finally{context.restore();}}return canvas;
+ }
  await paintSceneRegion(context,document,{layout,region:{x:0,y:segment.y,w:layout.width,h:segment.height},draft,shots,canvasFactory,imageLoader});return canvas;
 }
 
 async function exportStrip(pages,{width,name,partName,draft=false,shots=[],onProgress=()=>{},segmentHeight=MAX_EXPORT_SEGMENT_HEIGHT,canvasFactory=defaultCanvasFactory,imageLoader=loadImage,download:save=download,maxArchiveBytes=MAX_EXPORT_ARCHIVE_BYTES,project=null,region=null,includeEpisodeBoards=false,episode=null,assets=project?.assets||[]}={}){
   if(typeof document!=='undefined')await document.fonts?.ready;
   clearImageCache();
-  const layout=includeEpisodeBoards&&project?episodeExportLayout(project,{episode,assets}):layoutLongStrip(project?.pages||pages,{width});
+  if(includeEpisodeBoards&&project)await ensureProjectBoardTransitionSafety(project,{assets,episode,imageLoader,canvasFactory});
+  const layout=includeEpisodeBoards&&project?episodeExportLayout(project,{episode,assets,draft}):layoutLongStrip(project?.pages||pages,{width});
   if(!layout.pages.length)throw new Error('没有可导出的页面');
   if(!Number.isSafeInteger(segmentHeight)||segmentHeight<1||segmentHeight>MAX_EXPORT_SEGMENT_HEIGHT)throw new Error('导出分段高度无效');
   if(Math.ceil((region?.h??layout.height)/segmentHeight)>65535)throw new Error('分段数量超过 ZIP 格式容量，请按页导出；工程数据保持完整');
@@ -204,7 +216,8 @@ export async function exportPage(page,options={}){
 export async function exportEpisode(project,onProgress=()=>{},options={}){
   if(typeof document!=='undefined')await document.fonts?.ready;
   clearImageCache();
-  const layout=episodeExportLayout(project,{episode:options.episode??null,assets:options.assets||project.assets||[]});
+  const assets=options.assets||project.assets||[];await ensureProjectBoardTransitionSafety(project,{assets,episode:options.episode??null,imageLoader:options.imageLoader||loadImage,canvasFactory:options.canvasFactory});
+  const layout=episodeExportLayout(project,{episode:options.episode??null,assets});
   return exportCompleteStrip({project,layout,episode:options.episode??null,onProgress,request:options.request,downloadURL:options.downloadURL,segmentHeight:options.segmentHeight,renderSegment:async segment=>{
     const canvas=await renderStripSegment(layout,segment,{project,canvasFactory:options.canvasFactory,imageLoader:options.imageLoader});
     try{return await pngBlob(canvas);}finally{canvas.width=1;canvas.height=1;}

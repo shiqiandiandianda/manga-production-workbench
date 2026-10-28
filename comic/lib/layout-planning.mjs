@@ -2,21 +2,26 @@ import {episodeRuleRequest} from '../public/layout-rule-choice.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {randomUUID,createHash} from 'node:crypto';
-import {buildPreplannedProject,assertNativeAspect,generationPlans} from '../public/unified-layout-rules.js';
+import {assertNativeAspect,generationPlans} from '../public/unified-layout-rules.js';
+import {layoutAssistantEpisode} from '../public/production-episode-layout.js';
+import {commitLayoutCanvas} from './layout-canvas-return.mjs';
+import {applyEpisodeLocalBackgrounds} from './episode-local-backgrounds.mjs';
 const sha=v=>createHash('sha256').update(v).digest('hex');
 const fail=(message,status=409)=>{throw Object.assign(Error(message),{status});};
-export function createLayoutPlanning({store,dataDir,body,json,request,validateProject,checkAssets}){
+export function createLayoutPlanning({store,dataDir,body,json,request,validateProject,checkAssets,saveProject}){
  const folder=path.join(dataDir,'auto-layout-planning');let busy=false;
  function epFor(p,input){if(p.revision!==input.expectedRevision)fail('原工程已有修改，请刷新');const ep=p.productionPackage?.episodes.find(e=>e.episode===Number(input.episode));if(!ep)fail('请选择制作资料工程及话数',400);return ep;}
  function fixedShots(p,ep){return ep.panelRecords.map(r=>{const raw=r.original||{},prod=r.production||{},old=p.shots.find(s=>s.productionGridId===r.id)||{};return {...structuredClone(old),key:r.id,code:r.id,title:r.id,description:old.description??String(raw['画面内容']||prod['画面内容']||''),productionPrompt:old.productionPrompt??String(raw['生图提示词']||prod['生图提示词']||''),dialogue:old.dialogue||ep.texts.filter(t=>t['格ID']===r.id).map(t=>t['文本']).join('\n'),shotSize:old.shotSize||raw['景别']||prod['景别']||'',cameraAngle:old.cameraAngle||raw['机位角度']||prod['机位角度']||'',characters:raw['出现角色']||prod['出现角色']||[],location:old.location||raw['当前场景']||prod['当前场景']||'',time:old.time||raw['当前时间']||prod['当前时间']||'',sourceFields:structuredClone(raw)};});}
  function load(id){if(!/^[a-f0-9-]{36}$/.test(id))fail('规划批次无效',400);return JSON.parse(fs.readFileSync(path.join(folder,id+'.json'),'utf8'));}
  async function importResult(script,geometry){
   const batch=load(script.studioSource.planningBatchId),original=store.project(batch.project.id);
+  const key=sha(JSON.stringify(geometry));if(batch.canvasResults?.[key]===original.id||original.layoutCanvasReturn?.batchId===batch.id&&original.layoutCanvasReturn?.digest===key)return original;
   if(batch.projectHash!==sha(JSON.stringify(original))||script.id!==batch.scriptId||JSON.stringify(batch.shots)!==JSON.stringify(script.shots)||JSON.stringify(batch.contract)!==JSON.stringify(script.layoutRuleContract))fail('来源或规则快照已变化，请重新送入');
   assertNativeAspect(script,geometry);generationPlans(original.productionPackage.episodes.find(e=>e.episode===Number(script.episode)),geometry);
-  const key=sha(JSON.stringify(geometry)),prior=store.db.projects.find(p=>p.id===batch.results?.[key]&&!p.deletedAt);if(prior)return prior;
-  const project=buildPreplannedProject(original,script,geometry);validateProject(project);checkAssets(project);store.db.projects.push(project);store.save();
-  batch.results||={};batch.results[key]=project.id;fs.writeFileSync(path.join(folder,batch.id+'.json'),JSON.stringify(batch));return project;
+  const next=structuredClone(original);layoutAssistantEpisode(next,Number(script.episode),{geometry,contract:script.layoutRuleContract,scriptId:script.id,updatedPreview:true},{assets:store.db.assets});
+  await applyEpisodeLocalBackgrounds(next,Number(script.episode),{geometry,shots:script.shots},{store});if(store.project(original.id)!==original||sha(JSON.stringify(store.project(original.id)))!==batch.projectHash)fail('读取底色依据期间工程已改变，请重新读取');
+  const project=commitLayoutCanvas({store,dataDir,original,next,validateProject,checkAssets,saveProject,receipt:{batchId:batch.id,digest:key,episode:Number(script.episode),scriptId:script.id}});
+  batch.canvasResults||={};batch.canvasResults[key]=project.id;try{fs.writeFileSync(path.join(folder,batch.id+'.json'),JSON.stringify(batch));}catch{}return project;
  }
  return {importResult,async handle(req,res,{pathname,method}){
   if(method==='GET'&&pathname==='/api/auto-layout/rules'){json(res,200,await request('/api/integration/rules'));return true;}

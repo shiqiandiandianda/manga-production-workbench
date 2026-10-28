@@ -1,4 +1,5 @@
 import {FONT_FAMILIES} from './lettering.js';
+import {storyFadeSteps} from './story-fade-curve.js';
 
 export const BOARD_KINDS=['cover','tail'];
 export const BOARD_LABELS={cover:'封面',tail:'尾图'};
@@ -33,6 +34,11 @@ export function boardContext(project,number){
  const nextEpisodeTitle=own(overrides,'nextEpisodeTitle')?overrides.nextEpisodeTitle:next?.title||'';
  return {number,displayNumber,nextNumber:displayNumber+1,workTitle,episodeTitle,nextEpisodeTitle,autoTitle:auto?.title||'',autoNextTitle:next?.title||'',overrides,source:auto?.source||'手填',nextMissing:!nextEpisodeTitle.trim()};
 }
+/** An existing template counts as a board even without an image. Missing or explicitly disabled boards do not. */
+export function hasEpisodeBoard(project,kind,number){
+ const state=project?.episodeBoards,template=state?.templates?.[kind],override=state?.episodes?.[number]?.[kind];
+ return !!template&&(override?.enabled===undefined?template.enabled!==false:override.enabled===true)&&override?.present!==false;
+}
 export function resolveBoard(project,kind,number,assets=project.assets||[]){
  const templates=project.episodeBoards?.templates||defaultBoardTemplates(),template=copy(templates[kind]),context=boardContext(project,number),override=context.overrides[kind];
  if(override?.useOwnBackground&&override.backgroundAssetId)template.backgroundAssetId=override.backgroundAssetId;
@@ -57,7 +63,7 @@ export function validateEpisodeBoards(project){
   const keys=kind==='cover'?['workTitle','episodeLabel','episodeTitle']:['completed','nextLabel','nextEpisodeTitle','fixedText'];assert(Array.isArray(board.layers)&&board.layers.length===keys.length&&keys.every(key=>board.layers.filter(l=>l.key===key).length===1),'固定文字层不能增加、删除或重复');
   for(const l of board.layers)assert(number(l.x,-1280,2560)&&number(l.y,-8192,16384)&&number(l.w,20,2560)&&number(l.h,20,16384)&&Object.hasOwn(FONT_FAMILIES,l.fontFamily)&&number(l.fontSize,10,1024)&&number(l.minFontSize,10,l.fontSize)&&color(l.color)&&color(l.strokeColor)&&number(l.strokeWidth,0,64)&&[400,500,600,700,800,900].includes(l.fontWeight)&&['horizontal','vertical'].includes(l.writingMode)&&['shrink','wrap'].includes(l.fit)&&['left','center','right'].includes(l.align)&&number(l.lineHeight,1,3)&&typeof l.visible==='boolean'&&(l.key!=='fixedText'||text(l.text)),'封面 / 尾图文字外观参数无效');
  }
- for(const [key,entry] of Object.entries(state.episodes)){assert(episodeNumber(key)&&plain(entry),'单话模板数据无效');for(const field of ['episodeTitle','nextEpisodeTitle'])assert(entry[field]===undefined||text(entry[field]),'单话话名过长');assert(entry.episodeNumber===undefined||episodeNumber(entry.episodeNumber)===entry.episodeNumber,'单话话数无效');assert(entry.texts===undefined||plain(entry.texts)&&Object.keys(entry.texts).length<=7&&Object.entries(entry.texts).every(([key,v])=>/^(cover|tail)\.[a-zA-Z]+$/.test(key)&&text(v)),'单话文字无效');for(const kind of BOARD_KINDS)if(entry[kind]!==undefined)assert(plain(entry[kind])&&typeof entry[kind].useOwnBackground==='boolean'&&asset(entry[kind].backgroundAssetId),'单话独立底图无效');}
+ for(const [key,entry] of Object.entries(state.episodes)){assert(episodeNumber(key)&&plain(entry),'单话模板数据无效');for(const field of ['episodeTitle','nextEpisodeTitle'])assert(entry[field]===undefined||text(entry[field]),'单话话名过长');assert(entry.episodeNumber===undefined||episodeNumber(entry.episodeNumber)===entry.episodeNumber,'单话话数无效');assert(entry.texts===undefined||plain(entry.texts)&&Object.keys(entry.texts).length<=7&&Object.entries(entry.texts).every(([key,v])=>/^(cover|tail)\.[a-zA-Z]+$/.test(key)&&text(v)),'单话文字无效');for(const kind of BOARD_KINDS)if(entry[kind]!==undefined)assert(plain(entry[kind])&&typeof entry[kind].useOwnBackground==='boolean'&&asset(entry[kind].backgroundAssetId)&&(entry[kind].enabled===undefined||typeof entry[kind].enabled==='boolean')&&(entry[kind].present===undefined||typeof entry[kind].present==='boolean'),'单话独立底图无效');}
 }
 
 /** One measurement layout is used by both SVG preview and PNG export. */
@@ -72,9 +78,11 @@ export function boardTextLayout(context,layer){
  };
  return calculate(layer.fontSize);
 }
-export function boardSvg(board,measurement,{assetUrl,selectedKey='',controls=true}={}){
- let content=`<rect width="1280" height="${board.height}" fill="${board.background}"/>`;
- if(board.backgroundAssetId)content+=`<image href="${escape(assetUrl(board.backgroundAssetId))}" width="1280" height="${board.height}" preserveAspectRatio="xMidYMid ${board.imageFit==='contain'?'meet':'slice'}"/>`;
+export function boardSvg(board,measurement,{assetUrl,selectedKey='',controls=true,transition=null,idPrefix=''}={}){
+ let background=`<rect width="1280" height="${board.height}" fill="${board.background}"/>`;
+ if(board.backgroundAssetId)background+=`<image href="${escape(assetUrl(board.backgroundAssetId))}" width="1280" height="${board.height}" preserveAspectRatio="xMidYMid ${board.imageFit==='contain'?'meet':'slice'}"/>`;
+ let content=background;
+ if(transition){const id=idPrefix+'board_transition_'+board.kind+'_'+board.episode,cover=board.kind==='cover';const stops=storyFadeSteps.map(v=>{const n=Math.round((cover?1-v.amount:v.amount)*255);return `<stop offset="${v.offset}" stop-color="rgb(${n},${n},${n})"/>`;}).join('');content=`<defs><linearGradient id="${id}_fade" gradientUnits="userSpaceOnUse" x1="0" y1="${transition.y}" x2="0" y2="${transition.y+transition.height}">${stops}</linearGradient><mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="1280" height="${board.height}" style="mask-type:luminance"><rect width="1280" height="${board.height}" fill="url(#${id}_fade)"/></mask></defs><rect width="1280" height="${board.height}" fill="${transition.color}" pointer-events="none"/><g data-board-transition="${board.kind}" mask="url(#${id})">${background}</g>`;}
  for(const layer of board.layers){if(!layer.visible)continue;const layout=boardTextLayout(measurement,layer),selected=layer.key===selectedKey;
   content+=`<g data-board-layer="${layer.key}" aria-label="${BOARD_LAYER_LABELS[layer.key]}" tabindex="${controls?'0':'-1'}"><rect x="${layer.x}" y="${layer.y}" width="${layer.w}" height="${layer.h}" fill="transparent" stroke="${controls&&selected?'#92c7ff':'none'}" stroke-width="3" stroke-dasharray="10 6"/>`;
   for(const glyph of layout.glyphs)content+=`<text x="${glyph.x}" y="${glyph.y}" font-family="${escape(FONT_FAMILIES[layer.fontFamily])}" font-size="${layout.fontSize}" font-weight="${layer.fontWeight}" text-anchor="${layout.textAnchor}" dominant-baseline="central" fill="${layer.pending?'#ffad42':layer.color}" stroke="${layer.strokeColor}" stroke-width="${layer.strokeWidth*2}" stroke-linejoin="round" paint-order="stroke fill" pointer-events="none">${escape(glyph.text)}</text>`;
@@ -82,9 +90,10 @@ export function boardSvg(board,measurement,{assetUrl,selectedKey='',controls=tru
  }
  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 ${board.height}" role="img" aria-label="第${board.context.displayNumber}话${BOARD_LABELS[board.kind]}预览">${content}</svg>`;
 }
-export async function paintEpisodeBoard(context,board,{imageLoader}={}){
+export async function paintEpisodeBoard(context,board,{imageLoader,transition=null}={}){
  context.save();try{context.beginPath();context.rect(0,0,1280,board.height);context.clip();context.fillStyle=board.background;context.fillRect(0,0,1280,board.height);
  if(board.backgroundAssetId){const image=await imageLoader(board.backgroundAssetId),w=image.naturalWidth||image.width,h=image.naturalHeight||image.height,scale=(board.imageFit==='contain'?Math.min:Math.max)(1280/w,board.height/h);context.drawImage(image,(1280-w*scale)/2,(board.height-h*scale)/2,w*scale,h*scale);}
+ if(transition){const rgb=[1,3,5].map(i=>parseInt(transition.color.slice(i,i+2),16)),gradient=context.createLinearGradient(0,transition.y,0,transition.y+transition.height),cover=board.kind==='cover';for(const v of storyFadeSteps)gradient.addColorStop(v.offset,`rgba(${rgb.join(',')},${cover?v.amount:1-v.amount})`);context.fillStyle=gradient;context.fillRect(0,transition.y,1280,transition.height);}
  for(const layer of board.layers){if(!layer.visible)continue;const layout=boardTextLayout(context,layer);context.font=layout.font;context.textAlign=({start:'left',middle:'center',end:'right'})[layout.textAnchor];context.textBaseline='middle';context.fillStyle=layer.pending?'#ffad42':layer.color;context.strokeStyle=layer.strokeColor;context.lineWidth=layer.strokeWidth*2;context.lineJoin='round';for(const glyph of layout.glyphs){if(layer.strokeWidth)context.strokeText(glyph.text,glyph.x,glyph.y);context.fillText(glyph.text,glyph.x,glyph.y);}}
  }finally{context.restore();}
 }

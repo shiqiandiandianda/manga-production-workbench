@@ -3,7 +3,10 @@ import {rectangle,COMIC_PAGE_WIDTH} from './model.js';
 
 const rectangular=layer=>layer.points?.length===4&&rectangle().every(corner=>layer.points.some(p=>Math.abs(p.x-corner.x)<1e-8&&Math.abs(p.y-corner.y)<1e-8));
 /** Story backgrounds span the strip; ordinary overlay gradients remain freely positioned. */
-export const isStripBackground=layer=>!!layer&&!layer.freeGradientRegion&&layer.coverage==='area'&&rectangular(layer)&&!!(layer.templateGenerated||layer.stripSpace||layer.stripBackground);
+// Older local story backgrounds were saved without a strip marker. Recognize only the
+// documented generated layer with its matching episode anchor; freehand edits remain free.
+const isLegacyStoryBackground=layer=>layer.name==='剧情段落衬底'&&Number.isSafeInteger(layer.designEpisode)&&layer.assistantLayoutAnchor?.episode===layer.designEpisode&&typeof layer.assistantLayoutAnchor.pageId==='string';
+export const isStripBackground=layer=>!!layer&&!layer.freeGradientRegion&&layer.coverage==='area'&&rectangular(layer)&&!!(layer.templateGenerated||layer.stripSpace||layer.stripBackground||layer.storyBackgroundVersion===1||isLegacyStoryBackground(layer));
 export function anchoredBackground(layer,width=COMIC_PAGE_WIDTH){return isStripBackground(layer)?{...layer,x:0,w:width}:layer;}
 export function anchorStripBackgrounds(project){for(const layer of project.gradients||[])if(isStripBackground(layer)){layer.x=0;layer.w=COMIC_PAGE_WIDTH;}return project;}
 export function isOpaqueStripBackground(layer){
@@ -22,8 +25,9 @@ function colorAt(frame,y){
 }
 /** Fill exposed base gaps using neighboring edge colors without moving any panels or lettering. */
 export function stripBackgroundGaps(project,layout){
- const bands=(project.gradients||[]).filter(isOpaqueStripBackground).map(g=>anchoredBackground(g,layout.width)).filter(g=>g.y<layout.height&&g.y+g.h>0).sort((a,b)=>a.y-b.y||b.h-a.h);
- const intentional=(project.gradients||[]).filter(g=>isStripBackground(g)&&!isOpaqueStripBackground(g));
+ const inDocument=g=>{const anchored=anchoredBackground(g,layout.width);if(!g.assistantLayoutAnchor)return anchored;const page=layout.pages.find(p=>p.pageId===g.assistantLayoutAnchor.pageId);return page?{...anchored,y:page.y+g.assistantLayoutAnchor.y}:null;};
+ const bands=(project.gradients||[]).filter(isOpaqueStripBackground).map(inDocument).filter(g=>g&&g.y<layout.height&&g.y+g.h>0).sort((a,b)=>a.y-b.y||b.h-a.h);
+ const intentional=(project.gradients||[]).filter(g=>isStripBackground(g)&&!isOpaqueStripBackground(g)).map(inDocument).filter(Boolean);
  if(!bands.length)return [];
  const gaps=[];let end=0,previous=null;
  const add=(from,to,left,right)=>{if(to-from<1e-8||to-from>8||intentional.some(g=>g.y<to&&g.y+g.h>from))return;const c1=left?colorAt(left,from):colorAt(right,to),c2=right?colorAt(right,to):c1;

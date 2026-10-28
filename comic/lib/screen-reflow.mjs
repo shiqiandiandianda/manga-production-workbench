@@ -8,6 +8,12 @@ import {prepareEpisodeReflow} from './reflow-preparation.mjs';
 import {availableReflowEpisodes} from '../public/reflow-episode-context.mjs';
 import {sourceAspect} from '../public/artwork-framing.mjs';
 import {buildReflowProject,mergeReflowIntoOriginal} from '../public/auto-layout-reflow.mjs';
+import {returnReflowToCanvas} from '../public/reflow-canvas.mjs';
+import {sampleArtworkPalette} from './artwork-palette.mjs';
+import {commitLayoutCanvas} from './layout-canvas-return.mjs';
+import {addReflowPaletteExclusions,addSceneReferencePalettes,buildReflowWithLocalBackgrounds} from './reflow-background-context.mjs';
+import {LOCAL_BACKGROUND_POLICY} from '../public/local-background-policy.js';
+import {restoreLegacyReflowScreenBoards} from '../public/reflow-screen-boards.mjs';
 
 const sha=v=>createHash('sha256').update(v).digest('hex');
 const stamp=f=>JSON.stringify([f.x,f.y,f.w,f.h,f.points,f.imageAssetId,f.imageTransform,f.packageCutout]);
@@ -15,7 +21,7 @@ const uuid=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const active=new Set(['queued','preparing','running','recoverable','awaiting_confirmation','delegated']);
 const fail=(message,status=409)=>{throw Object.assign(Error(message),{status});};
 
-export function createScreenReflow({store,dataDir,body,json,request,addAsset,validateProject,checkAssets,saveProject}){
+export function createScreenReflow({store,dataDir,body,json,request,addAsset,validateProject,checkAssets,saveProject,samplePalette=sampleArtworkPalette}){
  const slices=path.join(dataDir,'panel-slices'),directory=path.join(dataDir,'auto-layout-reflow');let busy=false;
  const batchPath=id=>{if(!uuid.test(id))fail('重排批次编号无效',400);return path.join(directory,id+'.json');};
  const read=file=>JSON.parse(fs.readFileSync(file,'utf8'));
@@ -67,6 +73,7 @@ export function createScreenReflow({store,dataDir,body,json,request,addAsset,val
    if(cover&&(current?.imageTransform?.rotation||current?.imageTransform?.flipX||current?.imageTransform?.flipY))fail('带旋转或翻转的画格先保留当前取景，请单独核对后再启用竖格修正：'+item.key);
    return {...item,preserveCurrentView:preserve,currentFrame:current?structuredClone({w:current.w,h:current.h,imageTransform:current.imageTransform}):undefined,artworkLayout:preserve?{version:1,fit:'preserve',framePolicy:'fixed',width:current.w,height:current.h}:cover?{version:1,fit:'cover',framePolicy:'rules'}:undefined};});
   if(!items.length||items.length>800||new Set(items.map(i=>i.key)).size!==items.length)fail('本话源格ID重复或格数超过800',400);
+  for(const item of items){addReflowPaletteExclusions(project,item);item.palette=await samplePalette(item);}
   const contract=await request('/api/integration/rules/resolve',ruleRequest);
   context(store.project(project.id),input.episode,input.expectedRevision);if(sha(JSON.stringify(store.project(project.id)))!==initialProjectHash)fail('读取来源期间工程已变化，请重新读取');
   const batchKey=sha(JSON.stringify({project:sha(JSON.stringify(project)),style:contract.digest,framing:items.map(i=>i.artworkLayout||null),records:records.map(r=>[r.id,r.segmentId,r.sourceHash,r.sourcePanelId,r.rootStamp,r.frameStamp,r.width,r.height]),images:items.map(i=>[i.key,i.sha256,i.width,i.height,i.sourceWidth,i.sourceHeight,i.pixels,i.region])}));
@@ -75,6 +82,7 @@ export function createScreenReflow({store,dataDir,body,json,request,addAsset,val
    const existing=project.shots.find(s=>s.productionGridId===r.id&&s.productionSliceSegment===r.segmentId),raw=r.original||{},p=r.production||{},texts=ep.texts.filter(t=>t['格ID']===r.id);
    return {...(existing?structuredClone(existing):{}),key:r.id,code:r.id,title:r.id,description:existing?.description??String(raw['画面内容']||p['画面内容']||''),productionPrompt:existing?.productionPrompt??String(raw['生图提示词']||p['生图提示词']||''),dialogue:existing?.dialogue||texts.map(t=>t['文本']).join('\n'),characters:raw['出现角色']||p['出现角色']||[],location:existing?.location||raw['当前场景']||p['当前场景']||'',time:existing?.time||raw['当前时间']||p['当前时间']||'',shotSize:existing?.shotSize||raw['景别']||p['景别']||'',cameraAngle:existing?.cameraAngle||raw['机位角度']||p['机位角度']||'',sourceFields:structuredClone(raw),productionGridId:r.id,productionSliceSegment:r.segmentId,artworkLayout:items[i].artworkLayout,existingArtwork:{width:items[i].width,height:items[i].height,sha256:items[i].sha256,aspectRatio:items[i].width/items[i].height,policy:items[i].artworkLayout?'reuse-native-image-uniform-view-no-regeneration':'reuse-cropped-image-contain-no-regeneration'},sourceLocation:existing?.sourceLocation||[r.source?.file,r.source?.pointer].filter(Boolean).join(' '),productionSourceRecord:structuredClone(r.source||{})};
   });
+  for(const item of items)await addSceneReferencePalettes(project,item,shots.find(s=>s.key===item.key),store,samplePalette);
   const batch={version:2,contract,id,batchKey,projectId:project.id,revision:project.revision,episode:ep.episode,projectHash:sha(JSON.stringify(project)),project:snapshot,items,shots,created:new Date().toISOString()};fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(batchPath(id),JSON.stringify(batch));
   try{const result=await request('/api/integration/import',{projectId:project.id,revision:project.revision,title:project.title+' · 第'+ep.episode+'话成图重排',episode:ep.episode,shots,learningProjectId:contract.id,layoutRuleContract:contract,reflowBatchId:id});batch.scriptId=result.id;fs.writeFileSync(batchPath(id),JSON.stringify(batch));return {id,scriptId:result.id,count:items.length,episode:ep.episode,noImageGeneration:true};}catch(e){batch.error=e.message;fs.writeFileSync(batchPath(id),JSON.stringify(batch));throw e;}
  }
@@ -87,21 +95,31 @@ export function createScreenReflow({store,dataDir,body,json,request,addAsset,val
   return batch;
  }
  async function importResult(script,packet,viewRequest){
-  const existingBatch=read(batchPath(script.studioSource.reflowBatchId)),views=validatedViews(existingBatch,packet,viewRequest),digest=sha(JSON.stringify({packet,views}));
-  const existing=store.db.projects.find(p=>p.id===existingBatch.projectId&&!p.deletedAt);
-  if(existingBatch.results?.[digest]===existing?.id&&existing?.episodeReflows?.[existingBatch.episode]?.batchId===existingBatch.id)return existing;
-  const batch=verifyBatch(script,packet);
-  const before=new Set(store.db.assets.map(a=>a.id));let changedProject;
+  let batch=read(batchPath(script.studioSource.reflowBatchId));const views=validatedViews(batch,packet,viewRequest),digest=sha(JSON.stringify({packet,views,backgroundPolicyVersion:LOCAL_BACKGROUND_POLICY.version}));
+  const current=store.project(batch.projectId);
+  // Batches committed by earlier host releases remain idempotent.
+  const legacyDigest=sha(JSON.stringify({packet,views}));
+  if(batch.results?.[legacyDigest]===current.id&&current.episodeReflows?.[batch.episode]?.batchId===batch.id)return current;
+  if(batch.canvasResults?.[digest]===current.id||current.layoutCanvasReturn?.batchId===batch.id&&current.layoutCanvasReturn?.digest===digest)return current;
+  batch=verifyBatch(script,packet);const before=new Set(store.db.assets.map(a=>a.id));
   try{
    const items=batch.items.map(item=>({...item,asset:item.existingAssetId?store.asset(item.existingAssetId):addAsset(item.filePath,item.key+' · 成图裁格重排','auto-layout-crop')}));
-   const derived=buildReflowProject({original:batch.project,script,geometry:packet,items,batchId:batch.id,views}),current=store.project(batch.projectId),next=mergeReflowIntoOriginal(current,derived,batch.episode);validateProject(next);checkAssets(next);
-   const backup=path.join(dataDir,'backups',current.id+'_before_reflow_'+current.revision+'.json');fs.mkdirSync(path.dirname(backup),{recursive:true});if(!fs.existsSync(backup))fs.writeFileSync(backup,JSON.stringify(current),{flag:'wx'});
-   const index=store.db.projects.indexOf(current);store.db.projects[index]=next;changedProject={index,current};const saved=saveProject?saveProject(next,{editor:true}):(next.revision++,store.save(),next);if(store.lastSaveError)fail('原工程暂时无法写盘，重排未接回：'+store.lastSaveError);
-   batch.results||={};batch.results[digest]=saved.id;fs.writeFileSync(batchPath(batch.id)+'.tmp',JSON.stringify(batch));fs.renameSync(batchPath(batch.id)+'.tmp',batchPath(batch.id));return saved;
-  }catch(e){if(changedProject)store.db.projects[changedProject.index]=changedProject.current;store.db.assets=store.db.assets.filter(a=>before.has(a.id));store.save();throw e;}
+   // Older batches predate color observations. Resolve them from their verified crop files as well.
+   for(const item of items){addReflowPaletteExclusions(batch.project,item);if(item.palette?.version!==2)item.palette=await samplePalette(item);await addSceneReferencePalettes(batch.project,item,batch.shots.find(s=>s.key===item.key),store,samplePalette);}
+   verifyBatch(script,packet);
+   const original=store.project(batch.projectId),boardSource=restoreLegacyReflowScreenBoards(original).project;
+   const {geometry,rendered}=buildReflowWithLocalBackgrounds({original:boardSource,script,packet,items,batchId:batch.id,views});
+   const next=returnReflowToCanvas(boardSource,rendered,{episode:batch.episode,items,geometry,script,batchId:batch.id});
+   const saved=commitLayoutCanvas({store,dataDir,original,next,validateProject,checkAssets,saveProject,receipt:{batchId:batch.id,digest,episode:batch.episode,scriptId:script.id}});
+   batch.canvasResults||={};batch.canvasResults[digest]=saved.id;
+   // A receipt failure must not roll back a canvas which was already saved successfully.
+   try{fs.writeFileSync(batchPath(batch.id)+'.tmp',JSON.stringify(batch));fs.renameSync(batchPath(batch.id)+'.tmp',batchPath(batch.id));}catch{}
+   return saved;
+  }catch(e){store.db.assets=store.db.assets.filter(a=>before.has(a.id));store.save();throw e;}
  }
  function validatedViews(batch,packet,input){
   if(!input)return {};
+  if(input.backgroundPolicyVersion!==LOCAL_BACKGROUND_POLICY.version)fail('底色规则已更新，请重新读取取景预览后再接回');
   if(input.projectId!==batch.projectId||input.revision!==batch.revision||input.packetHash!==sha(JSON.stringify(packet))||!Array.isArray(input.views)||input.views.length>batch.items.length)fail('取景预览已过期或来源不符，请重新读取');
   const views={};for(const v of input.views){const item=batch.items.find(i=>i.key===v.key);if(!item||item.artworkLayout?.fit!=='cover'||views[v.key])fail('取景格号无效',400);if(![v.focusX,v.focusY,v.zoom].every(Number.isFinite)||v.focusX<0||v.focusX>1||v.focusY<0||v.focusY>1||v.zoom<1||v.zoom>3)fail('取景范围无效',400);views[v.key]={focusX:v.focusX,focusY:v.focusY,zoom:v.zoom};}return views;
  }
@@ -110,8 +128,10 @@ export function createScreenReflow({store,dataDir,body,json,request,addAsset,val
   const script=await request('/api/scripts/'+input.scriptId),draft=await request('/api/drafts/'+input.scriptId),{packet}=await request('/api/export',{id:script.id,packet:draft}),batch=verifyBatch(script,packet);
   if(input.projectId!==batch.projectId||input.expectedRevision!==batch.revision)fail('取景预览来源已变化');
   const items=batch.items.map((item,index)=>({...item,asset:item.existingAssetId?store.asset(item.existingAssetId):{id:'preview_'+index,width:item.width,height:item.height}}));
-  const next=buildReflowProject({original:batch.project,script,geometry:packet,items,batchId:batch.id});
-  return {project:next,projectId:batch.projectId,revision:batch.revision,scriptId:script.id,packetHash:sha(JSON.stringify(packet)),imageUrls:Object.fromEntries(items.map((item,index)=>[item.asset.id,'/api/auto-layout/reflow/image/'+batch.id+'/'+index])),frames:items.map(i=>({key:i.key,width:i.width,height:i.height,fit:i.artworkLayout?.fit||'contain',currentFrame:i.currentFrame,view:next.pages[0].panels.find(f=>f.visible!==false&&f.panelSlice?.panelId===i.key)?.autoLayoutCrop?.view})),imageGenerationCalls:0};
+  for(const item of items){addReflowPaletteExclusions(batch.project,item);if(item.palette?.version!==2)item.palette=await samplePalette(item);await addSceneReferencePalettes(batch.project,item,batch.shots.find(s=>s.key===item.key),store,samplePalette);}
+  verifyBatch(script,packet);
+  const {geometry,rendered:next}=buildReflowWithLocalBackgrounds({original:batch.project,script,packet,items,batchId:batch.id});
+  return {project:next,projectId:batch.projectId,revision:batch.revision,scriptId:script.id,packetHash:sha(JSON.stringify(packet)),backgroundStatus:geometry.generator?.backgrounds,backgroundPolicyVersion:LOCAL_BACKGROUND_POLICY.version,backgroundDecisions:geometry.artworkPaletteDecisions,imageUrls:Object.fromEntries(items.map((item,index)=>[item.asset.id,'/api/auto-layout/reflow/image/'+batch.id+'/'+index])),frames:items.map(i=>({key:i.key,width:i.width,height:i.height,fit:i.artworkLayout?.fit||'contain',currentFrame:i.currentFrame,view:next.pages[0].panels.find(f=>f.visible!==false&&f.panelSlice?.panelId===i.key)?.autoLayoutCrop?.view})),imageGenerationCalls:0};
  }
  function mergeExisting(input){
   const derived=store.project(input.projectId),ref=derived.autoLayoutSource;

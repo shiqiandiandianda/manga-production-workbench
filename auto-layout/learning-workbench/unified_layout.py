@@ -1,5 +1,5 @@
 """A frozen rule choice shared by preproduction and reuse-only layout tasks."""
-import copy, hashlib, json, math, threading
+import copy, hashlib, json, math, re, threading
 from pathlib import Path
 from lib.core import digest
 from lib.model_pipeline import call_codex, check_contract, save, obj, arr, S, N
@@ -26,6 +26,76 @@ def builtin(root):
                  'designCriteria':(folder/'original-design-criteria.md').read_text(encoding='utf-8-sig'),
                  'minimumNewPanelHOverW':1.05}}
 
+def finish_contract(result):
+    result.update(format='comic-unified-layout-rules',contractVersion=1,
+        priority=['confirmed-artwork-ratio','selected-rule-snapshot','generation-packing'],
+        existingArtworkPolicy='native-aspect-contain-no-regeneration',
+        preserve=['grid-id','reading-order','dialogue','composition','references','original-project'])
+    result=normalize_numbers(result)
+    result['digest'] = digest(result)
+    return result
+
+def learned_contract(project, version, folder):
+    profile, style = read(folder/'learning-profile.json'), read(folder/'learned-style.json')
+    return finish_contract({'id':project['id'],'name':project['name'],'kind':'learned-project','version':version,
+        'sources':[{'name':name,'sha256':hashlib.sha256((folder/name).read_bytes()).hexdigest()} for name in ('learning-profile.json','learned-style.json')],
+        'rules':{'profile':{k:copy.deepcopy(profile[k]) for k in ('version','policy','sourceFiles','samples','relationships','overlapReviewEvidence','supportRuleEvidence','dialogueLayoutRules') if k in profile},
+                 'style':style,'minimumNewPanelHOverW':1.05}})
+
+def approved_snapshot(library, project, version):
+    """An existing approved local snapshot can restore a missing registry row, never a default."""
+    if not re.fullmatch(r'[\w-]{1,120}',str(version)) or not re.fullmatch(r'[\w-]{1,80}',project['id']):
+        raise ValueError('冻结规则版本路径无效')
+    base=Path(library.library).resolve()
+    bundle=base/project['id']/'versions'/version
+    if not bundle.resolve().is_relative_to(base):raise ValueError('冻结规则版本路径越界')
+    # Refuse linked components, including a linked data folder or manifest file.
+    def local(relative):
+        if not isinstance(relative,str) or not relative or '\\' in relative or ':' in relative or relative.startswith('/') or any(p in ('','.','..') for p in relative.split('/')):
+            raise ValueError('冻结规则资料路径无效')
+        file=bundle
+        for part in relative.split('/'):
+            file=file/part
+            if file.is_symlink():raise ValueError('冻结规则资料不能使用链接路径')
+        if not file.resolve().is_relative_to(bundle.resolve()):raise ValueError('冻结规则资料路径越界')
+        return file
+    for parent in (base/project['id'],base/project['id']/'versions',bundle):
+        if parent.is_symlink():raise ValueError('冻结规则版本不能使用链接路径')
+    metadata=read(local('project.json'))
+    if metadata.get('id')!=project['id'] or metadata.get('version')!=version or metadata.get('name')!=project['name']:
+        raise ValueError('冻结规则原版本登记身份不符')
+    if metadata.get('status')!='active' and metadata.get('trialPassed') is not True:
+        raise ValueError('冻结规则原版本缺少已批准或试排通过记录')
+    manifest=read(local('data/manifest.json')).get('files')
+    if not isinstance(manifest,dict) or not manifest or len(manifest)>4000:
+        raise ValueError('冻结规则资料清单不完整')
+    if not {'learning-profile.json','learned-style.json'}.issubset(manifest):
+        raise ValueError('冻结规则资料清单缺少规则源文件')
+    for relative,expected in manifest.items():
+        file=local('data/'+relative)
+        if not isinstance(expected,str) or not re.fullmatch(r'[a-f0-9]{64}',expected) or hashlib.sha256(file.read_bytes()).hexdigest()!=expected:
+            raise ValueError('冻结规则资料校验失败：'+relative)
+    return learned_contract(project,version,bundle/'data')
+
+def restore_frozen_registration(library, contract):
+    if contract.get('kind')!='learned-project':return
+    with library.lock:
+        project=library.project(contract['id'])
+        if any(v['id']==contract['version'] for v in project['versions']):return
+        restored=approved_snapshot(library,project,contract['version'])
+        if restored['digest']!=contract['digest']:
+            raise ValueError('冻结的风格源文件与工程原版本不一致，未恢复登记')
+        # Compatibility is scoped to this exact contract; do not invent a new trial or change activeVersion.
+        project['versions'].append({'id':contract['version'],'status':'frozen-compatible',
+            'frozenContractDigest':contract['digest'],'restoredFrom':'approved-local-snapshot',
+            'preserveExistingLayouts':True})
+        registry=Path(library.library)/'projects.json'
+        backup=Path(library.library)/'backups'/('projects-before-frozen-'+contract['digest']+'.local.json')
+        backup.parent.mkdir(parents=True,exist_ok=True)
+        if not backup.exists():
+            with backup.open('xb') as output:output.write(registry.read_bytes())
+        library.update(project)
+
 def freeze(root, library, key, version=None):
     if key == BUILTIN:
         result = builtin(root)
@@ -35,20 +105,15 @@ def freeze(root, library, key, version=None):
         version = version or project.get('activeVersion')
         if not version: raise ValueError('请先启用本作品的学习风格，不能借用其他作品')
         entry = next((v for v in project['versions'] if v['id']==version),None)
-        if not entry or not (entry.get('trialPassed') or entry.get('status')=='active'): raise ValueError('该风格版本尚未通过试排')
+        if not entry:raise ValueError('该冻结规则版本尚未登记，请核对原版本快照')
+        if entry.get('status')=='frozen-compatible':
+            result=approved_snapshot(library,project,version)
+            if result['digest']!=entry.get('frozenContractDigest'):raise ValueError('兼容登记的冻结规则资料已改变')
+            return result
+        if not (entry.get('trialPassed') or entry.get('status')=='active'): raise ValueError('该风格版本尚未通过试排')
         folder = library.version_folder(key,version)/'data'
-        profile, style = read(folder/'learning-profile.json'), read(folder/'learned-style.json')
-        result = {'id':key,'name':project['name'],'kind':'learned-project','version':version,
-            'sources':[{'name':name,'sha256':hashlib.sha256((folder/name).read_bytes()).hexdigest()} for name in ('learning-profile.json','learned-style.json')],
-            'rules':{'profile':{k:copy.deepcopy(profile[k]) for k in ('version','policy','sourceFiles','samples','relationships','overlapReviewEvidence','supportRuleEvidence','dialogueLayoutRules') if k in profile},
-                     'style':style,'minimumNewPanelHOverW':1.05}}
-    result.update(format='comic-unified-layout-rules',contractVersion=1,
-        priority=['confirmed-artwork-ratio','selected-rule-snapshot','generation-packing'],
-        existingArtworkPolicy='native-aspect-contain-no-regeneration',
-        preserve=['grid-id','reading-order','dialogue','composition','references','original-project'])
-    result=normalize_numbers(result)
-    result['digest'] = digest(result)
-    return result
+        return learned_contract(project,version,folder)
+    return finish_contract(result)
 
 def verify(contract):
     if not isinstance(contract,dict) or contract.get('format')!='comic-unified-layout-rules' or contract.get('contractVersion')!=1: raise ValueError('缺少统一排版规则')
@@ -59,6 +124,7 @@ def verify(contract):
 def resolve(root,library,value):
     if value.get('contract'):
         contract=verify(value['contract'])
+        restore_frozen_registration(library,contract)
         if freeze(root,library,contract['id'],contract['version'])['digest']!=contract['digest']: raise ValueError('冻结的风格源文件已改变，请核对后重新规划')
         return contract
     return freeze(root,library,value['ruleId'],value.get('version'))

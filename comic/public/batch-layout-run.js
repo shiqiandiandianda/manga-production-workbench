@@ -9,7 +9,7 @@ export function episodeRange(episodes,from,to){
 }
 
 /** Sequential jobs and returns: every next source sees the preceding saved revision. */
-export function createBatchLayoutRun({api,getProject,getEpisode,flushSave,applyCurrent,onChange=()=>{},storage=globalThis.localStorage,token=()=>crypto.randomUUID(),wait,timeoutMs}){
+export function createBatchLayoutRun({api,getProject,getEpisode,flushSave,applyCurrent,accept,onChange=()=>{},storage=globalThis.localStorage,token=()=>crypto.randomUUID(),wait,timeoutMs}){
  let running=false,state=null;
  const key=id=>'comic-layout-batch-v1:'+id;
  const save=()=>{storage.setItem(key(state.projectId),JSON.stringify(state));onChange(state);};
@@ -59,8 +59,10 @@ export function createBatchLayoutRun({api,getProject,getEpisode,flushSave,applyC
     state.message='正在备份并接回第'+number+'话（'+(state.index+1)+'/'+wanted.length+'）';save();
     if(!run.planningMode){
      await flushSave();check();const result=await api('/api/auto-layout/import','POST',{scriptId:run.scriptId});check();
-     if(!result?.id||result.autoLayoutSource?.sourceProjectId!==state.projectId)throw Error('已有成图排版结果归属不符，原工程保留');
-     state.completed.push({episode:number,scriptId:run.scriptId,resultProjectId:result.id,sourceRevision:state.revision});state.index++;delete state.currentRun;state.message='已另存'+state.index+'/'+wanted.length+'话；原工程保留';save();continue;
+     if(result?.id!==state.projectId)throw Error('已有成图排版结果未接回原画布');
+     await accept(result,{message:null,expectedRevision:state.revision});
+     if(getProject()?.id!==state.projectId||getProject().revision!==result.revision)throw Error('本话接回确认未完成，请核对原画布');
+     state.completed.push({episode:number,scriptId:run.scriptId,revision:result.revision,sourceRevision:state.revision});state.revision=result.revision;state.index++;delete state.currentRun;state.message='已接回'+state.index+'/'+wanted.length+'话原画布';save();continue;
     }
     const preview=await api('/api/projects/'+state.projectId+'/production/episode-preview?'+new URLSearchParams({episode:String(number),scriptId:run.scriptId,summary:'1'}));
     await flushSave();check();

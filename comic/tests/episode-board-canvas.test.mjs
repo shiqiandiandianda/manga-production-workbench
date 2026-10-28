@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import {createRequire} from 'node:module';
 import {createProject,clone,id,makePage,panel,layoutLongStrip} from '../public/model.js';
 import {migrateLayerDocument} from '../public/layers.js';
@@ -10,19 +11,19 @@ import {canvasEpisodeBoards} from '../public/episode-board-canvas.js';
 import {documentView,renderSceneSvg} from '../public/scene-svg.js';
 import {createStudio} from '../server.mjs';
 
-const require=createRequire(import.meta.url),modules=(process.env.CODEX_TEST_NODE_MODULES || 'node_modules'),native=require(path.join(modules,'@napi-rs/canvas'));
+const require=createRequire(import.meta.url),modules=path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'),native=require(path.join(modules,'@napi-rs/canvas'));
 const qaRoot=path.resolve('../verification/inline-boards-20261022'),evidence=path.join(qaRoot,'evidence');fs.mkdirSync(evidence,{recursive:true});
 const fixture=()=>{const p=migrateLayerDocument(createProject('画布测试 · 合成漫画')).project;p.pages[0].height=500;p.pages[0].panels=[panel('',100,50,400,200)];p.shots=[];const second=makePage([], 'overlay',1280,600);second.panels=[panel('',200,80,400,200)];p.pages.push(second);p.layerOrder=p.pages.flatMap(p=>p.panels.map(f=>f.id));ensureEpisodeBoards(p);return p;};
 const escaped=v=>String(v||'');
 
 test('连续显示增加头尾画板，漫画坐标、蒙版、跨页几何均保持原值',()=>{
  const p=fixture(),before=clone(p),decorations=canvasEpisodeBoards(p,p.pages[0]),layout=layoutLongStrip([decorations.cover.page,...p.pages,decorations.tail.page]);
- assert.deepEqual(layout.pages.map(e=>e.pageId),[decorations.cover.page.id,...p.pages.map(p=>p.id),decorations.tail.page.id]);assert.equal(layout.height,4700);assert.equal(layout.pages[1].y,1800);assert.equal(layout.pages[2].y,2300);
+ assert.deepEqual(layout.pages.map(e=>e.pageId),[decorations.cover.page.id,...p.pages.map(p=>p.id),decorations.tail.page.id]);assert.equal(layout.height,5660);assert.equal(layout.pages[1].y,2280);assert.equal(layout.pages[2].y,2780);
  const ctx=native.createCanvas(100,100).getContext('2d'),options={assets:new Map(),measurement:ctx,selection:null,tool:'move',escape:escaped,shotFor:()=>null,activeJob:()=>null};
- const state={mode:'continuous',currentPageId:p.pages[0].id,zoom:.3,layout,decorations,window:{startY:0,endY:2000}};
- const view=documentView(p,state);assert.equal(view.offset,-1800);assert.equal(view.region.y,-1800);assert.equal(view.layout.pages[0].y,0);
- const head=renderSceneSvg(p,state,options);assert.match(head.content,/data-fixed-board="cover"/);assert.match(head.content,/translate\(0 1800\)/);assert.match(head.content,/translate\(100 50\)/);
- const end=renderSceneSvg(p,{...state,window:{startY:2700,endY:4700}},options);assert.match(end.content,/data-fixed-board="tail"/);assert.match(end.content,/<svg x="0" y="2900"/);assert.doesNotMatch(end.content,/data-fixed-board="cover"/);
+ const state={mode:'continuous',currentPageId:p.pages[0].id,zoom:.3,layout,decorations,window:{startY:0,endY:2500}};
+ const view=documentView(p,state);assert.equal(view.offset,-2280);assert.equal(view.region.y,-2280);assert.equal(view.layout.pages[0].y,0);
+ const head=renderSceneSvg(p,state,options);assert.match(head.content,/data-fixed-board="cover"/);assert.match(head.content,/translate\(0 2280\)/);assert.match(head.content,/translate\(100 50\)/);
+ const end=renderSceneSvg(p,{...state,window:{startY:3180,endY:5660}},options);assert.match(end.content,/data-fixed-board="tail"/);assert.match(end.content,/<svg x="0" y="3860"/);assert.doesNotMatch(end.content,/data-fixed-board="cover"/);
  const single=renderSceneSvg(p,{...state,mode:'page',decorations:null,currentPageId:p.pages[1].id,window:{startY:0,endY:600}},options);assert.equal(single.view.offset,500);assert.doesNotMatch(single.content,/data-fixed-board=/);assert.deepEqual(p,before);
 });
 

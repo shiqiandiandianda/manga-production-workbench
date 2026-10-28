@@ -16,16 +16,20 @@ import {panelEffectSvg} from './panel-effects.js';
 import {svgBubbleMarkup,svgBubbleSelectionMarkup,bubbleLayout,bubbleTailGeometry} from './lettering.js';
 import {isOpaqueStripBackground,backgroundPaintRegion,stripBackgroundGaps} from './strip-background.js';
 import {assetUrl} from './asset-url.js';
-import {comicViewOffset,canvasBoardMarkup} from './episode-board-canvas.js';
+import {comicViewOffset,canvasBoardMarkup,canvasBoardTransitionPlans,canvasBoardBoundaryUnderlay} from './episode-board-canvas.js';
 const intersects=(a,b)=>a.x+a.w>b.x&&a.x<b.x+b.w&&a.y+a.h>b.y&&a.y<b.y+b.h;
 export function documentView(project,state){const layout=layoutLongStrip(project.pages),offset=comicViewOffset(project,state,layout);return {layout,offset,region:{x:0,y:offset+state.window.startY,w:layout.width,h:Math.max(1,state.window.endY-state.window.startY)}};}
 export function renderSceneSvg(project,state,{assets,missingAssets=new Set(),hiddenLayerIds=new Set(),measurement,selection,selectionIds=null,selectionBox=null,showPanelInfo=false,panelInfoLayer=false,panelDisplayMode=null,panelNotesVisible=true,tool,nodeIndex=0,draft=false,brush,brushCursor,escape,shotFor,activeJob,idPrefix=''}){
- const view=documentView(project,state),{layout,region,offset}=view;let defs='',content='',controls='',sourceLabels='';const panelInfos=[],textBounds=new Map();
+ const view=documentView(project,state),{layout,region,offset}=view,boardTransitions=canvasBoardTransitionPlans(project,state,layout,measurement,{hiddenLayerIds,episodeLayerIds:state.episodeLayerIds});let defs='',content='',controls='',sourceLabels='';const panelInfos=[],textBounds=new Map();
  const noteSources=new Set(project.pages.flatMap(p=>p.panels.filter(f=>f.visible!==false&&!hiddenLayerIds.has(f.id)).map(f=>f.productionGrid?.rootPanelId||f.panelSlice?.rootPanelId)).filter(Boolean));
  const noteObstacles=page=>{if(!textBounds.has(page.id))textBounds.set(page.id,page.bubbles.filter(b=>b.visible!==false).map(b=>{const l=bubbleLayout(measurement,b),tip=l.tail?.tip,x=Math.min(0,tip?.x??0),y=Math.min(0,tip?.y??0);return {x:b.x+x,y:b.y+y,w:Math.max(l.w,tip?.x??0)-x,h:Math.max(l.h,tip?.y??0)-y};}));return textBounds.get(page.id);};
  for(const e of layout.pages){if(state.episodePageIds&&!state.episodePageIds.has(e.pageId)||!intersects({x:0,y:e.y,w:layout.width,h:e.height},region))continue;const top=Math.max(region.y,e.y),bottom=Math.min(region.y+region.h,e.endY);content+=`<rect x="0" y="${top}" width="${layout.width}" height="${bottom-top}" fill="${e.page.background}"/>`;}
  if(!draft)for(const gap of stripBackgroundGaps(project,layout)){if(!intersects({x:gap.x,y:gap.y,w:gap.w,h:gap.h},region))continue;const paint=backgroundPaintRegion(gap,{x:region.x,y:region.y-gap.y,w:region.w,h:region.h},1/state.zoom),fx=panelEffectSvg({...gap,id:idPrefix+gap.id},paint);defs+=fx.defs;content+=`<g transform="translate(0 ${gap.y})" pointer-events="none">${fx.gradient}</g>`;}
- for(const d of sceneLayers(project,layout)){const f=d.frame,z=state.zoom*d.scale;if(!f.visible||hiddenLayerIds.has(f.id)||hiddenLayerIds.has(f.parentPanelId)||state.episodeLayerIds&&!state.episodeLayerIds.has(f.id))continue;const attrs=d.type==='gradient'?`data-panel="${f.id}" data-layer-type="gradient"`:`data-page-id="${d.pageId}"`;const transform=`translate(0 ${d.offsetY}) scale(${d.scale})`;
+ let openStory=null;
+ for(const d of sceneLayers(project,layout)){const f=d.frame,z=state.zoom*d.scale;if(!f.visible||hiddenLayerIds.has(f.id)||hiddenLayerIds.has(f.parentPanelId)||state.episodeLayerIds&&!state.episodeLayerIds.has(f.id))continue;
+  const story=!draft&&d.type==='gradient'&&f.storyCrossfade?.version===1&&typeof f.storyCrossfade.group==='string'?f.storyCrossfade.group:null;
+  if(story!==openStory){if(openStory)content+='</g>';if(story)content+='<g style="isolation:isolate">';openStory=story;}
+  const attrs=d.type==='gradient'?`data-panel="${f.id}" data-layer-type="gradient"${story?' style="mix-blend-mode:plus-lighter"':''}`:`data-page-id="${d.pageId}"`;const transform=`translate(0 ${d.offsetY}) scale(${d.scale})`;
   if(d.type==='bubble'){const parent=d.page?.panels.find(panel=>panel.id===f.parentPanelId||panel.shotId===f.shotId);if(f.overflow!=='expand'&&!isLibrarySfx(f)){const tip=bubbleTailGeometry(f)?.tip,x=Math.min(0,tip?.x??0),y=Math.min(0,tip?.y??0),quick={x:(f.x+x)*d.scale,y:d.offsetY+(f.y+y)*d.scale,w:(Math.max(f.w,tip?.x??0)-x)*d.scale,h:(Math.max(f.h,tip?.y??0)-y)*d.scale};if(!intersects(quick,region))continue;}const l=bubbleLayout(measurement,f),box={x:f.x*d.scale,y:d.offsetY+f.y*d.scale,w:l.w*d.scale,h:l.h*d.scale},tail=l.tail?.tip;if(tail){box.x=Math.min(box.x,(f.x+tail.x)*d.scale);box.y=Math.min(box.y,d.offsetY+(f.y+tail.y)*d.scale);box.w=Math.max(box.w,(f.x+Math.max(l.w,tail.x))*d.scale-box.x);box.h=Math.max(box.h,d.offsetY+(f.y+Math.max(l.h,tail.y))*d.scale-box.y);}if(isLibrarySfx(f)){const rotated=sfxBounds(f,l.w,l.h);Object.assign(box,{x:rotated.x*d.scale,y:d.offsetY+rotated.y*d.scale,w:rotated.w*d.scale,h:rotated.h*d.scale});}if(!intersects(box,region))continue;content+=`<g ${attrs} transform="${transform}">${svgBubbleMarkup(measurement,f,{selected:false,zoom:z})}</g>`;continue;}
   const b=bounds(f),edge=(f.border||0)/2,box={x:(f.x+b.x-edge)*d.scale,y:d.offsetY+(f.y+b.y-edge)*d.scale,w:(b.w+edge*2)*d.scale,h:(b.h+edge*2)*d.scale};if(isSfxImage(f)){const rotated=sfxImageBounds(f);Object.assign(box,{x:rotated.x*d.scale,y:d.offsetY+rotated.y*d.scale,w:rotated.w*d.scale,h:rotated.h*d.scale});}if(!intersects(box,region))continue;
   const annotate=d.type==='panel'&&!noteSources.has(f.id)&&!f.productionBackground&&!f.productionBackgroundInstance&&!f.productionBackgroundResource&&!f.designDecoration&&!f.breakoutForeground&&!f.cutoutLayer&&!isSfxImage(f);
@@ -38,6 +42,7 @@ export function renderSceneSvg(project,state,{assets,missingAssets=new Set(),hid
   if(draft&&d.type==='gradient')continue;
   content+=`<g ${attrs} transform="${transform}"><g data-panel="${f.id}" data-layer-type="${d.type}" transform="translate(${f.x} ${f.y})${sfxImageTransform(f)}"><g clip-path="url(#${clip})">${fx.open}${art}${fx.gradient}${fx.close}</g>${d.type==='panel'?`<path d="${path}" fill="transparent" stroke="${f.borderColor}" stroke-width="${f.border||0}"/>`:''}</g></g>`;
  }
+ if(openStory)content+='</g>';
  const selected=findLayer(project,selection?.id),entry=selected?.pageId?layout.pages.find(e=>e.pageId===selected.pageId):null;
  if(selected){const f=selected.type==='gradient'?gradientFrame(selected.item,layout):selected.item,s=entry?.scale||1,z=state.zoom*s,y=entry?.y||0;
   if(selected.type==='bubble')controls=`<g data-page-id="${selected.pageId}" transform="translate(0 ${y}) scale(${s})">${svgBubbleSelectionMarkup(measurement,f,{zoom:z})}</g>`;
@@ -63,5 +68,5 @@ export function renderSceneSvg(project,state,{assets,missingAssets=new Set(),hid
  }
  defs+=`<clipPath id="${idPrefix}document_view"><rect x="0" y="${region.y}" width="${layout.width}" height="${region.h}"/></clipPath>`;
  controls+=selectionOverlaySvg(project,selectionIds,{measurement,zoom:state.zoom,rect:selectionBox,region});
- return {panelInfos,defs,content:`<g transform="translate(0 ${-offset})"><g clip-path="url(#${idPrefix}document_view)">${content}${sourceLabels}</g>${controls}</g>${canvasBoardMarkup(state,measurement)}`,view};
+ return {panelInfos,defs,content:`${canvasBoardBoundaryUnderlay(state,boardTransitions)}<g transform="translate(0 ${-offset})"><g clip-path="url(#${idPrefix}document_view)">${content}${sourceLabels}</g>${controls}</g>${canvasBoardMarkup(state,measurement,{transitions:boardTransitions,idPrefix})}`,view};
 }

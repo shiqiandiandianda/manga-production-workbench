@@ -23,7 +23,25 @@ body.asset-workspace-open .canvas-work-area{grid-template-columns:minmax(0,1fr)}
 .asset-gallery-title>span{font-size:13px;color:#96acc0;white-space:nowrap}
 .asset-gallery-title>.asset-gallery-missing{color:#f0bd7a;background:#3c3123;padding:4px 9px;border-radius:20px}
 .asset-gallery-toolbar button{min-height:36px;white-space:nowrap}
-.asset-gallery-toolbar [data-asset-auto-match]{border-color:#6a94b5;background:#243d53}
+.asset-gallery-primary-actions,.asset-gallery-secondary-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.asset-gallery-toolbar{gap:18px}
+.asset-gallery-secondary-actions{border-left:1px solid #344858;padding-left:18px}
+.asset-gallery-toolbar [data-asset-auto-match]{background:#9acdf5;border-color:#9acdf5;color:#102b40}
+.asset-gallery-toolbar [data-asset-return-results]{border-color:#6a94b5;background:#243d53}
+.asset-gallery-toolbar [data-asset-generate-missing]{background:transparent;border-color:#3b4c5a;color:#a9bdce;font-size:12px}
+.asset-gallery-toolbar [data-asset-generate-missing]:hover{background:#263a4b;color:#dbe9f7}
+.asset-batch-feedback{display:flex;align-items:center;gap:10px;min-width:0}
+.asset-batch-feedback .asset-batch-status{flex:1;min-width:0}
+.asset-batch-feedback [data-asset-stop-generation]{flex:none;color:#f0c58a;border-color:#705733}
+.asset-batch-feedback [data-asset-stop-generation][hidden]{display:none!important}
+.generation-confirm-dialog{width:min(520px,calc(100vw - 40px));box-sizing:border-box;max-height:calc(100dvh - 48px);padding:24px;border:1px solid #516c81;border-radius:12px;background:#172b3a;color:#e0edf7;box-shadow:0 20px 80px #0008}
+.generation-confirm-dialog::backdrop{background:#050b13b8}
+.generation-confirm-dialog h2{font-size:20px;margin:0 0 12px}
+.generation-confirm-dialog p{font-size:14px;line-height:1.7;margin:0 0 16px;color:#b9cddd}
+.generation-confirm-dialog ul{max-height:35vh;overflow:auto;margin:0 0 20px;padding:12px 12px 12px 32px;background:#10212e;border-radius:6px;font-size:14px;line-height:1.9;overflow-wrap:anywhere}
+.generation-confirm-dialog footer{display:flex;justify-content:flex-end;gap:10px}
+.generation-confirm-dialog button{min-height:38px;padding:8px 18px}
+@media(max-width:760px){.asset-gallery-toolbar{width:100%}.asset-gallery-secondary-actions{border:0;padding:0}.asset-batch-feedback{align-items:stretch;flex-direction:column;gap:0}.asset-batch-feedback [data-asset-stop-generation]{align-self:flex-end;margin-bottom:10px}}
 #asset-gallery-workspace .asset-gallery-filters{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:0 0 14px;border-bottom:1px solid #2b3d4e;margin-bottom:14px}
 #asset-gallery-workspace .asset-gallery-filters nav{gap:3px;flex:none}
 #asset-gallery-workspace .asset-gallery-filters nav button{min-height:32px;padding:5px 16px!important;font-size:13px!important;border-color:transparent;background:transparent}
@@ -99,6 +117,13 @@ body.asset-workspace-open .canvas-work-area{grid-template-columns:minmax(0,1fr)}
 .asset-result-view{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:18px;min-height:100%;align-items:start}.asset-result-image{min-width:0;background:#0c1b25}.asset-result-picture{display:block;width:100%;padding:0!important;border:0;background:transparent}#asset-gallery-workspace .asset-result-picture .asset-main-image{height:calc(100vh - 260px);max-height:none;min-height:320px;margin:0}.asset-result-controls{padding:4px;min-width:0}.asset-result-controls .asset-scope-footer{margin-top:12px}.asset-result-controls details{margin:18px 0;font-size:12px}.asset-result-controls>strong{font-size:17px}
 #asset-gallery-workspace #asset-canvas-preview{z-index:10;background:#0e1c28;padding:20px}
 #asset-gallery-workspace .asset-preview-surface img{max-width:none}
+#asset-gallery-workspace #asset-canvas-preview{position:fixed;inset:0;z-index:10000;padding:16px 20px;background:#0b1824f7}
+#asset-gallery-workspace .asset-preview-surface{overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none;user-select:none}
+#asset-gallery-workspace .asset-preview-surface.dragging{cursor:grabbing}
+#asset-gallery-workspace .asset-preview-surface img{flex:none;max-height:none;pointer-events:none;user-select:none}
+#asset-gallery-workspace .asset-preview-controls{justify-content:center}
+.asset-generated-candidates{padding:4px 10px 10px}
+.asset-gallery-actions{grid-template-columns:repeat(5,minmax(0,1fr))}
 body.asset-workspace-open .asset-sidebar-resize{display:none!important}
 @media(max-width:760px){#asset-gallery-workspace{left:48px}#asset-gallery-workspace #asset-inventory{padding:0 10px 10px}#asset-gallery-workspace .asset-gallery-heading{padding:12px 0;gap:10px}.asset-gallery-title,.asset-gallery-toolbar{gap:6px}#asset-gallery-workspace .asset-gallery-title>strong{font-size:17px}#asset-gallery-workspace .asset-gallery-title>select{width:170px}.asset-gallery-toolbar button{padding:5px 9px;font-size:12px}#asset-gallery-workspace .asset-gallery-filters{gap:6px;padding-bottom:10px;margin-bottom:10px}#asset-gallery-workspace .asset-gallery-filters input{order:2;flex:1;width:120px;margin:0}#asset-gallery-workspace #asset-inventory .asset-list{grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:12px}#asset-gallery-workspace #asset-detail-panel{inset:8px;width:auto;transform:none;padding:14px}#asset-gallery-workspace .asset-detail-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}#asset-gallery-workspace .asset-candidate-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}#asset-gallery-workspace .asset-candidate img{height:160px}}
 
@@ -171,3 +196,36 @@ body.asset-workspace-open .asset-sidebar-resize{display:none!important}
 #asset-gallery-workspace .asset-gallery-columns{column-width:260px;column-gap:16px}
 #asset-gallery-workspace .asset-gallery-columns>.asset-gallery-card{break-inside:avoid;page-break-inside:avoid;margin:0 0 16px}
 @media(max-width:760px){#asset-gallery-workspace .asset-gallery-columns{column-width:250px;column-gap:12px}#asset-gallery-workspace .asset-gallery-columns>.asset-gallery-card{margin-bottom:12px}}
+/* Compact picker: keep search, upload, candidates and generation together. */
+#asset-gallery-workspace #asset-detail-panel.asset-detail-picker{inset:16px auto auto 50%;transform:translateX(-50%);width:min(1180px,calc(100% - 32px));max-height:calc(100% - 32px);height:auto;padding:14px 16px;box-sizing:border-box}
+#asset-gallery-workspace #asset-detail-panel.asset-detail-picker:has(.asset-quick-view:is([data-candidate-count="0"],[data-candidate-count="1"],[data-candidate-count="2"])){width:min(980px,calc(100% - 32px))}
+#asset-gallery-workspace .asset-detail-picker>[data-asset-content]{padding:0 0 4px!important}
+.asset-detail-picker .asset-quick-view{max-width:none;margin:0}
+.asset-detail-picker .asset-quick-columns{grid-template-columns:minmax(0,1fr) 268px;gap:16px}
+.asset-detail-picker .asset-quick-columns h3{font-size:14px;margin:0 0 8px}
+.asset-detail-picker .asset-quick-library .asset-inventory-search{display:flex;gap:6px;margin-bottom:6px}
+.asset-detail-picker .asset-inventory-search input{flex:1;min-width:0;width:auto}
+.asset-detail-picker .asset-inventory-search button{flex:none;white-space:nowrap}
+.asset-detail-picker .asset-upload-entry{border-color:#6f9bb5;background:#294859}
+.asset-detail-picker .asset-other-types{display:flex;align-items:center;gap:6px;font-size:12px;color:#aac1d1;margin:6px 0 10px}
+.asset-detail-picker .asset-other-types input{width:14px!important;height:14px;margin:0}
+#asset-gallery-workspace .asset-detail-picker .asset-choice-strip{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;padding:0 0 6px}
+#asset-gallery-workspace .asset-detail-picker .asset-choice-card{padding:8px;gap:6px}
+#asset-gallery-workspace .asset-detail-picker .asset-choice-open{grid-template-rows:auto 176px auto;gap:5px}
+#asset-gallery-workspace .asset-detail-picker .asset-choice-card img{height:176px}
+.asset-detail-picker .asset-quick-generate{padding:12px}
+.asset-detail-picker .asset-quick-generate form{gap:8px}
+.asset-detail-picker .asset-quick-generate form>h3{padding-top:10px;margin-top:4px}
+.asset-detail-picker .asset-simple-reference{gap:6px}
+.asset-detail-picker .asset-simple-reference p{margin:0;font-size:12px;color:#aac1d1}
+.asset-detail-picker .asset-quick-original{margin:10px 0 0}
+.asset-detail-picker .asset-quick-scope{margin-top:8px}
+.asset-detail-picker .generation-reference-field{gap:6px}
+#asset-gallery-workspace .asset-upload-dialog{width:min(470px,calc(100vw - 24px));max-height:calc(100dvh - 32px);box-sizing:border-box;overflow:auto;border:1px solid #648399;border-radius:10px;padding:18px;background:#172c3b;color:#d8e7f2}
+.asset-upload-dialog::backdrop{background:#07121cd9}
+.asset-upload-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.asset-upload-dialog header strong{font-size:17px}.asset-upload-dialog header small{display:block;margin-top:4px;color:#aac1d1}
+.asset-upload-dialog>label{display:grid;gap:6px;font-size:13px}.asset-upload-dialog select{width:100%;min-width:0}
+.asset-upload-dialog>button{width:100%}.asset-upload-tags{margin:14px 0;font-size:12px}.asset-upload-tags>span{color:#aac1d1}.asset-upload-tags>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}.asset-upload-tags b{font-weight:400;padding:3px 8px;background:#264958;border-radius:5px;overflow-wrap:anywhere;max-width:100%}
+.asset-upload-dialog [role=status],.asset-upload-dialog [role=alert]{font-size:13px;overflow-wrap:anywhere}.asset-upload-dialog [role=alert]{color:#ffc4b7}
+@media(max-width:900px){#asset-gallery-workspace #asset-detail-panel.asset-detail-picker{inset:8px;transform:none;width:auto;max-height:calc(100% - 16px);padding:10px}.asset-detail-picker .asset-quick-columns{grid-template-columns:minmax(0,1fr)}.asset-detail-picker .asset-quick-generate{margin-top:4px}#asset-gallery-workspace .asset-detail-picker .asset-choice-strip{grid-template-columns:repeat(auto-fill,minmax(min(100%,145px),1fr))}.asset-detail-picker .asset-inventory-search{flex-wrap:wrap}.asset-detail-picker .asset-inventory-search input{flex-basis:100%}}

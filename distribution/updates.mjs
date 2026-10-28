@@ -28,13 +28,25 @@ export function decodeRelease(bytes,publicKey){
  if(Object.keys(bundle.files||{}).length!==m.files.length)throw Error('升级包文件数量不一致');
  for(const row of m.files){const data=Buffer.from(bundle.files[row.path]||'','base64');if(data.length!==row.bytes||digest(data)!==row.sha256)throw Error('升级文件校验失败：'+row.path);files.set(row.path,data);}return {...bundle,files};
 }
-function applyReleaseUnmanaged(root,bundle,{allowModified=false,failAfter=Infinity}={}){
+// Run the same conflict checks before stopping services and again at application time.
+function inspectUnmanagedRelease(root,bundle,{allowModified=false}={}){
  const m=bundle.manifest,installedFile=path.join(root,'runtime-data/distribution/installed.local.json'),installed=fs.existsSync(installedFile)?JSON.parse(fs.readFileSync(installedFile)):null;
- if(installed?.contentId===m.contentId){const cleanup=cleanupInstalledUpdate(root,{version:m.version,contentId:m.contentId});try{writeJson(path.join(root,'runtime-data/distribution/cleanup.local.json'),cleanup);}catch{}return {upToDate:true,version:m.version,cleanup};}
+ if(installed?.contentId===m.contentId)return {installed,installedFile,upToDate:true};
  const previous=new Map((installed?.files||[]).map(r=>[r.path,r])),incoming=new Map(m.files.map(r=>[r.path,r]));
  // Accumulated deletions come from the colleague's installed manifest, even when it skipped releases.
- const changed=[...new Set([...m.files.filter(r=>!fs.existsSync(safeTarget(root,r.path))||digest(fs.readFileSync(safeTarget(root,r.path)))!==r.sha256).map(r=>r.path),...[...previous.keys()].filter(p=>!incoming.has(p)&&fs.existsSync(safeTarget(root,p)))])];
+ // This is a local rule-library registry, not a shared code file. Preserve local changes
+ // while still updating an untouched registry and installing a missing default normally.
+ const localRuleRegistry='auto-layout/library/projects.json';
+ const preserveLocalRegistry=p=>{if(p!==localRuleRegistry)return false;const target=safeTarget(root,p),old=previous.get(p);return fs.existsSync(target)&&(!old||digest(fs.readFileSync(target))!==old.sha256);};
+ const changed=[...new Set([...m.files.filter(r=>!fs.existsSync(safeTarget(root,r.path))||digest(fs.readFileSync(safeTarget(root,r.path)))!==r.sha256).map(r=>r.path),...[...previous.keys()].filter(p=>!incoming.has(p)&&fs.existsSync(safeTarget(root,p)))])].filter(p=>!preserveLocalRegistry(p));
  for(const p of changed){const target=safeTarget(root,p),old=previous.get(p);if(fs.existsSync(target)&&old&&digest(fs.readFileSync(target))!==old.sha256&&!allowModified)throw Error('同事本机代码已修改，先保留差异再升级：'+p);if(fs.existsSync(target)&&!old&&installed&&!incoming.has(p))throw Error('未登记的文件不删除：'+p);}
+ return {installed,installedFile,incoming,changed};
+}
+// Managed overlays need their own merge checks and cannot use unmanaged conflict rules.
+export function preflightRelease(root,bundle,options={}){return localExtensions?null:inspectUnmanagedRelease(root,bundle,options);}
+function applyReleaseUnmanaged(root,bundle,{allowModified=false,failAfter=Infinity}={}){
+ const m=bundle.manifest,{installed,installedFile,incoming,changed,upToDate}=inspectUnmanagedRelease(root,bundle,{allowModified});
+ if(upToDate){const cleanup=cleanupInstalledUpdate(root,{version:m.version,contentId:m.contentId});try{writeJson(path.join(root,'runtime-data/distribution/cleanup.local.json'),cleanup);}catch{}return {upToDate:true,version:m.version,cleanup};}
  const sourceBackup=backupPrimarySource(root,installed);
  if(typeof m.version!=='string'||!/^[a-zA-Z0-9 ._-]{1,100}$/.test(m.version)||m.version.includes('..'))throw Error('升级版本名称无效');
  const backup=path.join(root,'runtime-data/distribution/backups',m.version),journal={version:m.version,status:'preparing',previous:installed,files:changed.map(p=>({path:p,existed:fs.existsSync(safeTarget(root,p))}))};fs.mkdirSync(backup,{recursive:true});

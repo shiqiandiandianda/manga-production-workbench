@@ -19,7 +19,7 @@ test('两个窗口编辑同一工程：另一窗口的保存不会被本窗口�
   const original=(await api('/api/projects/'+p.id)).pages[0].panels[0];
   async function persisted(field,value){for(let i=0;i<100;i++){if((await api('/api/projects/'+p.id)).pages[0].panels[0][field]===value)return;await new Promise(resolve=>setTimeout(resolve,100));}throw Error('工程未保存 '+field+'='+value+'：'+JSON.stringify(updates));}
   await B.fill(x,String(original.x+37));await B.locator(x).blur();await persisted('x',original.x+37);
-  await A.waitForFunction(()=>document.querySelector('#save-state').textContent.includes('已载入其他窗口的最新修改'),null,{timeout:10000}).catch(async error=>{const state=await api('/api/projects/'+p.id);console.error('MULTI_WINDOW_DEBUG',JSON.stringify({display:await A.locator('#save-state').textContent(),field:await A.inputValue(x),active:await A.evaluate(()=>document.activeElement?.outerHTML?.slice(0,300)),serverRevision:state.revision,serverX:state.pages[0].panels[0].x,updates}));throw error;});
+  await A.waitForFunction(()=>document.querySelector('#save-state').textContent.includes('已载入工程的最新修改'),null,{timeout:10000}).catch(async error=>{const state=await api('/api/projects/'+p.id);console.error('MULTI_WINDOW_DEBUG',JSON.stringify({display:await A.locator('#save-state').textContent(),field:await A.inputValue(x),active:await A.evaluate(()=>document.activeElement?.outerHTML?.slice(0,300)),serverRevision:state.revision,serverX:state.pages[0].panels[0].x,updates}));throw error;});
   assert.equal(Number(await A.inputValue(x)),original.x+37,'A 载入了 B 的内容');
   await A.fill(y,String(original.y+11));await A.locator(y).blur();await persisted('y',original.y+11);
   const saved=(await api('/api/projects/'+p.id)).pages[0].panels[0];

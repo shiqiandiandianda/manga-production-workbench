@@ -63,7 +63,7 @@ test('其他窗口通过接口只改取景后，工作台载入并继续编辑�
   const first=await open(),second=await open();
   const remote=await second.evaluate(async route=>{const p=await(await fetch(route)).json();p.pages[0].panels[0].imageTransform.rotation=90;const saved=await fetch(route,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});return {status:saved.status,value:await saved.json()};},origin+'/api/projects/'+project.id);
   assert.equal(remote.status,200,JSON.stringify(remote.value));assert.equal((await api()).pages[0].panels[0].imageTransform.rotation,90);assert.notEqual(comparableProject(before),comparableProject(remote.value),'仅修改取景也必须识别为内容变更');
-  await first.waitForFunction(()=>document.querySelector('#save-state')?.textContent.includes('已载入其他窗口的最新修改'),null,{timeout:10000});
+  await first.waitForFunction(()=>document.querySelector('#save-state')?.textContent.includes('已载入工程的最新修改'),null,{timeout:10000});
   await first.locator('#canvas-tool-dock [data-action="rotate-image-right"]').click();
   await first.waitForFunction(()=>document.querySelector('#save-state')?.textContent.includes('已保存'));
   assert.equal((await api()).pages[0].panels[0].imageTransform.rotation,-180);
@@ -101,4 +101,54 @@ test('保存期间另一窗口改取景：保留本窗口草稿并能导出，�
   assert.equal(backup.project.pages[0].panels[0].imageTransform.rotation,0,'备份不能悄悄混入服务器取景');
   assert.equal(backup.assets[0].id,asset.id);
   const saved=(await api()).pages[0].panels[0];assert.notEqual(saved.y,73,'本窗口草稿未覆盖服务器');assert.equal(saved.imageTransform.rotation,90,'另一窗口取景被保留');
+});
+
+test('采用候选回执期间继续编辑：保留草稿并提示冲突，不覆盖新图片',{timeout:60000},async t=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'candidate-conflict-'));
+  const bridge={close(){},status:async()=>({connected:false})},studio=createStudio({dataDir:path.join(dir,'data'),seedReference:false,bridge,jimengBridge:bridge});
+  let browser,release,releaseState;
+  t.after(async()=>{release?.();releaseState?.();await browser?.close();studio.close();studio.server.closeAllConnections();if(studio.server.listening)await new Promise(resolve=>studio.server.close(resolve));});
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
+  const assets=['原图','候选'].map(name=>{const filePath=path.join(dir,name+'.png');fs.writeFileSync(filePath,png);return {id:id('asset'),name,filePath,width:1,height:1,mime:'image/png'};});
+  const project=migrateLayerDocument(createProject('候选回执冲突合成工程',true)).project,frame=project.pages[0].panels[0];
+  frame.imageAssetId=assets[0].id;frame.candidates=assets.map(a=>a.id);frame.imageTransform={x:0,y:0,scale:1};ensureLayoutHistory(project);
+  studio.store.db.assets.push(...assets);studio.store.db.projects.push(project);studio.store.save();
+  await new Promise(resolve=>studio.server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+studio.server.address().port;
+  const api=async()=>await(await fetch(origin+'/api/projects/'+project.id)).json();
+  const {chromium}=createRequire(import.meta.url)(process.env.COMIC_TEST_PLAYWRIGHT_MODULE);browser=await chromium.launch({channel:'msedge',headless:true});
+  const page=await browser.newPage({viewport:{width:1600,height:1000}});await page.goto(origin+'/?project='+project.id);await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent.includes('已保存'));
+  await page.locator('[data-panel="'+frame.id+'"]').first().click();await page.locator('[data-properties-shortcut="toolbar"]').click();await page.locator('[data-panel-inspector-tab="image"]').click();await page.locator('[data-inspector-section="image-versions"]').evaluate(el=>el.open=true);
+  let received;const responseStarted=new Promise(resolve=>{received=resolve;}),gate=new Promise(resolve=>{release=resolve;}),stateGate=new Promise(resolve=>{releaseState=resolve;});
+  await page.route('**/api/state',async route=>{await stateGate;await route.continue();});
+  await page.route('**/api/projects/'+project.id+'/panels/'+frame.id+'/image',async route=>{
+    const response=await fetch(route.request().url(),{method:'POST',headers:{'Content-Type':'application/json'},body:route.request().postData()});
+    const body=await response.text();received();await gate;await route.fulfill({status:response.status,contentType:'application/json',body});
+  });
+  await page.locator('#candidate-list [data-candidate="'+assets[1].id+'"]').click();await responseStarted;
+  await page.locator('[data-panel-inspector-tab="layout"]').click();const y=page.locator('[data-section="panel"][data-field="y"]');await y.fill('73');await y.blur();
+  release();await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent.includes('请先导出工程备份'),null,{timeout:12000});releaseState();
+  await page.locator('#export-toggle').click();const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#export-project').click()]);
+  const backup=JSON.parse(fs.readFileSync(await download.path(),'utf8'));assert.equal(backup.project.pages[0].panels[0].y,73);assert.equal(backup.project.pages[0].panels[0].imageAssetId,assets[0].id);
+  const saved=(await api()).pages[0].panels[0];assert.notEqual(saved.y,73);assert.equal(saved.imageAssetId,assets[1].id);
+});
+
+test('采用候选回执期间切换工程：回执不能覆盖当前工程',{timeout:45000},async t=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'candidate-switch-'));
+  const bridge={close(){},status:async()=>({connected:false})},studio=createStudio({dataDir:path.join(dir,'data'),seedReference:false,bridge,jimengBridge:bridge});
+  let browser,release;t.after(async()=>{release?.();await browser?.close();studio.close();studio.server.closeAllConnections();if(studio.server.listening)await new Promise(resolve=>studio.server.close(resolve));});
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
+  const assets=['原图','候选'].map(name=>{const filePath=path.join(dir,name+'.png');fs.writeFileSync(filePath,png);return {id:id('asset'),name,filePath,width:1,height:1,mime:'image/png'};});
+  const first=migrateLayerDocument(createProject('候选原工程',true)).project,second=migrateLayerDocument(createProject('切换后工程',true)).project,frame=first.pages[0].panels[0];
+  frame.imageAssetId=assets[0].id;frame.candidates=assets.map(a=>a.id);frame.imageTransform={x:0,y:0,scale:1};ensureLayoutHistory(first);ensureLayoutHistory(second);
+  studio.store.db.assets.push(...assets);studio.store.db.projects.push(first,second);studio.store.save();
+  await new Promise(resolve=>studio.server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+studio.server.address().port;
+  const {chromium}=createRequire(import.meta.url)(process.env.COMIC_TEST_PLAYWRIGHT_MODULE);browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1600,height:1000}});
+  await page.goto(origin+'/?project='+first.id);await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent.includes('已保存'));
+  await page.locator('[data-panel="'+frame.id+'"]').first().click();await page.locator('[data-properties-shortcut="toolbar"]').click();await page.locator('[data-panel-inspector-tab="image"]').click();await page.locator('[data-inspector-section="image-versions"]').evaluate(el=>el.open=true);
+  let received;const responseStarted=new Promise(resolve=>{received=resolve;}),gate=new Promise(resolve=>{release=resolve;});
+  await page.route('**/api/projects/'+first.id+'/panels/'+frame.id+'/image',async route=>{const response=await fetch(route.request().url(),{method:'POST',headers:{'Content-Type':'application/json'},body:route.request().postData()});const body=await response.text();received();await gate;await route.fulfill({status:response.status,contentType:'application/json',body});});
+  await page.locator('#candidate-list [data-candidate="'+assets[1].id+'"]').click();await responseStarted;
+  await page.locator('#project-trigger').click();await page.locator('[data-choose-project="'+second.id+'"]').click();await page.waitForFunction(id=>document.querySelector('#project-select').value===id,second.id);
+  release();await page.waitForTimeout(500);assert.equal(await page.locator('#project-select').inputValue(),second.id);assert.match(await page.locator('#project-label').textContent(),/切换后工程/);
+  assert.equal((await(await fetch(origin+'/api/projects/'+first.id)).json()).pages[0].panels[0].imageAssetId,assets[1].id);
 });

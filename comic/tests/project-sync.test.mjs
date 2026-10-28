@@ -202,6 +202,19 @@ test('切换墨库账号后旧同步队列暂停，重新确认归属前不写�
  await link();await sync.push(project.id);assert.equal(writes(),before+1);
 });
 
+test('只选择墨库项目即可上传，人物场景接口不可用也不阻塞归属保存',async t=>{
+ const tmp=fs.mkdtempSync(path.join(base,'project-only-')),remoteProject={id:randomUUID(),name:'合成项目'},remote=await fakeMoku({projects:[remoteProject]}),{project,asset}=fixture();
+ remote.library.supportsClassified=async()=>true;
+ const read=remote.library.read;remote.library.read=route=>{assert.ok(!route.endsWith('/subjects'),'不能读取已移除的角色场景列表');return read(route);};
+ const sync=makeSync({tmp,store:stubStore(project,asset),library:remote.library});t.after(async()=>{sync.close();await remote.close();assert.equal(path.dirname(path.resolve(tmp)),base);fs.rmSync(tmp,{recursive:true,force:true});});
+ const before=structuredClone(project);
+ await sync.handle({body:{projectId:project.id,remoteProjectId:remoteProject.id,classification:{characterIds:[],sceneIds:[]}}},{},{pathname:'/api/project-sync/link',method:'POST',url:new URL('http://fixture/api/project-sync/link')});
+ await sync.push(project.id);
+ assert.equal(remote.state.documents.size,1);assert.deepEqual(project,before);
+ const created=remote.state.requests.find(r=>r.method==='POST'&&r.url==='/api/documents');
+ assert.equal(created.body.projectId,remoteProject.id);assert.deepEqual(created.body.classification,{characterIds:[],sceneIds:[]});
+});
+
 test('墨库拒绝含固定引用的快照时不删引用重试；本机保存继续保留，处理后可手动重试',async t=>{
  const tmp=fs.mkdtempSync(path.join(base,'reference-rejected-')),remote=await fakeMoku({projects:[{id:randomUUID(),name:'召唤万虫'}]}),{project,asset}=fixture(),sync=makeSync({tmp,store:stubStore(project,asset),library:remote.library});
  t.after(async()=>{sync.close();await remote.close();fs.rmSync(tmp,{recursive:true,force:true});});

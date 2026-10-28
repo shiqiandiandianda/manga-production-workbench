@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {createHash,randomUUID} from 'node:crypto';
 import {JimengBridge,buildJimengPrompt,isCanonicalJimengNodeId} from '../lib/jimeng.mjs';
 import {buildImagePrompt,sourceKey} from '../lib/codex.mjs';
+import {DEFAULT_IMAGE_CONSTRAINTS} from '../public/generation-constraints.js';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const schema=JSON.parse(fs.readFileSync(path.join(root,'tests','fixtures','dreamina-schema-1.0.2.json'),'utf8')).data;
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
@@ -54,6 +55,15 @@ test('官方报价需要批准时保存身份与草稿，不会confirm/run；同
  assert.equal(first.awaitingConfirmation,true);assert.equal(first.quote.totalMaxCredits,120);assert.equal(first.recovery.submitId,again.recovery.submitId);
  assert.equal(f.calls.filter(c=>c.args[0]==='canvas').length,1);assert.equal(f.calls.filter(c=>c.args[0]==='node'&&c.args[1]==='create').length,1);assert.ok(f.calls.every(c=>!['run','confirm'].includes(c.args[1])));
  assert.ok(f.calls.every(c=>path.resolve(c.env.TEMP)===path.resolve(f.directory,'state/temp')&&path.resolve(c.env.DREAMINA_CANVAS_STATE_DIR)===path.resolve(f.directory,'state/cli-state')));
+});
+
+test('即梦实际创建节点的请求包含默认约束，恢复同一任务不重复追加',async t=>{
+ const f=fixture(t),before=structuredClone(input);
+ await f.bridge.generate(f.job,input,[]);await f.bridge.generate(f.job,input,[]);
+ const creates=f.calls.filter(c=>c.args[0]==='node'&&c.args[1]==='create');assert.equal(creates.length,1);
+ const args=creates[0].args,prompt=args[args.indexOf('--prompt')+1];
+ assert.ok(prompt.includes(input.shot.description));assert.ok(prompt.endsWith(DEFAULT_IMAGE_CONSTRAINTS));
+ assert.equal(prompt.split(DEFAULT_IMAGE_CONSTRAINTS).length,2);assert.deepEqual(input,before);
 });
 test('批准上限后用原submit运行；token只传运行参数不保存，文件校验后完成',async t=>{
  const f=fixture(t),first=await f.bridge.generate(f.job,input,[]),result=await f.bridge.generate(f.job,input,[],{approvalCeiling:120});

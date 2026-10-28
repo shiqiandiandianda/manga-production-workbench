@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {CodexBridge} from '../lib/codex.mjs';
+import {DEFAULT_IMAGE_CONSTRAINTS} from '../public/generation-constraints.js';
 import {bridgeError,cancelledError} from '../lib/process.mjs';
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
 const input={action:'generate',shot:{description:'桥接测试'},style:'测试画风',panel:{w:200,h:100,points:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}]},referenceRoles:[]};
@@ -49,6 +50,14 @@ test('连续镜头复用持久 worker，generate 不重复执行状态和CLI检�
   for(let i=0;i<5;i++){const result=await f.bridge.generate(f.task('shot-'+i),input,[]);assert.deepEqual(result.bytes,png);assert.equal(result.imageToolSeen,true);}
   assert.equal(f.workers.length,1);assert.equal(f.requests.length,5);assert.ok(f.requests.every(request=>request.payload.action==='generate'));assert.equal(f.commands.length,0);
   const settings=f.requests[0].settings;assert.equal(settings.env.OPENAI_API_KEY,undefined);assert.equal(settings.env.CODEX_API_KEY,undefined);assert.equal(settings.env.PYTHONUTF8,'1');assert.equal(settings.env.PYTHONIOENCODING,'utf-8:strict');assert.equal(path.resolve(settings.env.TEMP),path.resolve(import.meta.dirname,'../.runtime/temp'));assert.equal(path.resolve(settings.env.PYTHONPYCACHEPREFIX),path.resolve(import.meta.dirname,'../.runtime/pycache'));
+});
+
+test('Codex 实际交给 worker 的请求末尾包含完整默认约束，输入快照保持原文',async t=>{
+ const f=fixture(t),dir=f.task('default-constraints'),before=structuredClone(input);
+ await f.bridge.generate(dir,input,[]);
+ const prompt=fs.readFileSync(path.join(dir,'request.txt'),'utf8');
+ assert.ok(prompt.includes(input.shot.description));assert.ok(prompt.endsWith(DEFAULT_IMAGE_CONSTRAINTS));
+ assert.equal(prompt.split(DEFAULT_IMAGE_CONSTRAINTS).length,2);assert.deepEqual(input,before);
 });
 
 test('三个并发镜头只创建两个 worker，空闲后复用连接继续第三个',async t=>{

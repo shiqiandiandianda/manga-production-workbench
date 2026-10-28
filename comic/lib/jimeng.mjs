@@ -1,4 +1,5 @@
 import {textAssetInstructions} from '../public/asset-text-references.js';
+import {appendDefaultImageConstraints} from '../public/generation-constraints.js';
 import {prepareGenerationReferences} from './generation-reference-order.mjs';
 import {unifiedArtStyleInstructions} from '../public/generation-art-style.js';
 import {frameSizingInstructions} from '../public/generation-frame-sizing.js';
@@ -55,7 +56,7 @@ function assertAbsolute(file){check(path.isAbsolute(file),'即梦任务需要明
 function atomic(file,value){fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});const temporary=file+'.'+randomUUID()+'.tmp';fs.writeFileSync(temporary,JSON.stringify(value,null,2),{mode:0o600});fs.renameSync(temporary,file);}
 function load(file){if(!fs.existsSync(file))return null;try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{throw jimengError('即梦恢复记录损坏，请保留原文件检查',{code:'jimeng_state_corrupt',requiredAction:'inspect',status:409});}}
 export function findJimeng(env=process.env){const candidates=env.COMIC_JIMENG_BIN?[env.COMIC_JIMENG_BIN]:[String.raw`D:\工具\即梦画布CLI\dreamina-canvas.exe`,...(env.PATH||'').split(path.delimiter).map(p=>path.join(p,process.platform==='win32'?'dreamina-canvas.exe':'dreamina-canvas'))];return candidates.find(p=>fs.existsSync(p)&&fs.statSync(p).isFile())||null;}
-export function buildJimengPrompt(input){return [baseJimengPrompt(input),textAssetInstructions(input.textAssetReferences)].filter(Boolean).join('\n');}
+export function buildJimengPrompt(input){return appendDefaultImageConstraints([baseJimengPrompt(input),textAssetInstructions(input.textAssetReferences)].filter(Boolean).join('\n'));}
 function baseJimengPrompt(input){if(['scene','prop'].includes(input.shot?.assetVisualContract?.role))return sceneAssetImagePrompt(input);if(input.kind==='asset-production')return assetProductionPrompt(input);if(input.kind==='breakout-foreground')throw jimengError('当前即梦通道不支持透明前景，请选择Codex',{code:'transparent_foreground_unsupported',status:400});return [(input.shot.productionPrompt||input.shot.description||''),unifiedArtStyleInstructions(input.style),generationLayoutInstructions(input.panel),frameSizingInstructions(input),input.action==='edit'?'本次修改要求：'+input.editPrompt:''].filter(Boolean).join('\n');}
 export function cliRunner(command,args,{cwd,env,timeout=90000,signal,onChild}={}){
   return new Promise((resolve,reject)=>{

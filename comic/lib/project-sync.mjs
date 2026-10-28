@@ -172,7 +172,7 @@ export function createProjectSync({
     if(isFormallyManaged(projectId)||Object.keys(project.formalVersionBindings||{}).length){item.pending=false;delete item.error;delete item.blockedReason;persist();return {status:'formal-only',projectId,message:'本机自动保存不会发布正式版本，请使用本话版本提交'};}
     if(generation(projectId).active){item.pending=true;item.nextAttemptAt=Date.now()+2000;persist();scheduleWake();return {status:'generating',state:status(projectId)};}
     const classified=await library.supportsClassified?.();
-    if(!item.documentId&&!item.classification&&classified)throw Object.assign(new Error('请先选择墨库项目和话；角色或场景可选，本机工程已保存'),{status:409,code:'project_classification_required'});
+    if(!item.documentId&&!item.classification&&classified)throw Object.assign(new Error('请先选择墨库项目和话，本机工程已保存'),{status:409,code:'project_classification_required'});
     if(classified){const me=await library.read('/api/auth/me'),accountId=me.user?.id||me.id;if(!/^[a-f0-9-]{36}$/i.test(accountId||''))throw Object.assign(Error('请先登录墨库并重新确认同步归属'),{status:401});if(item.ownerAccountId!==accountId)throw Object.assign(Error('墨库账号已变化或原同步账号未知；请重新确认项目和话，本机工程已保留'),{status:409,code:'project_account_confirmation_required'});}
     const {view,assets,references}=snapshot(project);
     // revision/updated 每次保存都会刷新（即使内容完全相同）；只用正文摘要判断是否真的变了。
@@ -332,8 +332,10 @@ export function createProjectSync({
       if(input.classification){
         classification=input.classification;
         check(remoteProjectId&&['characterIds','sceneIds'].every(k=>Array.isArray(classification[k])&&classification[k].every(id=>/^[a-f0-9-]{36}$/i.test(id))),'角色或场景选择无效');
-        const subjects=(await library.read('/api/project-library/'+remoteProjectId+'/subjects')).items||[];
-        for(const [key,kind]of [['characterIds','character'],['sceneIds','scene']])check(classification[key].every(id=>subjects.some(s=>s.id===id&&s.kind===kind)),'所选角色或场景不属于该墨库项目');
+        if(classification.characterIds.length||classification.sceneIds.length){
+          const subjects=(await library.read('/api/project-library/'+remoteProjectId+'/subjects')).items||[];
+          for(const [key,kind]of [['characterIds','character'],['sceneIds','scene']])check(classification[key].every(id=>subjects.some(s=>s.id===id&&s.kind===kind)),'所选角色或场景不属于该墨库项目');
+        }
       }
       const item=state.projects[projectId]||(state.projects[projectId]={});
       if(remoteProjectId){

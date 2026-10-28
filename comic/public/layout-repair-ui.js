@@ -43,5 +43,5 @@ export function mountIntegratedWorkspace({api,getProject,getPanel,getSelectedIds
  bar.querySelector('[data-repair-model]').onchange=modelChanged;
  void api('/api/integrated-repair/status').then(s=>{catalog=s.localTools?.upscale?.catalog||s.localImageTools?.upscale?.catalog||s.upscale?.catalog||null;if(catalog)for(const option of bar.querySelector('[data-repair-model]').options){const model=catalog.find(m=>m.id===option.value);option.disabled=!model?.ready;if(!model?.ready)option.textContent+='（未安装）';}modelChanged();}).catch(()=>{});
 
- sync();return {sync,setMode:value=>show(value==='repair'),loadCurrent:()=>show(),addReference:asset=>localRepair.addReference(asset),addFont:font=>localRepair.addFont(font),get mode(){return localRepair.active?'repair':'layout';}};
+ sync();return {sync,setMode:value=>show(value==='repair'),loadCurrent:()=>show(),closeLocal:()=>localRepair.close(),backgroundApplied:result=>localRepair.backgroundApplied(result),addReference:asset=>localRepair.addReference(asset),addFont:font=>localRepair.addFont(font),get mode(){return localRepair.active?'repair':'layout';}};
 }

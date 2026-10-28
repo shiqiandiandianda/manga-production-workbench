@@ -24,7 +24,7 @@ import {GenerationSlotsClient} from '../lib/generation-slots.mjs';
 import {ProjectBundles} from './project-bundle.mjs';
 import {TextReviewService,TEXT_REVIEW_STATUSES,requiresTextReview} from './text-review-service.mjs';
 
-export async function createRepairEngine({dataDir,apiOrigin,localTools}) {
+export async function createRepairEngine({dataDir,apiOrigin,localTools,validateIntegratedJob=()=>{},onIntegratedJob=()=>{}}) {
 const codeRoot=path.dirname(fileURLToPath(import.meta.url));
 process.env.COMIC_REPAIR_CODE_ROOT=codeRoot;
 const root=dataDir;
@@ -347,7 +347,7 @@ const handle=async (req,res)=>{
     }
     if (pathname === '/api/jobs' && req.method === 'POST') {
       const body = await bodyJSON(req);
-      if(body.sourceId){const job=await regionSubmissions.run(body,async()=>{await assertNoReviewAttempt(body);let prepared=await prepareJob(body);if(prepared.autoText===true||prepared.separateBubble===true)prepared={...prepared,...await textReviews.ensureWorkflow(prepared.id)};try{await projects.bindJob(prepared);}catch(error){await writeAutomation(path.join(jobsDir,prepared.id),{jobId:prepared.id,status:'cancelled',phase:'cancelled',message:'任务未提交，裁图准备已取消'});throw error;}archiveTask(prepared.id);if(prepared.regionId&&prepared.mode==='auto')prepared.automation=await startRepair(prepared.id);return prepared;});return sendJSON(res,job,201);}
+      if(body.sourceId){await validateIntegratedJob(body);const job=await regionSubmissions.run(body,async()=>{await assertNoReviewAttempt(body);let prepared=await prepareJob(body);if(prepared.autoText===true||prepared.separateBubble===true)prepared={...prepared,...await textReviews.ensureWorkflow(prepared.id)};try{await projects.bindJob(prepared);await onIntegratedJob(body,prepared);}catch(error){await writeAutomation(path.join(jobsDir,prepared.id),{jobId:prepared.id,status:'cancelled',phase:'cancelled',message:'任务未提交，裁图准备已取消'});throw error;}archiveTask(prepared.id);if(prepared.regionId&&prepared.mode==='auto')prepared.automation=await startRepair(prepared.id);return prepared;});return sendJSON(res,job,201);}
       const { crop, original, mask } = body;
       if (!crop || !original || !['x','y','width','height'].every(key => Number.isInteger(crop[key])) || !['width','height'].every(key => Number.isInteger(original[key]))) throw fail('缺少原图坐标');
       if (original.width <= 0 || original.height <= 0 || original.width * original.height > 40_000_000 || crop.width <= 0 || crop.height <= 0 || crop.x < 0 || crop.y < 0 || crop.x + crop.width > original.width || crop.y + crop.height > original.height) throw fail('局部坐标无效');

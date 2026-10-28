@@ -1,4 +1,5 @@
 import {createLayoutRepair} from './layout-repair.mjs';
+import {createRepairBackground} from './repair-background.mjs';
 import fs from 'node:fs';import path from 'node:path';import {randomUUID,createHash} from 'node:crypto';import {check,validateProject} from './store.mjs';
 import {createRepairEngine} from '../repair-engine/server.mjs';import {importPage,sourceMetadata} from '../repair-engine/page-service.mjs';
 import {createCutoutLayer,createUpscaleLayer} from '../public/cutout-layer.js';
@@ -29,11 +30,20 @@ export function createIntegratedRepair({dataDir,store,body,json,saveProject,addA
    if(seen.has(layer.imageAssetId)&&store.db.assets.some(a=>a.id===layer.imageAssetId))allowed.add(layer.id);
   }return allowed;
  }
- const ensure=()=>pending||=(createRepairEngine({dataDir:root,apiOrigin:apiOrigin(),localTools}).then(value=>engine=value));
+ const ensure=()=>pending||=(createRepairEngine({dataDir:root,apiOrigin:apiOrigin(),localTools,validateIntegratedJob:input=>background.validate(input),onIntegratedJob:(input,job)=>background.register(input,job)}).then(value=>engine=value));
+ const comparisonFile=path.join(root,'repair-comparisons.json');let comparisons=[];try{comparisons=JSON.parse(fs.readFileSync(comparisonFile,'utf8'));}catch{}
+ async function applySession(id,input){
+  const originalSession=JSON.parse(fs.readFileSync(path.join(sessionsDir,id+'.json'))),p=store.project(originalSession.projectId),before=structuredClone(p.pages.flatMap(pg=>pg.panels).find(f=>f.id===originalSession.panelId)),result=await applySessionInner(id,input);
+  if(result.applied&&result.asset&&before?.imageAssetId!==result.asset.id&&!comparisons.some(c=>c.projectId===p.id&&c.panelId===result.layerId&&c.afterAssetId===result.asset.id)){
+   const after=result.project.pages.flatMap(pg=>pg.panels).find(f=>f.id===result.layerId),base=originalSession.composition?addAsset(originalSession.composition.file,'修图前画面','repair-comparison'):store.asset(before.imageAssetId);
+   comparisons.push({projectId:p.id,panelId:result.layerId,beforeAssetId:base.id,afterAssetId:result.asset.id,beforeTransform:originalSession.composition?structuredClone(after.imageTransform):before.imageTransform,createdAt:new Date().toISOString()});fs.writeFileSync(comparisonFile+'.tmp',JSON.stringify(comparisons));fs.renameSync(comparisonFile+'.tmp',comparisonFile);store.save();
+  }background.accept(input.completedJobIds,id,result);return result;
+ }
+ const background=createRepairBackground({root,store,ensure,applySession});
  async function createSession(input){
    const project=store.project(input.projectId),panels=project.pages.flatMap(p=>p.panels),selected=panels.find(p=>p.id===input.panelId),panel=selected?.cutoutLayer?.kind==='repair-patch'?panels.find(p=>p.id===selected.cutoutLayer.parentPanelId):selected;check(panel?.imageAssetId,'先选择已有图片的画格');check(!project.pages.find(p=>p.panels.includes(panel))?.locked,'请先解锁画板');check(!panel.locked,'请先解锁画格');check(input.expectedRevision===project.revision,'工程已有修改，请保存后重试',409);await ensure();const composition=await captureRepairComposition(project,panel.id,store,path.join(root,'compositions'));check(store.project(project.id).revision===input.expectedRevision&&(!composition||repairCompositionMatches(composition,store.project(project.id),store)),'图层在载入期间已变化，请保存后重试',409);const stream=fs.createReadStream(composition?.file||store.assetPath(panel.imageAssetId));stream.headers={'x-source-name':encodeURIComponent(project.title+' · '+(project.shots.find(s=>s.id===panel.shotId)?.code||panel.name||'画格'))};const metadata=await importPage(stream,root);check(store.project(project.id).revision===input.expectedRevision&&(!composition||repairCompositionMatches(composition,store.project(project.id),store)),'图层在载入期间已变化，请保存后重试',409);const session={id:randomUUID(),projectId:project.id,panelId:panel.id,...(composition?{composition}:{}),targetKind:composition?'composition':panel.cutoutLayer?.kind==='upscale'?'upscale':panel.cutoutLayer?'layer':'frame',imageAssetId:panel.imageAssetId,frameStamp:frameStamp(panel),sourceId:metadata.id,initialSourceId:metadata.id,initialImageAssetId:panel.imageAssetId,createdAt:new Date().toISOString()};fs.writeFileSync(path.join(sessionsDir,session.id+'.json'),JSON.stringify(session));return {session,metadata};
  }
- async function applySession(sessionId,input){
+ async function applySessionInner(sessionId,input){
    const requestedMode=input.mode||'replace',position=input.position||'above';check(['replace','layer','upscale'].includes(requestedMode),'请选择替换画格、原位图层或高清子图层');check(['above','below'].includes(position),'请选择原图上方或下方');
    const session=JSON.parse(fs.readFileSync(path.join(sessionsDir,sessionId+'.json'))),project=store.project(session.projectId),page=project.pages.find(p=>p.panels.some(f=>f.id===session.panelId)),panel=page?.panels.find(p=>p.id===session.panelId);check(panel,'原画格已删除，修图结果仍保留',409);check(input.expectedRevision===project.revision,'工程已有修改，请重新回填',409);const resultPath=decodeURIComponent(new URL(input.resultUrl,'http://localhost').pathname);check(/^\/repair\/exports\/[^/]+\.png$/.test(resultPath),'修图结果路径无效');const file=path.resolve(root,'exports',path.basename(resultPath));check(path.dirname(file)===path.resolve(root,'exports')&&fs.existsSync(file),'修图图片不存在',404);
    if(session.composition){
@@ -98,11 +108,14 @@ export function createIntegratedRepair({dataDir,store,body,json,saveProject,addA
  async function handle(req,res,{pathname,method,url}){
   if(pathname.startsWith('/repair/')||pathname==='/repair'){const editor=await ensure(),previous=req.url;req.url=req.url.replace(/^\/repair/,'')||'/';try{await editor.handle(req,res);}finally{req.url=previous;}return true;}
   if(!pathname.startsWith('/api/integrated-repair')&&!pathname.startsWith('/api/layout-repair/'))return false;
+  if(method==='GET'&&pathname==='/api/integrated-repair/tasks'){json(res,200,await background.list());return true;}
+  const taskApply=pathname.match(/^\/api\/integrated-repair\/tasks\/(\d{8}-\d{6}-[a-f0-9]{8})\/apply$/);if(method==='POST'&&taskApply){json(res,200,await background.apply(taskApply[1],await body(req)));return true;}
+  if(method==='GET'&&pathname==='/api/integrated-repair/comparisons'){const projectId=url.searchParams.get('projectId');const legacy=imageHistory.filter(c=>c.projectId===projectId).map(c=>({projectId,panelId:c.layerId,beforeAssetId:c.from,afterAssetId:c.to}));json(res,200,{comparisons:[...legacy,...comparisons.filter(c=>c.projectId===projectId)]});return true;}
   if(method==='GET'&&pathname==='/api/integrated-repair/status'){json(res,200,{integrated:true,applyModes:['replace','layer','upscale'],upscaleChildLayers:true,upscaleLayerEditing:true,running:(engine?.running()||0)+(localTools.running()?1:0),localTools:localTools.status()});return true;}
   if(await inline.handle(req,res,{pathname,method,url}))return true;
   if(method==='POST'&&pathname==='/api/integrated-repair/sessions'){json(res,201,await createSession(await body(req)));return true;}
   const apply=pathname.match(/^\/api\/integrated-repair\/sessions\/([a-f0-9-]{36})\/apply$/);if(method==='POST'&&apply){json(res,200,await applySession(apply[1],await body(req)));return true;}
   check(false,'修图操作不存在',404);
  }
- return {handle,restorableImages,running:()=>inline.running()||!!engine?.running()||localTools.running(),close:()=>engine?.close()};
+ return {handle,restorableImages,running:()=>inline.running()||!!engine?.running()||localTools.running()||!!background.running(),close:()=>engine?.close()};
 }

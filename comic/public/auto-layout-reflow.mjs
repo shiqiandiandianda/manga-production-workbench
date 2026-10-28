@@ -6,18 +6,18 @@ import {id,clone} from './model.js';
 import {frameRegionOnSource} from './panel-slices.js';
 import {pageEpisode} from './episode-boards.js';
 import {normalizeLayerOrder} from './layers.js';
+import {splitProductionScreenBoards} from './production-screen-boards.js';
 
 /** Replace only this episode's boards while retaining their original layers hidden. */
 export function mergeReflowIntoOriginal(original,derived,episode){
  const target=original.pages.filter(p=>pageEpisode(original,p)===Number(episode));if(!target.length)throw Error('原工程没有对应话的画板');
- const ids=new Set(target.map(p=>p.id)),page=clone(derived.pages[0]);
- page.panels=page.panels.filter(p=>!p.autoLayoutOriginalPageId||ids.has(p.autoLayoutOriginalPageId));
- page.bubbles=page.bubbles.filter(b=>!b.autoLayoutOriginalPageId||ids.has(b.autoLayoutOriginalPageId));
- const next=clone(original),first=next.pages.findIndex(p=>ids.has(p.id));next.pages=next.pages.filter(p=>!ids.has(p.id));next.pages.splice(first,0,page);
+ const ids=new Set(target.map(p=>p.id)),pages=derived.pages.filter(p=>pageEpisode(derived,p)===Number(episode)).map(clone);if(!pages.length)throw Error('重排结果没有对应话的画板');
+ for(const page of pages){page.panels=page.panels.filter(p=>!p.autoLayoutOriginalPageId||ids.has(p.autoLayoutOriginalPageId));page.bubbles=page.bubbles.filter(b=>!b.autoLayoutOriginalPageId||ids.has(b.autoLayoutOriginalPageId));}
+ const page=pages[0],next=clone(original),first=next.pages.findIndex(p=>ids.has(p.id));next.pages=next.pages.filter(p=>!ids.has(p.id));next.pages.splice(first,0,...pages);
  next.shots=clone(derived.shots);const existing=new Set((original.gradients||[]).map(g=>g.id));
  next.gradients=[...(original.gradients||[]).map(g=>({...clone(g),...(g.stripSpace&&ids.has(g.stripSpace.pageId)?{stripSpace:{...g.stripSpace,pageId:page.id}}:{})})),...(derived.gradients||[]).filter(g=>!existing.has(g.id)).map(clone)];
  next.episodeReflows={...(next.episodeReflows||{}),[episode]:clone(derived.autoLayoutSource)};
- next.productionScreenBoards=1;next.editorLayoutVersion=2;next.layerSchema=1;next.layerGroupsVersion=1;normalizeLayerOrder(next);return next;
+ next.productionScreenBoards=1;next.editorLayoutVersion=2;next.layerSchema=1;next.layerGroupsVersion=1;const restored=splitProductionScreenBoards(next).project;normalizeLayerOrder(restored);return restored;
 }
 
 /** Reuse confirmed crops. Target geometry and native-pixel crop provenance remain separate. */

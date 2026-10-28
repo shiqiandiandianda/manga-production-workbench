@@ -785,7 +785,7 @@ async function refreshState(){
   const previousJobs=new Map(jobs.map(job=>[job.id,job.status]));
   const data=await stateSync.fetch();if(data.storageWarning&&data.storageWarning!==storageWarningShown){storageWarningShown=data.storageWarning;toast(data.storageWarning,true);}else if(!data.storageWarning)storageWarningShown=null;projects=data.projects;deletedProjects=data.deletedProjects||[];assets=data.assets;jobs=data.jobs;scheduler=data.scheduler||scheduler;
   const saved=projects.find(p=>p.id===project?.id);
-  if(saved){const decision=applyServerRevision(saved);if(conflictNotice===null&&!saving&&(decision==='adopt-revision'||decision==='ignore'&&saved.revision===project.revision))protectImages(saved);}
+  if(saved){const decision=applyServerRevision(saved);if(conflictNotice===null&&!saving&&!dirty&&!hasLocalEditing()&&(decision==='adopt-revision'||decision==='ignore'&&saved.revision===project.revision))protectImages(saved);}
   else if(project&&!dirty&&!saving){await chooseProject(projects[0]||null);}
   else if(project&&deletedProjects.some(p=>p.id===project.id)&&deletedProjectNotice!==project.id){deletedProjectNotice=project.id;toast('项目已在其他窗口删除；当前未保存修改仍保留，可导出工程备份。',true);}
   else if(!project&&projects.length&&!projectClosed){await chooseProject(projects[0]);}

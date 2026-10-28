@@ -93,12 +93,21 @@ if(selected.includes('comic/quality/cases/moku-real-contract.test.mjs')&&process
   fs.symlinkSync(path.join(source,'node_modules'),path.join(mokuStage,'node_modules'),process.platform==='win32'?'junction':'dir');
   inventory.mokuSource={version:manifest.version,buildId:manifest.buildId,schemaVersion,mode:'isolated source and synthetic ordinary account'};
 }
-if(selected.includes('comic/python/test_local_region_tools.py')&&process.env.QUALITY_U2NET_MODEL){
+const usesRegionModels=selected.some(file=>/local.region|region.brush/.test(file));
+if(usesRegionModels&&process.env.QUALITY_U2NET_MODEL){
   const model=path.resolve(process.env.QUALITY_U2NET_MODEL),hash=createHash('md5');
   for await(const chunk of fs.createReadStream(model))hash.update(chunk);
   if(hash.digest('hex')!=='60024c5c889badc19c04ad937298a77b')throw Error('U2NET_MODEL_HASH_MISMATCH: 测试模型与已知 U²-Net 原件不一致');
   for(const stage of stages){const folder=path.join(stage,'.runtime/image-tools/AI工具/models');fs.mkdirSync(folder,{recursive:true});fs.copyFileSync(model,path.join(folder,'u2net.onnx'));}
   inventory.u2netModel={md5:'60024c5c889badc19c04ad937298a77b',mode:'verified copy inside isolated test source'};
+}
+if(usesRegionModels&&process.env.QUALITY_LAMA_MODEL){
+  const model=path.resolve(process.env.QUALITY_LAMA_MODEL),hash=createHash('sha256');
+  for await(const chunk of fs.createReadStream(model))hash.update(chunk);
+  const sha256='1faef5301d78db7dda502fe59966957ec4b79dd64e16f03ed96913c7a4eb68d6';
+  if(hash.digest('hex')!==sha256)throw Error('LAMA_MODEL_HASH_MISMATCH: 测试模型与已知 LaMa 原件不一致');
+  for(const stage of stages){const folder=path.join(stage,'.runtime/image-tools/AI工具/models');fs.mkdirSync(folder,{recursive:true});fs.copyFileSync(model,path.join(folder,'lama_fp32.onnx'));}
+  inventory.lamaModel={sha256,mode:'verified copy inside isolated test source'};
 }
 const nodeRuntime = path.dirname(dep);
 for(const stage of stages){
@@ -113,6 +122,8 @@ for(const stage of stages){
   fs.symlinkSync(path.dirname(python), path.join(stage, 'runtime/python'), process.platform === 'win32' ? 'junction' : 'dir');
   fs.mkdirSync(path.join(stage,'.runtime/image-tools'),{recursive:true});
   fs.symlinkSync(path.dirname(python),path.join(stage,'.runtime/image-tools/python'),process.platform==='win32'?'junction':'dir');
+  const cv2=path.join(process.env.QUALITY_PYTHON_DEPS||path.join(root,'.quality-deps/python'),'cv2');
+  if(usesRegionModels&&fs.existsSync(cv2)){const extras=path.join(stage,'.runtime/image-tools/extras');fs.mkdirSync(extras,{recursive:true});fs.cpSync(cv2,path.join(extras,'cv2'),{recursive:true,filter:file=>!file.includes('__pycache__')});}
 }
 fs.mkdirSync(path.join(output,'runtime'),{recursive:true});
 fs.symlinkSync(nodeRuntime,path.join(output,'runtime/node'),process.platform==='win32'?'junction':'dir');

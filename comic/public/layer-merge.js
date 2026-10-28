@@ -18,7 +18,11 @@ export function planLayerMerge(project,keys,measurement,assets=new Map()){
  const boxes=entries.map(boxFor),left=Math.floor(Math.min(...boxes.map(b=>b.x))/ratio),top=Math.floor((Math.min(...boxes.map(b=>b.y))-offset)/ratio),right=Math.ceil(Math.max(...boxes.map(b=>b.x+b.w))/ratio),bottom=Math.ceil((Math.max(...boxes.map(b=>b.y+b.h))-offset)/ratio),region={x:left,y:top,w:Math.max(20,right-left),h:Math.max(20,bottom-top)};
  const ordered=sceneLayers(project,layout),indices=entries.map(e=>ordered.findIndex(s=>s.item.id===e.item.id));if(indices.some(i=>i<0))fail('所选图层当前不可见');
  const between=ordered.slice(Math.min(...indices)+1,Math.max(...indices));
- if(between.some(e=>!wanted.has(e.item.id)&&e.item.visible!==false&&(!e.pageId||e.pageId===page.id)))throw Object.assign(Error('所选图层之间有未选中的可见图层，合并会改变叠放顺序；请先调整顺序或明确选中该层'),{status:409});
+ const repairParent=entries.find(e=>e.type==='panel'&&!e.item.cutoutLayer),repairGroup=repairParent&&entries.every(e=>e.type==='panel'&&(e===repairParent||e.item.cutoutLayer?.kind==='repair-patch'&&e.item.cutoutLayer.parentPanelId===repairParent.item.id));
+ // Repair patches can merge beneath their parent's editable lettering without
+ // forcing the user to rasterize the bubble as part of that merge.
+ const independentLettering=e=>repairGroup&&e.type==='bubble'&&(e.item.parentPanelId===repairParent.item.id||wanted.has(e.item.localReplacement?.patchLayerId));
+ if(between.some(e=>!wanted.has(e.item.id)&&e.item.visible!==false&&(!e.pageId||e.pageId===page.id)&&!independentLettering(e)))throw Object.assign(Error('所选图层之间有未选中的可见图层，合并会改变叠放顺序；请先调整顺序或明确选中该层'),{status:409});
  const roots=entries.filter(e=>e.type==='panel'&&!e.item.cutoutLayer),anchor=roots.find(e=>e.item.productionSegment)||roots[0]||entries.find(e=>e.type==='panel'),anchorId=anchor?.item.id||panel('',0,0,20,20).id;
  const scale=Math.max(1,...entries.filter(e=>e.type==='panel'&&e.item.imageAssetId).map(e=>{const t=e.item.imageTransform||fitImage(e.item,assets.get(e.item.imageAssetId));return 1/t.scale;}));
  const isolated={...clone(project),pages:[{...clone(page),width:region.w,height:region.h,background:'rgba(0,0,0,0)',panels:[],bubbles:[]}],gradients:[],layerOrder:entries.map(e=>e.item.id)},target=isolated.pages[0];

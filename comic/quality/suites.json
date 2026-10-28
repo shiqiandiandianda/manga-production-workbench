@@ -78,7 +78,11 @@
     "comic/tests/storyboard-direct.test.mjs",
     "comic/quality/cases/style-source-privacy.test.mjs",
     "comic/tests/production-lettering-edit.test.mjs",
-    "comic/tests/bubble-auto-fit.test.mjs"
+    "comic/tests/bubble-auto-fit.test.mjs",
+    "comic/tests/codex.test.mjs",
+    "comic/tests/codex-login.test.mjs",
+    "comic/tests/codex-login-ui.test.mjs",
+    "comic/tests/test_codex_login.py"
   ],
   "limits": [
     "本测试使用合成数据与替身；不连接生产墨库、不使用真实生成账号、不自动触发付费生图",

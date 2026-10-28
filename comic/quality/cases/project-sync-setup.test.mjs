@@ -33,8 +33,9 @@ test('页面先选项目和数字话号，无角色场景也能提交',{timeout:
   t.after(async()=>{await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));});
   const {chromium}=createRequire(import.meta.url)(process.env.COMIC_TEST_PLAYWRIGHT_MODULE);browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage();await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>window.ready);
   await page.getByRole('button',{name:'保存并上传'}).click();assert.match(await page.locator('#error').innerText(),/请选择墨库项目/);
-  await page.locator('[data-sync-project]').selectOption(remoteId);await page.getByText('该项目暂无角色或场景，可以直接上传工程。').waitFor();
+  await page.locator('[data-sync-project]').selectOption(remoteId);
+  assert.equal(await page.locator('[data-sync-subjects],[data-sync-subject]').count(),0,'工程归属只选项目和话，不再加载可选角色场景列表');
   await page.locator('[data-sync-episode]').fill('0');await page.getByRole('button',{name:'保存并上传'}).click();assert.match(await page.locator('#error').innerText(),/阿拉伯数字/);
   await page.locator('[data-sync-episode]').fill('7');await page.getByRole('button',{name:'保存并上传'}).click();await page.waitForFunction(()=>window.message==='工程已上传墨库');
-  const calls=await page.evaluate(()=>window.calls),link=calls.find(item=>item.route==='/api/project-sync/link');assert.equal(link.body.remoteProjectId,remoteId);assert.deepEqual(link.body.classification,{characterIds:[],sceneIds:[]});assert.equal(calls.filter(item=>item.route==='/api/project-sync/push').length,1);
+  const calls=await page.evaluate(()=>window.calls),link=calls.find(item=>item.route==='/api/project-sync/link');assert.equal(link.body.remoteProjectId,remoteId);assert.deepEqual(link.body.classification,{characterIds:[],sceneIds:[]});assert.equal(calls.filter(item=>item.route==='/api/project-sync/push').length,1);assert.equal(calls.filter(item=>item.route.startsWith('/api/project-sync/subjects')).length,0);
 });

@@ -74,6 +74,7 @@ const features = [
   feature('生成与任务','晚到结果进入候选并保护当前编辑','生成结果','comic/server.mjs','server,production-panel-generation',true),
   feature('生成与任务','生图参考和提示词快照','画格生成','comic/public/generation-reference-picker.js','generation-reference-selection,prompt-source'),
   feature('生成与任务','Codex 与即梦连接状态','连接设置','comic/lib/codex.mjs','codex,jimeng-protocol',false,'真实账号和付费生成不自动执行'),
+  feature('生成与任务','Codex 官方登录引导、设备码、取消与自动重连','顶部连接 Codex','comic/public/codex-connection-ui.js,comic/lib/codex-login.mjs,comic/python/codex_worker.py','codex-login,codex-login-ui,comic/tests/test_codex_login.py',true,'官方协议替身与真实页面；不读取账号凭据、不提交真实生图'),
   feature('修图和图像处理','同页修图、修图结果接回与冲突保护','修图面板','comic/lib/integrated-repair.mjs','integrated-workspace,repair-composition',true),
   feature('修图和图像处理','局部修补和涂抹','修图工具','comic/lib/local-region-api.mjs','local-region,local-region-brush'),
   feature('修图和图像处理','高清放大和独立高清子层','图像处理','comic/lib/local-upscale.mjs','upscale-child-layer,upscale-validity-history'),
@@ -92,6 +93,7 @@ const flow = (name,steps,tests,core=false,boundary='本机合成数据') => ({na
 const flows = [
   flow('打开项目并切换话','启动 → 打开工程 → 选择话 → 查看本话画布和资产 → 切换后核对范围','browser-project-switch,episode-assets-navigation',true),
   flow('导入制作资料','选择分镜和资料 → 预览校验 → 确认导入 → 核对屏段、原文及参考 → 保存','production-package,production-workflow-api,import-file-roles,storyboard-json-selection,storyboard-direct,comic/quality/cases/moku-real-contract.test.mjs',true,'本地合成资料和隔离墨库；单表浏览器闭环覆盖导入、假生图、编辑和导出；墨库读取期间切换账号会中止扫描'),
+  flow('Codex 登录和恢复','未登录 → 官方页面或设备码授权 → 等待或取消 → 刷新恢复 → 官方回执 → 自动检查空会话','codex-login,codex-login-ui,comic/tests/test_codex_login.py',true,'合成官方协议；真实账号授权由用户完成'),
   flow('墨库登录和恢复','合成账号登录 → 会话失效 → 退出或重新连接 → 切换账号 → 阻止旧请求回填','asset-moku-session,moku-only-adapter,comic/quality/cases/moku-login-ui.test.mjs,comic/quality/cases/moku-http-flow.test.mjs',true,'模拟及隔离墨库会话'),
   flow('查找并引用墨库素材','选项目／话 → 查询分类 → 搜索角色或场景 → 选择版本 → 固定引用 → 核对本格参考顺序','moku-classified-reader,moku-reference-flow,generation-reference-selection,gallery-direct-and-inspector-generate,panel-reference-order-ui',true,'模拟墨库分类接口与合成浏览器；生产账号未验收'),
   flow('补建与选用素材','检查缺图 → 创建生成任务 → 查看候选 → 人工选用 → 绑定到画格','asset-generator.integration,reference-generation-results'),

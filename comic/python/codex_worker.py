@@ -223,8 +223,8 @@ class AppServer:
                 self.notifications.append(message)
         raise BridgeError(f"Codex app-server 在 {method} 阶段请求超时（{timeout} 秒）；账号或网络服务暂未响应，原图保留。", "app_server_timeout", method, True, self.generation_started)
 
-    def events(self, timeout=900):
-        self.current_stage = "image_generation"
+    def events(self, timeout=900, stage="image_generation"):
+        self.current_stage = stage
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.notifications:
@@ -236,6 +236,8 @@ class AppServer:
                 break
             if message and "method" in message:
                 yield message
+        if stage == "account/login":
+            raise BridgeError("官方登录等待已超时，请重新开始登录", "login_timeout", stage, True, False)
         raise BridgeError("GPT Image 在图片生成阶段超时（900 秒）；当前镜头没有自动重试，避免重复生图，可重新发起。原图保留。", "image_generation_timeout", "image_generation", True, True)
 
     def drain(self):
@@ -744,11 +746,59 @@ def serve(command, cwd=None):
         session.close()
 
 
+def official_login_url(value):
+    url = urllib.parse.urlparse(value or "")
+    if url.scheme != "https" or url.hostname not in ("auth.openai.com", "auth0.openai.com", "chatgpt.com") or url.username or url.password or url.port not in (None, 443):
+        raise ValueError("登录地址不是官方 HTTPS 登录地址")
+    return value
+
+
+def login(server, method="browser", opener=webbrowser.open):
+    login_id, completed = None, False
+    try:
+        response = server.rpc("account/login/start", {"type": "chatgptDeviceCode" if method == "device" else "chatgpt"}, timeout=30)
+        login_id = response.get("loginId")
+        if not login_id:
+            raise ValueError("官方登录没有返回本次登录标识，请升级 Codex 后重试")
+        url = official_login_url(response.get("verificationUrl") if method == "device" else response.get("authUrl"))
+        details = {"type": "login", "authUrl": url}
+        if method == "device":
+            code = response.get("userCode", "")
+            if not re.fullmatch(r"[A-Za-z0-9-]{4,32}", code):
+                raise ValueError("官方登录未返回有效设备码，请使用浏览器登录")
+            details["userCode"] = code
+        # The UI always gets a clickable fallback even if the default browser cannot open.
+        emit(details)
+        try:
+            opener(url)
+        except Exception:
+            pass
+        for event in server.events(timeout=240, stage="account/login"):
+            if event.get("method") != "account/login/completed":
+                continue
+            params = event.get("params", {})
+            if params.get("loginId") != login_id:
+                continue
+            if params.get("success") is not True:
+                raise RuntimeError("官方登录未完成，请重试；设备码方式需在 ChatGPT 安全设置中启用。")
+            completed = True
+            emit({"type": "result", "connected": True})
+            return
+        raise TimeoutError("官方登录等待已超时，请重新开始登录")
+    finally:
+        if login_id and not completed:
+            try:
+                server.rpc("account/login/cancel", {"loginId": login_id}, timeout=5)
+            except Exception:
+                pass
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=["status", "login", "generate", "serve"])
     parser.add_argument("--codex-command", required=True)
     parser.add_argument("--directory")
+    parser.add_argument("--login-method", choices=["browser", "device"], default="browser")
     options = parser.parse_args()
     command = json.loads(options.codex_command)
     if not isinstance(command, list) or not command or any(not isinstance(part, str) for part in command):
@@ -766,21 +816,7 @@ def main():
         return
     server = AppServer(command)
     try:
-        response = server.rpc("account/login/start", {"type": "chatgpt"}, timeout=30)
-        url = response.get("authUrl")
-        if url:
-            from urllib.parse import urlparse
-            if urlparse(url).hostname not in ("auth.openai.com", "auth0.openai.com", "chatgpt.com"):
-                raise ValueError("登录地址不是官方登录域名")
-            webbrowser.open(url)
-        progress("请在官方页面完成 ChatGPT 登录", "login")
-        for event in server.events(timeout=240):
-            if event.get("method") == "account/login/completed":
-                params = event.get("params", {})
-                if not params.get("success"):
-                    raise RuntimeError(params.get("error") or "官方登录未完成")
-                emit({"type": "result", "connected": True})
-                break
+        login(server, options.login_method)
     finally:
         server.close()
 

@@ -17,6 +17,7 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {findCodex,findPython,run,redact,JsonLineWorker,bridgeError,cancelledError} from './process.mjs';
 import {check,imageInfo} from './store.mjs';
+import {officialCodexLoginUrl} from './codex-login.mjs';
 
 import {DEFAULT_CONCURRENCY,normalizeConcurrency} from './concurrency.mjs';
 import {comicStyleInstructions,validateForegroundAlphaStats} from "../public/comic-art-direction.js";
@@ -138,15 +139,28 @@ export class CodexBridge {
         if(connected&&this.lastConnectionFailure)return {installed:true,...metadata,accountConnected:true,connected:false,sessionReady:false,needsLogin:false,connectionState:'temporary_failure',transport:account.transport,message:'账号已登录，但上次生成连接中断：'+this.lastConnectionFailure.message+' 请点击检查连接验证空会话；不会自动重新生成。',errorCode:this.lastConnectionFailure.code,stage:this.lastConnectionFailure.stage};
         return {installed:true,...metadata,connected,accountConnected:connected,sessionReady:connected&&this.sessionReady,needsLogin:!connected,connectionState:connected?'ready':'needs_login',transport:account.transport,message:connected?(this.sessionReady?'账号与空会话连接检查已通过；检查未发送生图指令，实际生成仍以任务结果为准。':'ChatGPT 账号已登录；生成会话尚未检查，可点击检查连接。'):'本机 Codex app-server 尚未使用 ChatGPT 登录，请完成官方登录。'};
       }catch(error){
+        if(error.code==='chatgpt_login_required'){this.sessionReady=false;return {installed:true,...metadata,connected:false,accountConnected:false,sessionReady:false,needsLogin:true,connectionState:'needs_login',transport:'app-server / stdio',message:error.message,errorCode:error.code,stage:error.stage};}
         return {installed:true,...metadata,connected:false,needsLogin:false,connectionState:'temporary_failure',transport:'app-server / stdio',message:error.message||'官方 Codex 连接暂时失败，账号状态尚未确认。',errorCode:error.code||'codex_connection_failed',stage:error.stage||'connection',retryable:error.retryable===true};
       }
     })().then(value=>{this.statusCache={value,expires:this.now()+(value.connectionState==='temporary_failure'?5000:this.statusTtl)};return value;}).finally(()=>{this.statusPending=null;});
     return this.statusPending;
   }
-  invalidateAccount(){this.statusCache=null;for(const slot of this.slots){if(slot.busy)slot.retire=true;else{slot.worker?.close();slot.worker=null;}}}
-  login(onChild){
-    check(this.command&&this.python,'请先配置 Codex 和 Python',409);this.statusCache=null;
-    return this.runner([this.python],this.workerArgs('login'),{cwd:projectRoot,env:this.runtimeEnv(),timeout:290000,onChild}).finally(()=>this.invalidateAccount());
+  invalidateAccount(){this.statusCache=null;this.sessionReady=false;for(const slot of this.slots){if(slot.busy)slot.retire=true;else{slot.worker?.close();slot.worker=null;}}}
+  async login(onChild,{onEvent,method='browser'}={}){
+    this.command=findCodex(this.env);check(this.command&&this.python,'请先配置 Codex 和 Python',409);this.statusCache=null;
+    check(['browser','device'].includes(method),'登录方式无效',400);
+    let confirmed=false,failure='';
+    try{
+      const result=await this.runner([this.python],[...this.workerArgs('login'),'--login-method',method],{cwd:projectRoot,env:this.runtimeEnv(),timeout:290000,onChild,onLine:line=>{
+        let event;try{event=JSON.parse(line);}catch{return;}
+        if(event.type==='login'){
+          const authUrl=officialCodexLoginUrl(event.authUrl);
+          if(authUrl)onEvent?.({type:'login',authUrl,userCode:method==='device'?event.userCode:undefined});
+        }else if(event.type==='result')confirmed=event.connected===true;
+        else if(event.type==='error')failure=redact(event.message||'官方登录未完成').replace(/https?:\/\/\S+/gi,'[登录链接已隐藏]').slice(0,500);
+      }});
+      return {code:result.code,connected:result.code===0&&confirmed,message:failure||'未收到官方登录成功确认，请重试。'};
+    }finally{this.invalidateAccount();}
   }
   cancel(directory){const operation=this.operations.get(path.resolve(directory));if(!operation)return false;operation.controller.abort();return true;}
   close(){

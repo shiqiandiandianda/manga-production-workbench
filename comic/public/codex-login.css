@@ -1,0 +1,14 @@
+#modal:has([data-codex-dialog]){width:min(650px,94vw);max-height:90dvh;overflow:auto;box-sizing:border-box}
+.codex-login-guide{line-height:1.6;overflow-wrap:anywhere}
+.codex-login-guide ol{padding-left:24px;margin:16px 0}
+.codex-login-guide li{margin:10px 0;color:#aec1d2}
+.codex-login-guide li strong{color:#e1ecf6}
+.codex-login-guide a{color:#a9d2ff;text-decoration:underline;text-underline-offset:3px}
+.codex-login-guide [data-codex-code]{font:700 20px monospace;letter-spacing:2px;color:#e1ecf6}
+.codex-login-actions{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}
+.codex-login-guide button{min-height:36px}
+.codex-login-guide details{border-top:1px solid #3b4e60;padding-top:12px;font-size:13px}
+.codex-login-guide summary{cursor:pointer}
+.codex-login-guide code{color:#e1ecf6;user-select:all}
+.codex-login-guide [data-codex-success]{color:#92d9b6}
+.codex-login-guide [hidden]{display:none!important}

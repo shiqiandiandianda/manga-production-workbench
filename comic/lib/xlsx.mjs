@@ -21,7 +21,7 @@ export function readZip(buffer){
     if(method!==0&&method!==8)throw new Error('xlsx 使用了不支持的压缩方式');
     files.set(name,{method,data});
   }
-  return {has:name=>files.has(name),names:()=>[...files.keys()],read(name){const entry=files.get(name);if(!entry)return null;const bytes=entry.method===8?zlib.inflateRawSync(entry.data):entry.data;if(bytes.length>200*1024*1024)throw new Error('xlsx 内容过大');return bytes.toString('utf8');}};
+  return {has:name=>files.has(name),names:()=>[...files.keys()],read(name){const entry=files.get(name);if(!entry)return null;const max=200*1024*1024;if(entry.method===0&&entry.data.length>max)throw new Error('xlsx 内容过大');const bytes=entry.method===8?zlib.inflateRawSync(entry.data,{maxOutputLength:max}):entry.data;if(bytes.length>max)throw new Error('xlsx 内容过大');return bytes.toString('utf8');}};
 }
 export function writeZip(entries){
   const locals=[],centrals=[];let offset=0;

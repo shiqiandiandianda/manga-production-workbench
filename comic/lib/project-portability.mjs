@@ -5,6 +5,7 @@ import {check,imageInfo,validateProject} from './store.mjs';
 import {writeFileAtomicSync} from './durable-files.mjs';
 import {decodeProjectSnapshot,SNAPSHOT_FORMAT} from './project-snapshot-codec.mjs';
 import {sourceOriginalPath,validateOriginalRecords} from './source-originals.mjs';
+import {readZip} from './xlsx.mjs';
 
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const uuid=value=>typeof value==='string'&&/^[a-f0-9-]{36}$/i.test(value);
@@ -32,7 +33,7 @@ export function projectAssetIds(project){
  const ids=new Set();const walk=(v,depth=0)=>{check(depth<=80,'工程嵌套层级过深');if(typeof v==='string'&&/^asset_[a-f0-9-]{36}$/i.test(v))ids.add(v);else if(v&&typeof v==='object')for(const x of Object.values(v))walk(x,depth+1);};walk(portableProject(project));return ids;
 }
 export function fixedResourceReferences(content){
- return [...(content.assets||[]),...(content.originals||[]),...(content.fonts||[])].map(a=>a.library||a).filter(r=>uuid(r.assetId)&&uuid(r.revisionId));
+ return [...(content.assets||[]),...(content.originals||[]),...(content.fonts||[]),...(content.packageSourcesArchive?[content.packageSourcesArchive]:[])].map(a=>a.library||a).filter(r=>uuid(r.assetId)&&uuid(r.revisionId));
 }
 export function createProjectPortability({store,library,dataDir,productionPackages,maxEmbeddedBytes=MAX_PROJECT}){
  const cache=path.join(dataDir,'portable-project-cache');
@@ -141,6 +142,13 @@ export function createProjectPortability({store,library,dataDir,productionPackag
    const result=await resource(a,a.sha256||a.library?.sha256);
    if(result){const info=imageInfo(result.bytes);check((!a.width||a.width===info.width)&&(!a.height||a.height===info.height),'工程图片尺寸与固定版本不符：'+a.name,422);a.filePath=stage(result.bytes,'image'+info.extension,result.library,a.id);if(result.library)a.library=result.library;delete a.dataBase64;}
    else check(input.version<3&&typeof a.filePath==='string'&&fs.existsSync(a.filePath),'旧工程图片原件不可读且未记录墨库版本：'+(a.name||a.id)+'；请在原电脑重新导出跨机工程',409);
+  }
+  if(input.packageSourcesArchive){
+   check(!input.packageSources,'工程制作资料同时含内嵌和归档版本，无法确定来源',409);
+   const ref=input.packageSourcesArchive;check(ref.assetKind==='file'&&ref.assetType==='project_archive'&&uuid(ref.projectId)&&ref.scopeId==='project'&&sha(ref.sha256)&&(!input.moku?.projectId||input.moku.projectId===ref.projectId),'制作资料归档分类、项目或摘要无效',409);
+   const result=await resource({library:ref},ref.sha256);check(result,'制作资料归档不可读取',409);
+   let entries;try{const zip=readZip(result.bytes);check(zip.names().length===1&&zip.has('package-sources.json'),'制作资料归档清单无效',422);entries=JSON.parse(zip.read('package-sources.json'));}catch(error){if(error?.status)throw error;throw Object.assign(Error('制作资料归档损坏或超过大小限制'),{status:422});}
+   check(Array.isArray(entries),'制作资料归档内容无效',422);input.packageSources=entries;
   }
   const fontMap=new Map(),fontFiles=[];for(const f of input.fonts||[]){const data=await resource(f,f.sha256||f.library?.sha256);check(data?.library,'工程字体固定来源缺失');const ext=fontExtension(data.bytes,f.name);fontFiles.push({f,library:data.library,file:stage(data.bytes,'font'+ext,data.library)});}
   const originalBytes=[];for(const f of input.project.sourceOriginalFiles||[]){

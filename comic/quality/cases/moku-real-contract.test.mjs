@@ -34,7 +34,7 @@ test('工作台与隔离的墨库实际接口闭环',{timeout:180000},async t=>{
   const root=process.env.QUALITY_MOKU_TEST_SOURCE;
   assert.ok(root,'QUALITY_MOKU_TEST_SOURCE_REQUIRED: 设置 QUALITY_MOKU_SOURCE 为带测试依赖的受支持墨库源码');
   const schemaVersion=Number(process.env.QUALITY_MOKU_SCHEMA_VERSION);
-  assert.ok([23,24].includes(schemaVersion),'QUALITY_MOKU_SCHEMA_VERSION_REQUIRED: 请通过质量测试运行器选择已验证的墨库构建');
+  assert.ok([23,24,25].includes(schemaVersion),'QUALITY_MOKU_SCHEMA_VERSION_REQUIRED: 请通过质量测试运行器选择已验证的墨库构建');
   const {projectFixture}=await import(pathToFileURL(path.join(root,'tests/project-assets-fixture.mjs')).href);
   const {runOne}=await import(pathToFileURL(path.join(root,'server/tasks.mjs')).href);
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'moku-real-'));
@@ -208,7 +208,8 @@ test('工作台与隔离的墨库实际接口闭环',{timeout:180000},async t=>{
     }
     try{
       const a=await machine('portable-machine-a'),b=await machine('portable-machine-b');
-      const scan=await a.api('/api/production-packages/scan','POST',{files:syntheticFiles().map(x=>({relativePath:x.relativePath,dataBase64:x.bytes.toString('base64')}))});
+      const packageFiles=[...syntheticFiles(),{relativePath:'合成补充资料.txt',bytes:Buffer.from(randomBytes(7*1024*1024).toString('base64'))}];
+      const scan=await a.api('/api/production-packages/scan','POST',{files:packageFiles.map(x=>({relativePath:x.relativePath,dataBase64:x.bytes.toString('base64')}))});
       const p=await a.api('/api/production-packages/import','POST',{scanId:scan.scanId},201);
       const ref=(await a.api('/api/library/import','POST',{assetId:character.assetId,revisionId:character.revisionId},201)).asset;
       const bubbleImage=(await a.api('/api/library/import','POST',{assetId:bubble.assetId,revisionId:bubble.revisionId},201)).asset;
@@ -233,11 +234,12 @@ test('工作台与隔离的墨库实际接口闭环',{timeout:180000},async t=>{
       assert.deepEqual(importedPanel.imageTransform,panel.imageTransform);assert.deepEqual(restored.pages.map(x=>x.bubbles.map(y=>y.text)),live.pages.map(x=>x.bubbles.map(y=>y.text)));
       assert.equal(hash(fs.readFileSync(b.studio.store.assetPath(importedPanel.imageAssetId))),hash(png));assert.ok(b.studio.store.assetPath(importedPanel.imageAssetId).startsWith(b.data));
       assert.equal(b.studio.store.asset(importedPanel.imageAssetId).library.revisionId,savedRef.revisionId);const restoredFont=b.studio.store.db.libraryFonts.find(x=>x.revisionId===font.revisionId);assert.ok(restoredFont);assert.match(restoredFont.filePath,/\.(ttf|otf|ttc|woff2?)$/);
-      const packedAgain=await b.api('/api/projects/'+restored.id+'/export');assert.equal(packedAgain.assets.find(x=>x.id===importedPanel.imageAssetId).library.revisionId,savedRef.revisionId);assert.equal(packedAgain.packageSources.length,syntheticFiles().length);
+      const packedAgain=await b.api('/api/projects/'+restored.id+'/export');assert.equal(packedAgain.assets.find(x=>x.id===importedPanel.imageAssetId).library.revisionId,savedRef.revisionId);assert.equal(packedAgain.packageSources.length,packageFiles.length);
       const document=await b.api('/api/library/documents/'+receipt.documentId),viaDocument=await b.api('/api/projects/import','POST',{documentId:receipt.documentId},201);assert.equal(hash(fs.readFileSync(b.studio.store.assetPath(viaDocument.pages[0].panels[0].imageAssetId))),hash(png));
       assert.equal(hash(fs.readFileSync(sourceOriginalPath(b.data,viaDocument.id,hash(novel)))),hash(novel));
       const target=document.restoreSnapshots[0],snapRoot='/api/project-library/'+target.projectId+'/engineerings/'+target.engineeringId,snap=await call('GET',snapRoot+'/snapshots/'+target.snapshotId);
       assert.ok(snap.references.some(x=>x.revisionId===font.revisionId));assert.ok(snap.references.some(x=>x.revisionId===savedRef.revisionId));
+      assert.ok(snap.references.some(x=>x.assetType==='project_archive'&&x.episodeId===null),'大型制作资料归档保留项目级固定引用');
       assert.ok(snap.references.some(x=>x.assetType==='novel'&&x.episodeId===null),'整本小说保留项目级归属');
       const engineering=(await call('GET','/api/project-library/'+project.id+'/engineerings')).items.find(x=>x.id===target.engineeringId);
       const fileContext={projectId:project.id,scopeId:engineering.episodeId,assetKind:'file',assetType:'comic_project',assetId:engineering.assetId,revisionId:snap.engineeringRevisionId};
@@ -270,7 +272,11 @@ test('工作台与隔离的墨库实际接口闭环',{timeout:180000},async t=>{
       const archive=await library.remote(snapRoot+'/archives/'+snap.engineeringRevisionId+'/download');const raw=await archive.json();await b.api('/api/projects/import','POST',raw,201);
       const imageRoot='/api/project-library/'+project.id+'/'+savedRef.scopeId+'/image/comic_panel/assets/'+savedRef.assetId,detail=await call('GET',imageRoot);
       await call('DELETE',imageRoot,{objectVersion:detail.objectVersion});
+      const sourceRef=snap.references.find(x=>x.assetType==='project_archive'),sourceRoot='/api/project-library/'+project.id+'/project/file/project_archive/assets/'+sourceRef.assetId,sourceDetail=await call('GET',sourceRoot);
+      const sourceRevision=await call('GET',sourceRoot+'/revisions/'+sourceRef.revisionId);assert.ok(sourceRevision.size>1024*1024,'归档应覆盖多分块上传');
+      await call('DELETE',sourceRoot,{objectVersion:sourceDetail.objectVersion});
       const c=await machine('portable-machine-c-after-recycle'),history=await c.api('/api/projects/import','POST',{documentId:receipt.documentId},201);assert.equal(hash(fs.readFileSync(c.studio.store.assetPath(history.pages[0].panels[0].imageAssetId))),hash(png));
+      const historyExport=await c.api('/api/projects/'+history.id+'/export');assert.equal(hash(Buffer.from(historyExport.packageSources.find(x=>x.relativePath==='合成补充资料.txt').dataBase64,'base64')),hash(packageFiles.at(-1).bytes));
       fs.mkdirSync(path.resolve('quality-evidence/portable-project'),{recursive:true});fs.writeFileSync(path.resolve('quality-evidence/portable-project/roundtrip.json'),JSON.stringify({sourceProjectId:live.id,restoredProjectId:restored.id,documentId:receipt.documentId,fixedImage:savedRef.revisionId,sha256:hash(png),resources:snap.references.length,sourceFiles:packedAgain.packageSources.length,localPathUnavailable:true,retainedReferenceRestored:true},null,2));
     }finally{for(const studio of studios)studio.close();}
   });

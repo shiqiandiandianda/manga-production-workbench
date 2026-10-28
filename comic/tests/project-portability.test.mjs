@@ -8,10 +8,25 @@ import {createRequire} from 'node:module';
 import {createStudio} from '../server.mjs';
 import {createProject} from '../public/model.js';
 import {createProjectPortability} from '../lib/project-portability.mjs';
+import {createProjectMediaFiles} from '../lib/project-media-files.mjs';
 import {encodeProjectSnapshot} from '../lib/project-snapshot-codec.mjs';
 import {preserveOriginalUploads,sourceOriginalPath} from '../lib/source-originals.mjs';
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
 const hash=b=>createHash('sha256').update(b).digest('hex');
+test('大型制作资料归档为项目固定版本，跨机还原并校验原件',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'portable-package-')),project=createProject('合成大型资料'),projectId=randomUUID(),assetId=randomUUID(),revisionId=randomUUID();
+ const source=Buffer.alloc(7*1024*1024,123),sources=[{relativePath:'source.bin',sha256:hash(source),dataBase64:source.toString('base64')}];let uploaded;
+ const library={baseUrl:'http://isolated.invalid',assertSession(){},async uploadAsset(input){uploaded=input;return {assetId,revisionId,projectId,scopeId:'project',assetKind:'file',assetType:'project_archive'};},async read(route){return route==='/api/project-library/taxonomy'?{items:[{kind:'file',type:'project_archive'}]}:{assetId,id:revisionId,sha256:hash(uploaded.bytes)};},async remote(){return new Response(uploaded.bytes);}};
+ const store={db:{assets:[],libraryFonts:[]},save(){}},packer=createProjectMediaFiles({store,library,dataDir:dir,receipts:{},persist(){},exportSources:()=>sources});
+ const packed=await packer.pack(project,projectId);assert.equal(uploaded.assetType,'project_archive');assert.equal(uploaded.scopeId,'project');assert.ok(packed.packageSourcesArchive);assert.equal(packed.packageSources,undefined);
+ const portable=createProjectPortability({store,library,dataDir:dir,productionPackages:{}}),input={...packed,format:'comic-strip-studio',version:3};
+ const restored=await portable.prepareImport(input);assert.equal(restored.input.packageSources.length,1);assert.equal(hash(Buffer.from(restored.input.packageSources[0].dataBase64,'base64')),hash(source));
+ const bad=structuredClone(input);bad.packageSourcesArchive.sha256='0'.repeat(64);await assert.rejects(portable.prepareImport(bad),/摘要/);
+ const wrongProject=structuredClone(input);wrongProject.moku={projectId:randomUUID()};await assert.rejects(portable.prepareImport(wrongProject),/项目/);
+ const oldLibrary={...library,async read(){return {items:[]};},async uploadAsset(){throw Error('旧墨库不应收到不支持的分类');}};
+ const legacy=await createProjectMediaFiles({store,library:oldLibrary,dataDir:dir,receipts:{},persist(){},exportSources:()=>sources}).pack(project,projectId);
+ assert.equal(legacy.packageSources.length,1);assert.equal(legacy.packageSourcesArchive,undefined);
+});
 async function fixture(t){
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'portable-test-')),studio=createStudio({dataDir:dir,seedReference:false,bridge:{status:async()=>({connected:false}),close(){}},jimengBridge:{close(){}}});
  await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));t.after(()=>studio.close());

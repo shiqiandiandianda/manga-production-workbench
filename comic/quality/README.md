@@ -67,7 +67,7 @@ $env:QUALITY_BROWSER_EXECUTABLE = 'C:\Program Files (x86)\Microsoft\Edge\Applica
 npm run quality:small
 ```
 
-`QUALITY_NODE_MODULES` 目录应包含 `playwright` 和 `@napi-rs/canvas`。`QUALITY_MOKU_SOURCE` 支持构建号 `1.1.0-20261027-global1`、`2.0.1-20261028-recovery1` 或 `2.0.2-20261028-svg1`，并须包含测试依赖；运行器复制源码到本次测试目录、使用对应的 schema 23 或 24 创建独立 PGlite 数据库与普通合成账号。测试报告和 `inventory.json` 会记录实际版本；更换墨库版本时先更新和验证契约，不要绕过版本检查。如 OpenCV 等 Python 包安装在单独目录，用 `QUALITY_PYTHON_DEPS` 指定；默认也会检查仓库根目录未提交的 `.quality-deps/python`。测试字体只在运行时读取，不进入仓库。可用 `QUALITY_BROWSER_EXECUTABLE` 指定本机浏览器；设置后所有浏览器测试会使用它，报告结论只适用于指定浏览器。未设置时保留用例指定的浏览器，无指定时 Windows 默认 Edge。
+`QUALITY_NODE_MODULES` 目录应包含 `playwright` 和 `@napi-rs/canvas`。`QUALITY_MOKU_SOURCE` 支持构建号 `1.1.0-20261027-global1`、`2.0.1-20261028-recovery1`、`2.0.2-20261028-svg1` 或 `2.1.0-20261028-import1`，并须包含测试依赖；运行器复制源码到本次测试目录、使用对应的 schema 23、24 或 25 创建独立 PGlite 数据库与普通合成账号。测试报告和 `inventory.json` 会记录实际版本；更换墨库版本时先更新和验证契约，不要绕过版本检查。如 OpenCV 等 Python 包安装在单独目录，用 `QUALITY_PYTHON_DEPS` 指定；默认也会检查仓库根目录未提交的 `.quality-deps/python`。测试字体只在运行时读取，不进入仓库。可用 `QUALITY_BROWSER_EXECUTABLE` 指定本机浏览器；设置后所有浏览器测试会使用它，报告结论只适用于指定浏览器。未设置时保留用例指定的浏览器，无指定时 Windows 默认 Edge。
 
 本地图像处理测试需要额外的 OpenCV 和 ONNX Runtime。可将专用测试依赖安装在仓库外的独立目录，然后在运行测试前设置 `QUALITY_PYTHON_DEPS`，例如在 `comic` 目录执行：
 

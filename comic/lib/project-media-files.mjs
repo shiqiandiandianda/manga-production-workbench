@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {check} from './store.mjs';
 import {sourceOriginalPath} from './source-originals.mjs';
 import {portableProject} from './project-portability.mjs';
+import {writeZip} from './xlsx.mjs';
 function projectSnapshotBody(project){
  const p=portableProject(project);for(const key of ['revision','updated'])delete p[key];
  if(p.episodeBoards){delete p.episodeBoards.templateRevision;delete p.episodeBoards.sharedKey;}
@@ -39,8 +40,21 @@ export function createProjectMediaFiles({store,library,dataDir,receipts,persist,
   const fonts=[];for(const font of store.db.libraryFonts||[]){if(!values.has(font.key))continue;check(font.provenance?.assetId&&font.revisionId,'墨库字体来源不完整：'+font.name);let ref={assetId:font.provenance.assetId,revisionId:font.revisionId};if(font.provenance.projectId&&font.provenance.projectId!==projectId){check(fs.existsSync(font.filePath),'字体原件缺失：'+font.name);const name=/\.(otf|ttf|ttc|woff2?)$/i.test(font.name)?font.name:font.name+path.extname(font.filePath);ref=await upload(fs.readFileSync(font.filePath),name,projectId,'font:'+font.key,'application/octet-stream','font',folders.font,await library.projectUploadContext?.(project,projectId,{role:'font'})||{});}fonts.push({key:font.key,name:font.name,...ref});}
   const originals=[];for(const file of project.sourceOriginalFiles||[]){const source=sourceOriginalPath(dataDir,project.id,file.hash);check(fs.existsSync(source),'导入原件缺失：'+file.name,409);const bytes=fs.readFileSync(source);check(hashBytes(bytes)===file.hash,'导入原件摘要不符：'+file.name,409);originals.push({...file,library:await upload(bytes,file.name,projectId,'original:'+file.hash,'application/octet-stream','reference',folders.original,await library.projectUploadContext?.(project,projectId,{role:file.role==='novel'?'novel':file.role==='storyboard'?'storyboard':'production_table',episode:file.episode})||{})});}
   for(const f of fonts){const source=(store.db.libraryFonts||[]).find(x=>x.key===f.key);if(!f.sha256){check(source?.filePath&&fs.existsSync(source.filePath),'字体原件缺失：'+f.name);Object.assign(f,{...source.provenance,assetId:f.assetId,revisionId:f.revisionId,sha256:hashBytes(fs.readFileSync(source.filePath)),projectId:null,scopeId:'global',assetKind:'file',assetType:'font'});}}
-  const packageSources=exportSources(project);
-  return {format:'comic-strip-project-snapshot',version:1,projectId:project.id,title:project.title,revision:project.revision,exportedAt:new Date().toISOString(),stableHash:hashValue(view),project:view,assets,fonts,originals,...(packageSources?{packageSources}:{})};
+  let packageSources=exportSources(project),packageSourcesArchive;
+  if(packageSources){
+   const raw=Buffer.from(JSON.stringify(packageSources));
+   if(raw.length>8*1024*1024){
+    const taxonomy=await library.read('/api/project-library/taxonomy');
+    if((taxonomy.items||[]).some(item=>item.kind==='file'&&item.type==='project_archive')){
+     check(raw.length<=200*1024*1024,'制作资料快照超过200MiB，请按话拆分工程',413);
+     const bytes=writeZip([{name:'package-sources.json',data:raw}]);
+     check(bytes.length<=256*1024*1024,'制作资料归档超过256MiB，请按话拆分工程',413);
+     packageSourcesArchive=await upload(bytes,'制作资料快照_'+hashBytes(raw).slice(0,12)+'.zip',projectId,'package-sources:'+hashBytes(raw),'application/zip','reference',folders.original,{projectId,scopeId:'project',assetKind:'file',assetType:'project_archive'});
+     library.assertSession?.();packageSources=undefined;
+    }
+   }
+  }
+  return {format:'comic-strip-project-snapshot',version:1,projectId:project.id,title:project.title,revision:project.revision,exportedAt:new Date().toISOString(),stableHash:hashValue(view),project:view,assets,fonts,originals,...(packageSources?{packageSources}:{}),...(packageSourcesArchive?{packageSourcesArchive}:{})};
  }
  return {pack};
 }

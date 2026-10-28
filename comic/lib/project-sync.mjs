@@ -188,7 +188,7 @@ export function createProjectSync({
       exportedAt:item.pendingExportedAt,stableHash:digest,
       project:view,assets,
     };
-    const complete=await library.packProject?.(view,target.projectId);if(complete){Object.assign(content,{project:complete.project,assets:complete.assets,fonts:complete.fonts,originals:complete.originals,...(complete.packageSources?{packageSources:complete.packageSources}:{})});references.push(...fixedResourceReferences(complete).map(r=>r.revisionId));}
+    const complete=await library.packProject?.(view,target.projectId);if(complete){Object.assign(content,{project:complete.project,assets:complete.assets,fonts:complete.fonts,originals:complete.originals,...(complete.packageSources?{packageSources:complete.packageSources}:{}),...(complete.packageSourcesArchive?{packageSourcesArchive:complete.packageSourcesArchive}:{})});references.push(...fixedResourceReferences(complete).map(r=>r.revisionId));}
     // Packing can attach new fixed references to local images. Hash that final
     // manifest, so the next unchanged local save does not create a second snapshot.
     if(complete){digest=sha256(JSON.stringify({project:{...view,revision:null,updated:null},assets:manifest(view)}));content.stableHash=digest;if(item.pendingHash!==digest){item.pendingHash=digest;delete item.pendingUpload;delete item.pendingKeys;}}

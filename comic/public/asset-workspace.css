@@ -229,3 +229,11 @@ body.asset-workspace-open .asset-sidebar-resize{display:none!important}
 .asset-upload-dialog>button{width:100%}.asset-upload-tags{margin:14px 0;font-size:12px}.asset-upload-tags>span{color:#aac1d1}.asset-upload-tags>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}.asset-upload-tags b{font-weight:400;padding:3px 8px;background:#264958;border-radius:5px;overflow-wrap:anywhere;max-width:100%}
 .asset-upload-dialog [role=status],.asset-upload-dialog [role=alert]{font-size:13px;overflow-wrap:anywhere}.asset-upload-dialog [role=alert]{color:#ffc4b7}
 @media(max-width:900px){#asset-gallery-workspace #asset-detail-panel.asset-detail-picker{inset:8px;transform:none;width:auto;max-height:calc(100% - 16px);padding:10px}.asset-detail-picker .asset-quick-columns{grid-template-columns:minmax(0,1fr)}.asset-detail-picker .asset-quick-generate{margin-top:4px}#asset-gallery-workspace .asset-detail-picker .asset-choice-strip{grid-template-columns:repeat(auto-fill,minmax(min(100%,145px),1fr))}.asset-detail-picker .asset-inventory-search{flex-wrap:wrap}.asset-detail-picker .asset-inventory-search input{flex-basis:100%}}
+
+/* Keep the required character outfit readable while choosing a reference. */
+#asset-gallery-workspace .asset-detail-heading:has(.asset-detail-outfit) h3{font-size:22px;font-weight:750;line-height:1.35}
+#asset-gallery-workspace .asset-detail-heading .asset-detail-identity{display:flex;align-items:center;flex-wrap:wrap;gap:10px;min-width:0}
+#asset-gallery-workspace .asset-detail-heading .asset-detail-kind{font-size:13px;color:#b7cddd}
+#asset-gallery-workspace .asset-detail-heading .asset-detail-outfit{display:inline-block;max-width:100%;padding:5px 12px;border:1px solid #9c814f;border-radius:6px;background:#3b3525;color:#fff0bd;font-size:20px;font-weight:750;line-height:1.45;white-space:normal;overflow-wrap:anywhere}
+#asset-gallery-workspace .asset-detail-heading>div{flex:1}
+#asset-gallery-workspace .asset-detail-heading>[data-asset-close]{flex-shrink:0}

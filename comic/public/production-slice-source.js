@@ -14,6 +14,7 @@ import {migrateLegacyPanelPrompt} from './prompt-source.js';
 const gridSource=panel=>panel.productionGrid||panel.panelSlice;
 const list=value=>(Array.isArray(value)?value:String(value||'').split(/[、，,；;\n]+/u)).map(v=>String(v).trim()).filter(v=>v&&!/^(无|空镜|暂无|—|-)$/u.test(v));
 const outfitKey=value=>stateKey(String(value||'').replace(/[（(][^）)]*[）)]/gu,''));
+const unspecifiedOutfit=value=>['','服装未指定','未指定','未知','待确认','待核实','不明确','未知(待确认)','服装未知','状态未知'].includes(stateKey(value));
 export function sliceSourceRecord(project,panel){const source=gridSource(panel);return project.productionPackage?.episodes.flatMap(e=>e.panelRecords).find(r=>r.id===source?.panelId&&r.segmentId===source?.segmentId);}
 function sourceShot(project,panel,record){
  const raw=record.original||{},fields={...clone(record.production||{}),...clone(raw)};for(const [key,value] of Object.entries(fields))if(Array.isArray(value))fields[key]=value.map(v=>typeof v==='string'?v:JSON.stringify(v)).join('、');
@@ -33,10 +34,13 @@ export function inheritedSliceReferenceBinding(project,panel,need,asset){
  if(!record||!segment||parent?.productionSegment!==segment.id||!parent.referenceIds?.includes(asset.id))return null;
  for(const ref of segment.references){
   if(ref.skipped||ref['类型']!=='设定卡'||ref.binding?.assetId!==asset.id||stateKey(ref['人物'])!==stateKey(need.name))continue;
-  const state=productionReferenceOutfit(project,ref),outfit=need.state||record.original?.['服装']?.[need.name];
-  if(!outfitKey(outfit)||outfitKey(outfit)!==outfitKey(state))continue;
+  const state=productionReferenceOutfit(project,ref)||ref['说明']||'',outfit=need.state||record.original?.['服装']?.[need.name],choice=parent.referenceNeedBindings?.[segment.id+'@'+ref.slot];
+  // A screen's explicit fixed-version choice also covers its own slices when
+  // both source labels merely mean "unspecified". This is not an outfit alias.
+  const unspecified=unspecifiedOutfit(outfit)&&unspecifiedOutfit(state);
+  if(unspecified?choice?.userSelection?.version!==1||!unspecifiedOutfit(choice.state):!outfitKey(outfit)||outfitKey(outfit)!==outfitKey(state))continue;
   if(ref.binding.revisionId&&ref.binding.revisionId!==asset.library?.revisionId||ref.binding.sha256&&ref.binding.sha256!==asset.library?.sha256)continue;
-  const sourceNeed={id:segment.id+'@'+ref.slot,role:'character',name:ref['人物'],state};
+  const sourceNeed={id:segment.id+'@'+ref.slot,role:'character',name:ref['人物'],state:unspecified?choice.state:state};
   if(!manualStateReferenceConfirmed(parent,sourceNeed,asset,stateReferenceMetadata(project,asset)))continue;
   return {...clone(parent.referenceNeedBindings[sourceNeed.id]),name:need.name,state:need.state||outfit,role:need.role,inheritedFrom:{version:1,segmentId:segment.id,slot:ref.slot}};
  }

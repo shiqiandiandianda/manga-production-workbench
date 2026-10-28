@@ -18,7 +18,7 @@ export function planLayerMerge(project,keys,measurement,assets=new Map()){
  const boxes=entries.map(boxFor),left=Math.floor(Math.min(...boxes.map(b=>b.x))/ratio),top=Math.floor((Math.min(...boxes.map(b=>b.y))-offset)/ratio),right=Math.ceil(Math.max(...boxes.map(b=>b.x+b.w))/ratio),bottom=Math.ceil((Math.max(...boxes.map(b=>b.y+b.h))-offset)/ratio),region={x:left,y:top,w:Math.max(20,right-left),h:Math.max(20,bottom-top)};
  const ordered=sceneLayers(project,layout),indices=entries.map(e=>ordered.findIndex(s=>s.item.id===e.item.id));if(indices.some(i=>i<0))fail('所选图层当前不可见');
  const between=ordered.slice(Math.min(...indices)+1,Math.max(...indices));
- const repairParent=entries.find(e=>e.type==='panel'&&!e.item.cutoutLayer),repairGroup=repairParent&&entries.every(e=>e.type==='panel'&&(e===repairParent||e.item.cutoutLayer?.kind==='repair-patch'&&e.item.cutoutLayer.parentPanelId===repairParent.item.id));
+ const repairParent=entries.find(e=>e.type==='panel'&&!e.item.cutoutLayer),repairGroup=repairParent&&entries.every(e=>e.type==='panel'&&(e===repairParent||['repair-patch','upscale','cutout'].includes(e.item.cutoutLayer?.kind)&&e.item.cutoutLayer.parentPanelId===repairParent.item.id));
  // Repair patches can merge beneath their parent's editable lettering without
  // forcing the user to rasterize the bubble as part of that merge.
  const independentLettering=e=>repairGroup&&e.type==='bubble'&&(e.item.parentPanelId===repairParent.item.id||wanted.has(e.item.localReplacement?.patchLayerId));

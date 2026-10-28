@@ -403,7 +403,7 @@ function syncEditorShell(){
  $('empty-project').hidden=hasImage;$('current-source').hidden=!hasImage;
  $('welcome-import').disabled=state.initializing||state.loading||state.creating;
  $('welcome-title').textContent=state.initializing?'正在加载项目…':document.body.classList.contains('integrated-repair')?'选择一格，开始修图':'新建漫画项目';
- $('welcome-description').textContent=state.initializing?'正在检查本机保存的漫画项目。':document.body.classList.contains('integrated-repair')?'在左侧选中画格，点击画格旁的「修改画面」。':'导入一张漫画，开始局部修复。';
+ $('welcome-description').textContent=state.initializing?'正在检查本机保存的漫画项目。':document.body.classList.contains('integrated-repair')?'在排版页选择图片，再点击「框选局部修图」。':'导入一张漫画，开始局部修复。';
  stage.setAttribute('aria-label',hasImage?'图片画布，拖动框选需要修复的区域':'新建漫画项目');
  if(!hasImage){$('header-filename').textContent='新建项目';$('source-thumb').removeAttribute('src');$('source-name').textContent='未打开漫画';$('source-size').textContent='导入漫画开始修图';$('image-info').textContent='';}
 }
@@ -1890,7 +1890,7 @@ globalThis.comicStudioRepair={
 // Embedded editor bridge. Only the owning same-origin canvas may switch its source.
 document.body.classList.add('integrated-repair');
 
-const embeddedBar=document.createElement('div');embeddedBar.id='embedded-toolbar';embeddedBar.innerHTML='<button id="repair-library">墨库素材</button><button id="repair-native-cutout">整图自动抠图</button><button id="repair-selected-cutout">选框抠人物 / 元素</button><button id="repair-local-bubble">去框并替换气泡</button><select id="repair-upscale-scale" aria-label="放大倍率"><option value="2">2 倍</option><option value="3">3 倍</option><option value="4">4 倍</option></select><select id="repair-upscale-model" aria-label="高清模型"><option value="realesr-animevideov3">动漫 · 快速</option><option value="realesrgan-x4plus-anime">漫画 · 精细 4倍</option><option value="realesrgan-x4plus">通用 · 精细 4倍</option></select><button id="repair-native-upscale">高清放大</button><button id="repair-return" class="primary">回填左侧画格</button><span id="repair-native-status" role="status"></span>';
+const embeddedBar=document.createElement('div');embeddedBar.id='embedded-toolbar';embeddedBar.innerHTML='<button id="repair-library">墨库素材</button><button id="repair-native-cutout">整图自动抠图</button><button id="repair-selected-cutout">选框抠人物 / 元素</button><button id="repair-local-bubble">去框并替换气泡</button><select id="repair-upscale-scale" aria-label="放大倍率"><option value="2">2 倍</option></select><select id="repair-upscale-model" aria-label="高清模型"><option value="illustrationjanai-v3-detail">IllustrationJaNai V3 Detail（FDAT-M）</option></select><button id="repair-native-upscale">高清放大</button><button id="repair-return" class="primary">回填左侧画格</button><span id="repair-native-status" role="status"></span>';
 document.querySelector('.header').after(embeddedBar);
 window.addEventListener('message',async event=>{
  if(event.origin!==location.origin||event.source!==parent)return;
@@ -1922,7 +1922,7 @@ async function runLocal(operation){
   const resume=pending&&[pending.sourceId,pending.resultSourceId].includes(sourceAtStart)&&pending.sessionId===sessionAtStart&&pending.operation===operation&&pending.scale===upscaleScale&&pending.model===upscaleModel;
   if(resume){label.textContent='正在取回上次本地处理任务…';task=await json('/repair/api/local-tools/'+pending.id);}
   else{label.textContent='准备当前图层…';await ensureLayerFonts(layers.layers);await layers.ensureForSerialization();if(state.page?.metadata.id!==sourceAtStart)throw Error('修图来源已切换，未提交本地处理');task=await json('/repair/api/local-tools',{sourceId:sourceAtStart,sourceRevision:state.page.revision,layers:layers.serialize(),sectionMode:state.sectionMode,pageSections:editorSections(),pageGaps:state.pageGaps,operation,scale:upscaleScale,model:upscaleModel});pending={id:task.id,sourceId:sourceAtStart,sessionId:sessionAtStart,operation,scale:upscaleScale,model:upscaleModel};sessionStorage.setItem(key,JSON.stringify(pending));}
-  while(['queued','running'].includes(task.status)){label.textContent=operation==='cutout'?'U²-Net CPU 抠图中…':'Real-ESRGAN Vulkan 放大中…';await new Promise(r=>setTimeout(r,800));task=await json('/repair/api/local-tools/'+task.id);}
+  while(['queued','running'].includes(task.status)){label.textContent=operation==='cutout'?'U²-Net CPU 抠图中…':'IllustrationJaNai FDAT-M 2倍放大中…';await new Promise(r=>setTimeout(r,800));task=await json('/repair/api/local-tools/'+task.id);}
   if(task.status!=='done'){sessionStorage.removeItem(key);throw Error(task.message);}
   label.textContent='本地处理已完成，正在接回结果…';const meta=await json('/repair/api/local-tools/'+task.id+'/open',{name:state.name+(operation==='cutout'?' · 抠图':' · 高清')});
   if(state.page?.metadata.id!==sourceAtStart||embeddedSession?.id!==sessionAtStart){label.textContent='处理结果已保存；原修图会话已切换，未替换当前图片';return;}
@@ -1938,7 +1938,7 @@ try{const result=await(await fetch('/api/library/fonts')).json();for(const font 
 
 for(const [label,id]of [['打开修图工程','import-project-file'],['导入图片','open-image'],['修图记录','toggle-projects']]){const button=document.createElement('button');button.textContent=label;button.onclick=()=>document.getElementById(id).click();document.querySelector('#embedded-toolbar').insertBefore(button,document.querySelector('#repair-native-status'));}
 
-document.querySelector('#repair-upscale-model').onchange=()=>{const scale=document.querySelector('#repair-upscale-scale'),fixed=document.querySelector('#repair-upscale-model').value!=='realesr-animevideov3';scale.disabled=fixed;if(fixed)scale.value='4';};
+document.querySelector('#repair-upscale-scale').disabled=true;
 
 // Dock controls outside the canvas. Wait until the history control below is mounted.
 queueMicrotask(()=>{

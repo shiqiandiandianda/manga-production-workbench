@@ -1,7 +1,7 @@
-import {expandedSelection} from './multi-selection.js';
+import {selectedLayers} from './multi-selection.js';
 import {normalizeBubbleStyle,FONT_FAMILIES} from './lettering.js';
 const rules={panel:{border:v=>Number.isFinite(v)&&v>=0&&v<=256,borderColor:v=>/^#[a-f0-9]{6}$/i.test(v)},bubble:{outlineWidth:v=>Number.isFinite(v)&&v>=0&&v<=256,outlineColor:v=>/^#[a-f0-9]{6}$/i.test(v),fontFamily:v=>Object.hasOwn(FONT_FAMILIES,v),fontSize:v=>Number.isFinite(v)&&v>=10&&v<=2048,fontWeight:v=>Number.isInteger(v)&&v>=100&&v<=900&&v%100===0,textColor:v=>/^#[a-f0-9]{6}$/i.test(v),textAlign:v=>['left','center','right'].includes(v),writingMode:v=>['horizontal','vertical'].includes(v)}};
-export function batchStyleTargets(project,keys,kind){return expandedSelection(project,keys).filter(entry=>entry.type===kind);}
+export function batchStyleTargets(project,keys,kind){return selectedLayers(project,keys).filter(entry=>entry.type===kind);}
 export function sharedStyleValue(entries,kind,key){if(!entries.length)return null;const value=entry=>kind==='bubble'?normalizeBubbleStyle(entry.item)[key]:key==='border'?(entry.item.border||0):entry.item.borderColor;const first=value(entries[0]);return entries.every(entry=>value(entry)===first)?first:null;}
 export function applyBatchStyle(project,keys,kind,key,value){
  const rule=rules[kind]?.[key];if(!rule||!rule(value))throw new Error('批量样式值无效或超出范围');
@@ -10,7 +10,7 @@ export function applyBatchStyle(project,keys,kind,key,value){
  for(const entry of targets)entry.item[key]=value;return targets.length;
 }
 export function batchStyleMarkup(project,keys,escape){
- const all=expandedSelection(project,keys),panels=all.filter(e=>e.type==='panel'),bubbles=all.filter(e=>e.type==='bubble');
+ const all=selectedLayers(project,keys),panels=all.filter(e=>e.type==='panel'),bubbles=all.filter(e=>e.type==='bubble');
  const control=(kind,key)=>'data-section="batch-style" data-batch-kind="'+kind+'" data-field="'+key+'"';
  const locked=entries=>entries.some(e=>e.item.locked)?' disabled':'';
  const number=(entries,kind,key,label,min,max,step=1)=>{const value=sharedStyleValue(entries,kind,key);return '<label>'+label+'<input type="number" '+control(kind,key)+' aria-label="'+label+'" value="'+(value??'')+'" placeholder="多种值" min="'+min+'" max="'+max+'" step="'+step+'"'+locked(entries)+'></label>';};

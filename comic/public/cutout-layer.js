@@ -1,3 +1,4 @@
+import {upscaleLabel} from './upscale-models.js';
 import {id,clone,fitImage} from './model.js';
 
 export const isCutoutLayer=item=>!!item?.cutoutLayer?.parentPanelId;
@@ -5,7 +6,7 @@ export const isUpscaleLayer=item=>isCutoutLayer(item)&&item.cutoutLayer.kind==='
 export function createUpscaleLayer(project,parent,asset,sourceAsset,{sessionId,model=''}={}){
  if(asset.width<sourceAsset.width||asset.height<sourceAsset.height)throw Error('高清图尺寸不能小于来源原图');
  const item=createCutoutLayer(project,parent,asset,sourceAsset,{sessionId,position:'above'}),scale=asset.width/sourceAsset.width;
- item.name='高清 '+Number(scale.toFixed(2))+'× · '+(parent.name||'原画面').slice(0,95);
+ item.name='高清 '+Number(scale.toFixed(2))+'× · '+(model?upscaleLabel(model)+' · ':'')+(parent.name||'原画面').slice(0,95);
  Object.assign(item.cutoutLayer,{kind:'upscale',scale,width:asset.width,height:asset.height,model:String(model).slice(0,160)});
  for(const key of ['feather','featherEdges','mask','border','borderColor'])if(parent[key]!==undefined)item[key]=clone(parent[key]);
  const siblings=project.pages.flatMap(p=>p.panels).filter(f=>f.id!==item.id&&isUpscaleLayer(f)&&f.cutoutLayer.parentPanelId===parent.id),order=project.layerOrder.filter(key=>key!==item.id),at=Math.max(order.indexOf(parent.id),...siblings.map(f=>order.indexOf(f.id)));order.splice(at+1,0,item.id);project.layerOrder=order;return item;

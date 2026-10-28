@@ -1,3 +1,4 @@
+import {readableRaster} from './readable-raster.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
@@ -35,7 +36,7 @@ export function repairCompositionPlan(project,panelId,assets=[],measurement=nati
 export async function captureRepairComposition(project,panelId,store,folder){
  const lib=native(),plan=repairCompositionPlan(project,panelId,store.db.assets,lib.createCanvas(1,1).getContext('2d'));if(!plan)return null;
  const width=Math.ceil(plan.region.w*plan.scale),height=Math.ceil(plan.region.h*plan.scale);check(width<=16384&&height<=16384&&width*height<=100000000,'当前组合画面过大，请选择单个图层修图');
- const canvas=lib.createCanvas(width,height),context=canvas.getContext('2d'),images=new Map(),sources=new Map(),load=async key=>{if(!images.has(key)){const bytes=fs.readFileSync(sourceFile(store,key));sources.set(key,digest(bytes));images.set(key,lib.loadImage(bytes));}return images.get(key);};
+ const canvas=lib.createCanvas(width,height),context=canvas.getContext('2d'),images=new Map(),sources=new Map(),load=async key=>{if(!images.has(key)){const bytes=fs.readFileSync(sourceFile(store,key));sources.set(key,digest(bytes));images.set(key,readableRaster(lib,bytes,{file:sourceFile(store,key),cacheDir:path.join(folder,'decode-cache')}));}return images.get(key);};
  context.scale(plan.scale,plan.scale);await paintSceneRegion(context,plan.isolated,{layout:layoutLongStrip(plan.isolated.pages,{width:plan.region.w}),region:{x:0,y:0,w:plan.region.w,h:plan.region.h},renderScale:plan.scale,imageLoader:load,canvasFactory:()=>lib.createCanvas(1,1)});
  const bytes=canvas.toBuffer('image/png'),sha256=digest(bytes),file=path.join(folder,sha256+'.png');fs.mkdirSync(folder,{recursive:true});if(!fs.existsSync(file))fs.writeFileSync(file,bytes);
  return {version:2,panelId,pageId:plan.pageId,region:plan.region,scale:plan.scale,width,height,stamp:plan.stamp,layerIds:plan.layerIds,bubbles:[],sources:[...sources].map(([key,sha256])=>({key,sha256})),file,sha256};

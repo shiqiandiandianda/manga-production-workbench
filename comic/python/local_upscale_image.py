@@ -23,7 +23,7 @@ def validate(source, result, scale=None, opaque=False):
     return original, image
 
 
-def process(phase, source, output, scale=None, model_output=None):
+def process(phase, source, output, scale=None, model_output=None, output_scale=None):
     if phase == 'prepare':
         image = ImageOps.exif_transpose(Image.open(source)).convert('RGBA')
         if not image.getchannel('A').getbbox():
@@ -32,6 +32,10 @@ def process(phase, source, output, scale=None, model_output=None):
         return {'width': image.width, 'height': image.height}
     if phase == 'finish':
         original, result = validate(source, model_output, scale, opaque=True)
+        if output_scale is not None and output_scale != scale:
+            if output_scale not in (2, 3, 4) or output_scale > scale:
+                raise ValueError('高清输出倍率无效')
+            result = result.resize((original.width * output_scale, original.height * output_scale), Image.Resampling.LANCZOS)
         # Only resample the original alpha; inference never invents an alpha channel.
         alpha = original.getchannel('A')
         if alpha.getextrema() != (255, 255):
@@ -51,5 +55,6 @@ if __name__ == '__main__':
     parser.add_argument('--output', required=True)
     parser.add_argument('--model-output')
     parser.add_argument('--scale', type=int)
+    parser.add_argument('--output-scale', type=int)
     args = parser.parse_args()
-    print(json.dumps(process(args.phase, args.input, args.output, args.scale, args.model_output)))
+    print(json.dumps(process(args.phase, args.input, args.output, args.scale, args.model_output, args.output_scale)))

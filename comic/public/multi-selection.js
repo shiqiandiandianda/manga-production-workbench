@@ -7,6 +7,8 @@ import {panelInPage} from './layer-groups.js';
 import {bubbleLayout,bubbleTailGeometry} from './lettering.js';
 import {applyBubbleEdit} from './bubble-editor.js';
 import {constrainedPanelDelta} from './panel-width.js';
+export function selectedLayers(project,keys){const wanted=new Set(keys||[]);return allLayers(project).filter(e=>wanted.has(e.item.id));}
+const interactionSelection=(project,keys)=>new Set(keys||[]).size>1?selectedLayers(project,keys):expandedSelection(project,keys);
 export function expandedSelection(project,keys){
  const entries=allLayers(project),wanted=new Set(keys||[]),panels=new Set(entries.filter(e=>e.type==='panel'&&wanted.has(e.item.id)).map(e=>e.item.id));
  if(panels.size)for(const entry of entries)if(entry.item.cutoutLayer&&panels.has(entry.item.cutoutLayer.parentPanelId))wanted.add(entry.item.id);
@@ -32,25 +34,25 @@ export function selectAllLayerKeys(project,{scope='page',pageId}={}){
  const region={x:0,y:page.y,w:context.layout.width,h:page.height};return entries.filter(e=>e.pageId===pageId||e.type==='gradient'&&e.item.visible&&e.item.gradient.enabled&&intersects(boxForScene(context.map.get(e.item.id)),region)).map(e=>e.item.id);
 }
 export function marqueeSelection(project,rect,{measurement}={}){const context=sceneContext(project);return allLayers(project).filter(e=>e.item.visible&&(e.type!=='gradient'||e.item.gradient.enabled)&&intersects(boxForScene(context.map.get(e.item.id),measurement),rect)).map(e=>e.item.id);}
-export function selectionDocumentBox(project,keys,measurement){const context=sceneContext(project);return union(expandedSelection(project,keys).map(e=>boxForScene(context.map.get(e.item.id),measurement)).filter(Boolean));}
+export function selectionDocumentBox(project,keys,measurement){const context=sceneContext(project);return union(interactionSelection(project,keys).map(e=>boxForScene(context.map.get(e.item.id),measurement)).filter(Boolean));}
 export function translateSelection(project,keys,{dx,dy},initial=project){
- const selected=expandedSelection(initial,keys);if(!selected.length||selected.some(e=>locked(initial,e)||e.item.stripSpace)||![dx,dy].every(Number.isFinite))return false;
+ const selected=interactionSelection(initial,keys);if(!selected.length||selected.some(e=>locked(initial,e)||e.item.stripSpace)||![dx,dy].every(Number.isFinite))return false;
  const layout=layoutLongStrip(initial.pages),pages=new Map(layout.pages.map(p=>[p.pageId,p])),current=new Map(allLayers(project).map(e=>[e.item.id,e.item]));
  dx=constrainedPanelDelta(selected.filter(entry=>entry.type==='panel').map(entry=>({...entry,scale:pages.get(entry.pageId)?.scale||1})),dx);
  for(const entry of selected){const item=current.get(entry.item.id);if(!item)continue;const scale=entry.pageId?pages.get(entry.pageId).scale:1,x=dx/scale,y=dy/scale;if(entry.type==='bubble')Object.assign(item,applyBubbleEdit(entry.item,{type:'move',dx:x,dy:y}));else{item.x=entry.item.x+x;item.y=entry.item.y+y;}}
  return true;
 }
 export function deleteSelection(project,keys,{bubbleSizes={}}={}){
- const selected=expandedSelection(project,keys);if(!selected.length||selected.some(e=>locked(project,e)))return false;
+ const selected=interactionSelection(project,keys);if(!selected.length||selected.some(e=>locked(project,e)))return false;
  const ids=new Set(selected.map(e=>e.item.id)),spaces=selected.filter(e=>e.item.stripSpace).sort((a,b)=>b.item.y-a.item.y),spaceIds=new Set(spaces.map(e=>e.item.id));let draft=clone(project);
- for(const page of draft.pages){page.panels=page.panels.filter(e=>!ids.has(e.id));page.bubbles=page.bubbles.filter(e=>!ids.has(e.id));}draft.gradients=(draft.gradients||[]).filter(e=>!ids.has(e.id)||spaceIds.has(e.id));
+ for(const page of draft.pages){page.panels=page.panels.filter(e=>!ids.has(e.id));page.bubbles=page.bubbles.filter(e=>!ids.has(e.id));for(const item of page.panels)if(ids.has(item.cutoutLayer?.parentPanelId)){delete item.cutoutLayer;delete item.localRegion;}for(const bubble of page.bubbles)if(ids.has(bubble.parentPanelId))delete bubble.parentPanelId;}draft.gradients=(draft.gradients||[]).filter(e=>!ids.has(e.id)||spaceIds.has(e.id));
  for(const entry of spaces)draft=resizeStripSpace(draft,entry.item.id,0,{bubbleSizes}).project;
  if(draft.layerOrder)draft.layerOrder=draft.layerOrder.filter(key=>!ids.has(key));normalizeLayerOrder(draft);Object.assign(project,draft);return true;
 }
 
 export function selectionOverlaySvg(project,keys,{measurement,zoom=1,rect=null,region=null}={}){
  const stroke=1.5/zoom;let out='';
- if(keys?.size){const context=sceneContext(project),boxes=[];for(const entry of expandedSelection(project,keys)){if(!entry.item.visible)continue;const scene=context.map.get(entry.item.id);if(region&&entry.item.overflow!=='expand'&&!intersects(boxForScene(scene),region))continue;const b=boxForScene(scene,measurement);if(!b||region&&!intersects(b,region))continue;boxes.push(b);out+='<rect data-selected-outline="'+entry.item.id+'" x="'+b.x+'" y="'+b.y+'" width="'+b.w+'" height="'+b.h+'" fill="none" stroke="#48a4ef" stroke-width="'+stroke+'" pointer-events="none"/>';}
+ if(keys?.size){const context=sceneContext(project),boxes=[];for(const entry of interactionSelection(project,keys)){if(!entry.item.visible)continue;const scene=context.map.get(entry.item.id);if(region&&entry.item.overflow!=='expand'&&!intersects(boxForScene(scene),region))continue;const b=boxForScene(scene,measurement);if(!b||region&&!intersects(b,region))continue;boxes.push(b);out+='<rect data-selected-outline="'+entry.item.id+'" x="'+b.x+'" y="'+b.y+'" width="'+b.w+'" height="'+b.h+'" fill="none" stroke="#48a4ef" stroke-width="'+stroke+'" pointer-events="none"/>';}
  const b=union(boxes);if(b)out+='<rect x="'+b.x+'" y="'+b.y+'" width="'+b.w+'" height="'+b.h+'" fill="none" stroke="#91c8fb" stroke-width="'+stroke+'" stroke-dasharray="'+5/zoom+' '+4/zoom+'" pointer-events="none"/>';}
  if(rect)out+='<rect data-selection-marquee="true" x="'+rect.x+'" y="'+rect.y+'" width="'+rect.w+'" height="'+rect.h+'" fill="#48a4ef" fill-opacity=".12" stroke="#91c8fb" stroke-width="'+stroke+'" pointer-events="none"/>';return out;
 }

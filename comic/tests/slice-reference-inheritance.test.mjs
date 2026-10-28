@@ -16,16 +16,18 @@ import {createStudio} from '../server.mjs';
 import {validateProject} from '../lib/store.mjs';
 
 const key='name:character:角色甲@黑衣';
-async function fixture(){
+async function fixture({unspecified=false}={}){
  const files=syntheticFiles().map(file=>{const data=JSON.parse(file.bytes.toString().replaceAll('测试人物','角色甲'));if(data['格'])for(const record of data['格']){record['出现角色']=['角色甲'];record['出现道具']=[];record['提示词']={空泡:'角色甲穿黑衣站在测试庭院，空白气泡。',无泡:'角色甲穿黑衣站在测试庭院，无文字无气泡。'};}
+  if(unspecified){for(const record of data['格']||[])delete record['服装'];for(const segment of data['屏段']||[])for(const ref of segment['附图']||[])if(ref['类型']==='设定卡'){ref['服装']='';ref['说明']='服装未指定';}}
   const bytes=Buffer.from(JSON.stringify(data));return {...file,bytes,sha256:createHash('sha256').update(bytes).digest('hex')};});
  const project=productionProject(await inspectProductionPackage(files),'裁格参考继承合成验收'),segment=project.productionPackage.episodes[0].segments[0],parent=project.pages.flatMap(p=>p.panels).find(f=>f.productionSegment===segment.id);
  const character={id:'asset_'+randomUUID(),name:'角色甲_黑色旅行长衣_生成_test.png',libraryName:'角色甲',libraryRole:'character',libraryState:'黑色旅行长衣 · 生成 · test',library:{assetId:randomUUID(),revisionId:randomUUID(),sha256:'a'.repeat(64)},width:64,height:64,mime:'image/png'},scene={id:'asset_'+randomUUID(),name:'测试庭院.png',libraryName:'测试庭院',libraryRole:'scene',width:64,height:64,mime:'image/png'},assets=[character,scene];
  project.assetLibrary={version:1,assetIds:assets.map(a=>a.id),directories:[],recursive:true};
  segment.references[0].binding={assetId:character.id,revisionId:character.library.revisionId,sha256:character.library.sha256};parent.referenceIds=[character.id];
  parent.referenceNeedBindings={[segment.id+'@0']:{assetId:character.id,name:'角色甲',role:'character',state:'黑衣',revisionId:character.library.revisionId,sha256:character.library.sha256,userSelection:{version:1,selectedAt:'2026-01-01T00:00:00Z'}}};
+ if(unspecified)parent.referenceNeedBindings[segment.id+'@0'].state='服装未指定';
  const frame=prepareProductionPanel(project,segment.id,'E011-001').panel;
- const need={id:key,name:'角色甲',role:'character',state:'黑衣',hasState:true};
+ const need={id:unspecified?'name:character:角色甲@未知(待确认)':key,name:'角色甲',role:'character',state:unspecified?'未知（待确认）':'黑衣',hasState:true};
  return {project,segment,parent,frame,character,scene,assets,need};
 }
 test('切换单格及裁格都继承同人物同服装的人工选图，名称差异不要求重选',async()=>{
@@ -68,8 +70,9 @@ test('旧版手动服装确认同样可以继承，确认仅适用于原图片�
  const f=await fixture(),b=f.parent.referenceNeedBindings[f.segment.id+'@0'];delete b.userSelection;b.manualStateConfirmation={version:1,selectedState:f.character.libraryState};
  assert.ok(inheritedSliceReferenceBinding(f.project,f.frame,f.need,f.character));f.character.libraryState='百户官服';assert.equal(inheritedSliceReferenceBinding(f.project,f.frame,f.need,f.character),null);
 });
-test('实际服务保存重开后参考完整，浏览器核对无缺图，假通道收到同一图片版本',{timeout:60000},async t=>{
- const f=await fixture(),dir=fs.mkdtempSync(path.join(process.env.QUALITY_RUN_DIR,'inheritance-')),require=createRequire(import.meta.url),{createCanvas}=require(process.env.COMIC_TEST_CANVAS_MODULE),{chromium}=require('playwright'),canvas=createCanvas(64,64);canvas.getContext('2d').fillRect(0,0,64,64);const bytes=canvas.toBuffer('image/png');
+test('未指定服装的裁格保存重开后参考完整，浏览器无缺图，假通道收到同一图片版本',{timeout:60000},async t=>{
+ const f=await fixture({unspecified:true}),dir=fs.mkdtempSync(path.join(process.env.QUALITY_RUN_DIR,'inheritance-')),require=createRequire(import.meta.url),{createCanvas}=require(process.env.COMIC_TEST_CANVAS_MODULE),{chromium}=require('playwright'),canvas=createCanvas(64,64);canvas.getContext('2d').fillRect(0,0,64,64);const bytes=canvas.toBuffer('image/png');
+ f.frame.panelSlice={...f.frame.productionGrid,rootPanelId:f.parent.id,sourceAssetId:f.character.id,sourceHash:'c'.repeat(64),key:'d'.repeat(64),region:{x:0,y:0,w:1,h:1}};delete f.frame.productionGrid;f.frame.shotId='';delete f.frame.generation;
  for(const asset of f.assets){asset.filePath=path.join(dir,asset.id+'.png');fs.writeFileSync(asset.filePath,bytes);asset.extension='.png';asset.library&&(asset.library.sha256=createHash('sha256').update(bytes).digest('hex'));}
  f.segment.references[0].binding.sha256=f.character.library.sha256;f.parent.referenceNeedBindings[f.segment.id+'@0'].sha256=f.character.library.sha256;
  f.frame.referenceIds=[f.scene.id];f.frame.assetReferenceBinding={mode:'manual',managedIds:[]};
@@ -84,5 +87,15 @@ test('实际服务保存重开后参考完整，浏览器核对无缺图，假�
  const response=await fetch(origin+'/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({projectId:f.project.id,panelIds:[f.frame.id],provider:'codex',expectedRevision:current().revision})}),result=await response.json();assert.equal(response.status,202,JSON.stringify(result));
  for(let i=0;i<200&&!calls.length;i++)await new Promise(r=>setTimeout(r,25));assert.equal(calls.length,1);assert.ok(calls[0].referenceRoles.some(r=>r.assetId===f.character.id));
  for(let i=0;i<240&&!['done','failed'].includes(studio.store.db.jobs.at(-1)?.status);i++)await new Promise(r=>setTimeout(r,25));assert.equal(studio.store.db.jobs.at(-1)?.status,'done',studio.store.db.jobs.at(-1)?.message);assert.equal(frame().imageAssetId,studio.store.db.jobs.at(-1).assetId);
- assert.equal(frame().referenceNeedBindings[key].revisionId,f.character.library.revisionId);assert.equal(frame().referenceNeedBindings[key].sha256,f.character.library.sha256);
+ assert.equal(frame().referenceNeedBindings[f.need.id].revisionId,f.character.library.revisionId);assert.equal(frame().referenceNeedBindings[f.need.id].sha256,f.character.library.sha256);
+});
+
+test('未指定与未知占位词允许继承本屏已选固定版本，不改写原文状态',async()=>{
+ for(const sourceLabel of ['', '服装未指定', '未知（待确认）']){const f=await fixture({unspecified:true});f.segment.references[0]['说明']=sourceLabel;const snapshot=JSON.stringify(f.project.productionPackage);
+  hydrateProductionSlices(f.project,f.assets);const need=auditPanelReferences(f.project,f.frame,f.assets).needs.find(n=>n.role==='character');assert.equal(need.status,'ready');assert.equal(f.frame.referenceNeedBindings[need.id].assetId,f.character.id);assert.equal(f.frame.referenceNeedBindings[need.id].state,need.state);assert.equal(JSON.stringify(f.project.productionPackage),snapshot);assert.equal(hydrateProductionSlices(f.project,f.assets),false);
+ }
+});
+
+test('未知状态继承仍拒绝未人工选定、不同人物、明确服装变化或不同图片版本',async()=>{
+ for(const alter of [f=>delete f.parent.referenceNeedBindings[f.segment.id+'@0'].userSelection,f=>f.need.name='角色乙',f=>f.need.state='白衣',f=>f.need.state='白衣（待确认）',f=>f.segment.references[0]['服装']='白衣',f=>f.character.library.revisionId=randomUUID(),f=>f.character.library.sha256='e'.repeat(64),f=>f.parent.referenceIds=[],f=>f.segment.references[0].skipped=true]){const f=await fixture({unspecified:true});alter(f);assert.equal(inheritedSliceReferenceBinding(f.project,f.frame,f.need,f.character),null);}
 });

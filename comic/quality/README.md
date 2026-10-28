@@ -29,7 +29,7 @@ npm run quality:large -- --jobs 2 --timeout 150
 
 复制源码前及每个测试文件启动前，检查输出盘和源码所在盘的剩余空间；任一盘低于 3 GiB 时停止，并在 `results.json` 的 `stoppedReason` 记录原因。无法启动测试子进程时，运行器记录阻断并停止排队，不把未运行的文件记成业务失败。这些中断不算通过；单个测试仍需控制自己的磁盘使用。
 
-以下旧用例即使使用隔离资料，也会使用管理员凭据或执行管理员操作，运行器在启动之前将它们标为 `blocked`，不计为通过：`center/tests/http.test.mjs`、`comic/tests/asset-center.integration.test.mjs`、`comic/tests/asset-generator.integration.test.mjs`、`distribution/tests/forced-upgrades.test.mjs`、`distribution/tests/rolling-upgrades.test.mjs`、`distribution/tests/publisher-admin-page.test.mjs`、`distribution/tests/publication.test.mjs` 和 `协作/tests/hub-server.test.mjs`。这些能力需要另行获得针对具体权限和操作的授权后才能验证。其他用例仍须事先审查其依赖和权限。
+以下旧用例即使使用隔离资料，也会使用管理员凭据、创建能访问管理接口的客户端令牌或执行主机发布操作，运行器在启动之前将它们标为 `blocked`，不计为通过：`center/tests/http.test.mjs`、`comic/tests/asset-center.integration.test.mjs`、`comic/tests/asset-generator.integration.test.mjs`、`comic/tests/team-production.test.mjs`、`comic/tests/team-volunteer.test.mjs`、`distribution/tests/forced-upgrades.test.mjs`、`distribution/tests/rolling-upgrades.test.mjs`、`distribution/tests/publisher-admin-page.test.mjs`、`distribution/tests/publication.test.mjs`、`distribution/tests/master-startup.test.mjs`、`distribution/tests/primary-channel.test.mjs`、`distribution/tests/primary-release.test.mjs`、`协作/tests/hub-server.test.mjs`、`协作/tests/e2e-lan-simulation.test.mjs` 和 `协作/tests/hub-queue.test.mjs`。这些能力需要另行获得针对具体权限和操作的授权后才能验证。其他用例仍须事先审查其依赖和权限。
 
 仅查看计划，不执行：
 

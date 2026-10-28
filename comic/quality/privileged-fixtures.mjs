@@ -6,10 +6,17 @@ const blocked = new Set([
   'comic/tests/asset-center.integration.test.mjs',
   'comic/tests/asset-generator.integration.test.mjs',
   'distribution/tests/forced-upgrades.test.mjs',
+  'distribution/tests/master-startup.test.mjs',
+  'distribution/tests/primary-channel.test.mjs',
+  'distribution/tests/primary-release.test.mjs',
   'distribution/tests/rolling-upgrades.test.mjs',
   'distribution/tests/publisher-admin-page.test.mjs',
   'distribution/tests/publication.test.mjs',
   '协作/tests/hub-server.test.mjs',
+  '协作/tests/e2e-lan-simulation.test.mjs',
+  '协作/tests/hub-queue.test.mjs',
+  'comic/tests/team-production.test.mjs',
+  'comic/tests/team-volunteer.test.mjs',
 ]);
 
 export function privilegedFixtureReason(file) {

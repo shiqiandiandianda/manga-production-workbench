@@ -35,7 +35,7 @@ test('本话资产候选、预览、说明和操作分区，窄屏不重叠，�
   if(url.pathname==='/api/library/assets')return json({items:url.searchParams.get('projectId')===cloud?catalogue.filter(a=>a.name.includes(url.searchParams.get('q'))):[],more:false});
   if(req.method==='POST'){const chunks=[];for await(const c of req)chunks.push(c);const input=JSON.parse(Buffer.concat(chunks));requests.push({url:url.pathname,input});
    if(url.pathname.endsWith('/asset-workspace/reuse'))return json({changed:false,summary:{reused:0}});
-   if(url.pathname==='/api/library/import'){adoptions.push(input);const imported=makeAsset('角色甲');imported.library.revisionId=input.revisionId;imported.libraryState='黑蓝战袍';return json({asset:imported});}
+   if(url.pathname==='/api/library/import'){adoptions.push(input);const imported=makeAsset('角色甲');imported.library.assetId=input.assetId;imported.library.revisionId=input.revisionId;imported.libraryState='黑蓝战袍';return json({asset:imported});}
    if(url.pathname.endsWith('/asset-workspace/bind')){project=prepareWorkspaceBinding(store,project,input,store.asset(input.assetId));project.revision++;return json({project});}
    throw Error('禁止真实生成或其他写入');}
   if(url.pathname==='/picture.png'||url.pathname.startsWith('/api/assets/')||url.pathname.includes('/preview/')||url.pathname.endsWith('/download')){res.setHeader('Content-Type','image/png');return res.end(png);}

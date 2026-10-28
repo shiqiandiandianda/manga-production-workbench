@@ -53,6 +53,10 @@ test('本格参考显示、排序、移除、撤销与生成保持身份和顺�
  const visible=()=>page.locator('[data-panel-reference]').evaluateAll(nodes=>nodes.map(n=>n.dataset.panelReference));
  const saved=()=>page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');
  await select(first);assert.deepEqual(await visible(),[assets[0].id,assets[2].id,assets[3].id]);
+ await page.locator('#inspector-body [data-action="choose-panel-references"]').click();
+ await page.locator('#asset-gallery-workspace').waitFor({state:'visible',timeout:4000});
+ assert.match(await page.locator('#asset-gallery-workspace').innerText(),/当前筛选没有资产需求/);
+ assert.deepEqual(raw(),assets.map(a=>a.id));await page.locator('[data-gallery-close]').click();await select(first);
  await page.locator('[data-action="move-panel-reference"][data-direction="-1"][data-reference-id="'+assets[3].id+'"]').click();
  await until(()=>JSON.stringify(raw())===JSON.stringify([assets[0].id,assets[1].id,assets[3].id,assets[2].id]),'参考排序未保存');await saved();
  assert.deepEqual(await visible(),[assets[0].id,assets[3].id,assets[2].id]);

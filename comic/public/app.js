@@ -666,7 +666,7 @@ function referenceTarget(projectId,panelId,shotId){
 }
 function choosePanelReferences(initialSlot){
  const frame=selected();
- if(frame&&episodeAssetsUI){void episodeAssetsUI.openTarget(frame.id,initialSlot,'moku').catch(e=>toast(e.message,true));return;}if(selection?.type!=='panel'||!frame)return;
+ if(frame&&episodeAssetsUI){const projectId=project.id,panelId=frame.id;void episodeAssetsUI.openTarget(panelId,initialSlot,'moku').then(opened=>{if(!opened&&project?.id===projectId&&selection?.type==='panel'&&selected()?.id===panelId)document.querySelector('[data-rail-tab="references"]')?.click();}).catch(e=>toast(e.message,true));return;}if(selection?.type!=='panel'||!frame)return;
  const projectId=project.id,panelId=frame.id,shotId=frame.shotId,referenceStamp=referenceInputStamp(project,frame);
  referenceTarget(projectId,panelId,shotId);
  openPanelReferences({project:clone(project),panel:clone(frame),getAssets:()=>assets,api,modal,closeModal,escape,onAssets:mergeImageAssets,toast,initialSlot:Number.isInteger(initialSlot)?initialSlot:undefined,initialNeed:typeof initialSlot==='object'?(frame.productionSegment?initialSlot:initialSlot.id):typeof initialSlot==='string'?initialSlot:undefined,

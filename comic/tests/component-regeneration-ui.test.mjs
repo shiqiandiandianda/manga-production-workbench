@@ -35,7 +35,7 @@ test('组件失败不停止其他组件；手部可重生、重复点击复用�
  let browser;t.after(async()=>{releaseHands();await browser?.close();child.kill();await studio.close();fs.writeFileSync(path.join(evidence,'service.log'),logs);});
  await until(async()=>{try{return (await fetch(origin+'/api/health')).ok;}catch{return false;}},'资产服务未启动');
  const request=async(route,body)=>{const res=await fetch(origin+route,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});const value=await res.json();assert.ok(res.ok,JSON.stringify(value));return value;};
- const created=await request('/api/production-records',{requestId:randomUUID(),type:'character',name:'回归角色',outfit:'白衣',prompt:'合成图片验收，不调用真实AI',referenceIds:[]}),route='/api/production-records/'+created.id;
+ const created=await request('/api/production-records',{requestId:randomUUID(),type:'character',characterRole:'lead',characterOutputMode:'components',name:'回归角色',outfit:'白衣',prompt:'合成图片验收，不调用真实AI',referenceIds:[]}),route='/api/production-records/'+created.id;
  let record=await until(async()=>{const r=await request(route);return r.status==='failed'&&r.finished.length===3&&r;},'初始部分失败状态未回填');
  assert.equal(calls.length,4);const originalHands=record.jobs.hands;
  browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1864,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));

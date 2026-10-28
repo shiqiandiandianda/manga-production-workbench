@@ -1,0 +1,78 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import {createHash} from 'node:crypto';
+import {createRequire} from 'node:module';
+import {createStudio} from '../server.mjs';
+import {createProject,clone,id} from '../public/model.js';
+import {migrateLayerDocument} from '../public/layers.js';
+import {panelReferenceOrderMarkup} from '../public/panel-reference-ui.js';
+import {listenForFetch} from './fixtures/loopback-http.mjs';
+
+const require=createRequire(import.meta.url);
+const {chromium}=require('playwright');
+const {createCanvas}=require(process.env.COMIC_TEST_CANVAS_MODULE);
+const until=async (predicate,label)=>{for(let i=0;i<400;i++){if(await predicate())return;await new Promise(r=>setTimeout(r,25));}throw Error(label);};
+const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+test('制作资料附图保持原顺序且锁定的画板不提供可操作排序',()=>{
+ const p=createProject('合成参考'),f=p.pages[0].panels[0],a={id:id('asset'),name:'<参考>',libraryRole:'character'};
+ f.referenceIds=[a.id];p.pages[0].locked=true;
+ const locked=panelReferenceOrderMarkup(p,f,[a],escape);
+ assert.match(locked,/&lt;参考&gt;/);assert.match(locked,/data-action="remove-panel-reference"[^>]*disabled/);
+ p.pages[0].locked=false;f.productionSegment='synthetic-segment';
+ const fixed=panelReferenceOrderMarkup(p,f,[a],escape);
+ assert.equal(fixed,'');
+});
+
+test('本格参考显示、排序、移除、撤销与生成保持身份和顺序',{timeout:90000},async t=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'panel-reference-order-')),calls=[];let browser;
+ const resultCanvas=createCanvas(60,60),resultPath=path.join(dir,'synthetic-result.png');
+ resultCanvas.getContext('2d').fillRect(0,0,60,60);fs.writeFileSync(resultPath,resultCanvas.toBuffer('image/png'));
+ const fake={close(){},status:async()=>({connected:false})},bridge={close(){},status:async()=>({connected:true,imageFeature:true}),generate:async(_dir,input,refs)=>{calls.push({input:clone(input),refs:[...refs]});return {filePath:resultPath,imageToolSeen:true};}};
+ const studio=createStudio({dataDir:path.join(dir,'data'),seedReference:false,bridge,jimengBridge:fake,storyboardGenerator:fake});
+ const origin=await listenForFetch(studio.server);
+ t.after(async()=>{await browser?.close();studio.close();studio.server.closeAllConnections();if(studio.server.listening)await new Promise(r=>studio.server.close(r));});
+ const api=async(route,method='GET',body)=>{const r=await fetch(origin+route,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});const v=await r.json();assert.ok(r.ok,JSON.stringify(v));return v;};
+ const assets=[];for(let i=0;i<4;i++){const canvas=createCanvas(20,20);canvas.getContext('2d').fillStyle=['#123456','#456789','#789abc','#bcd123'][i];canvas.getContext('2d').fillRect(0,0,20,20);const filePath=path.join(dir,'reference-'+i+'.png');fs.writeFileSync(filePath,canvas.toBuffer('image/png'));assets.push(await api('/api/assets','POST',{filePath,name:'合成参考'+i+'.png'}));}
+ const hashes=assets.map(a=>createHash('sha256').update(fs.readFileSync(a.filePath)).digest('hex'));
+ const p=migrateLayerDocument(createProject('合成参考排序')).project,first=p.pages[0].panels[0],copy=clone(first);
+ copy.id=id('panel');copy.y+=800;p.pages[0].panels.push(copy);p.pages[0].height=2400;p.layerOrder=[first.id,copy.id];
+ first.referenceIds=assets.map(a=>a.id);copy.referenceIds=[assets[0].id,assets[2].id,assets[3].id];
+ first.referenceTextBindings={hidden:{version:1,mode:'text',role:'prop',name:'合成文字道具',state:'',description:'文字描述',imageIds:[assets[1].id]}};
+ p.references=assets.map(a=>({assetId:a.id,name:a.name,role:'character'}));const originalReferences=clone(p.references),copyBefore=clone(copy.referenceIds);
+ studio.store.db.projects.push(p);studio.store.save();
+ browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1600,height:1000}}),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>localStorage.setItem('comic-generation-provider','codex'));
+ await page.route('**/*',r=>new URL(r.request().url()).origin===origin?r.continue():r.abort());
+ await page.goto(origin+'/?project='+p.id);await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');
+ const select=async frame=>{if(!await page.locator('#layer-list').isVisible())await page.locator('[data-rail-tab="layers"]').click();await page.locator('[data-layer="'+frame.id+'"]').click();await page.locator('[data-properties-shortcut="toolbar"]').click();await page.locator('[data-panel-inspector-tab="references"]').click();};
+ const current=()=>studio.store.project(p.id),raw=()=>current().pages[0].panels.find(f=>f.id===first.id).referenceIds;
+ const visible=()=>page.locator('[data-panel-reference]').evaluateAll(nodes=>nodes.map(n=>n.dataset.panelReference));
+ const saved=()=>page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');
+ await select(first);assert.deepEqual(await visible(),[assets[0].id,assets[2].id,assets[3].id]);
+ await page.locator('[data-action="move-panel-reference"][data-direction="-1"][data-reference-id="'+assets[3].id+'"]').click();
+ await until(()=>JSON.stringify(raw())===JSON.stringify([assets[0].id,assets[1].id,assets[3].id,assets[2].id]),'参考排序未保存');await saved();
+ assert.deepEqual(await visible(),[assets[0].id,assets[3].id,assets[2].id]);
+ await page.locator('[data-action="remove-panel-reference"][data-reference-id="'+assets[0].id+'"]').click();
+ await until(()=>JSON.stringify(raw())===JSON.stringify([assets[1].id,assets[3].id,assets[2].id]),'移除参考未保存');await saved();
+ assert.deepEqual(current().references,originalReferences);assert.deepEqual(current().pages[0].panels.find(f=>f.id===copy.id).referenceIds,copyBefore);
+ assert.ok(assets.every((a,i)=>createHash('sha256').update(fs.readFileSync(a.filePath)).digest('hex')===hashes[i]));
+ await page.locator('#undo').click();await until(()=>raw().includes(assets[0].id),'撤销未恢复参考');await saved();
+ await page.locator('#redo').click();await until(()=>!raw().includes(assets[0].id),'重做未恢复移除');await saved();
+ await page.reload();await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');await select(first);
+ assert.deepEqual(await visible(),[assets[3].id,assets[2].id]);assert.deepEqual(raw(),[assets[1].id,assets[3].id,assets[2].id]);
+ await page.locator('[data-section="panel"][data-field="locked"]').check();await until(()=>current().pages[0].panels.find(f=>f.id===first.id).locked,'锁定未保存');await saved();
+ assert.equal(await page.locator('[data-action="remove-panel-reference"][data-reference-id="'+assets[3].id+'"]').isDisabled(),true);
+ await page.locator('[data-section="panel"][data-field="locked"]').uncheck();await until(()=>!current().pages[0].panels.find(f=>f.id===first.id).locked,'解锁未保存');await saved();
+ await select(copy);assert.deepEqual(await visible(),copyBefore);await select(first);
+ await page.locator('#inspector-body [data-action="generate-current-panel"]').click();await until(()=>calls.length===1,'合成生成未启动');await until(()=>studio.idle(),'合成生成未完成');
+ assert.deepEqual(calls[0].refs,[assets[3].filePath,assets[2].filePath]);assert.deepEqual(calls[0].input.referenceRoles.map(r=>r.assetId),[assets[3].id,assets[2].id]);
+ assert.deepEqual(current().pages[0].panels.find(f=>f.id===copy.id).referenceIds,copyBefore);
+ fs.unlinkSync(assets[3].filePath);await page.locator('#inspector-body [data-action="generate-current-panel"]').waitFor({state:'visible'});await until(async()=>!await page.locator('#inspector-body [data-action="generate-current-panel"]').isDisabled(),'生成按钮未恢复');
+ await page.locator('#inspector-body [data-action="generate-current-panel"]').click();await until(()=>studio.store.db.jobs.length===2&&studio.idle(),'缺失原件的任务未完成');
+ assert.equal(studio.store.db.jobs.at(-1).status,'failed');assert.ok(studio.store.db.jobs.at(-1).message.includes(assets[3].filePath));assert.equal(calls.length,1);
+ assert.deepEqual(raw(),[assets[1].id,assets[3].id,assets[2].id]);assert.deepEqual(errors,[]);
+});

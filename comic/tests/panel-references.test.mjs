@@ -40,6 +40,14 @@ test('reference edits during generation and rebinding prevent stale autofill whi
  await x.save(p=>p.pages[0].panels[0].referenceIds=[x.assets[2].id]);release();const state=await x.settle(),frame=state.projects[0].pages[0].panels[0];assert.equal(state.jobs[0].applied,false);assert.equal(frame.imageAssetId,null);assert.equal(frame.candidates.length,1);
  const mismatch=await x.request('/api/jobs','POST',{projectId:x.p.id,panelIds:[x.f.id],provider:'codex',referenceIdsByPanel:{[x.f.id]:refs}});assert.equal(mismatch.status,409);assert.equal(x.calls.length,1);
 });
+test('changing only reference order during generation keeps the late image as a candidate',async t=>{
+ const x=await fixture(t);let release;x.setHold(new Promise(r=>release=r),()=>release());const refs=[x.assets[0].id,x.assets[1].id];
+ await x.save(p=>p.pages[0].panels[0].referenceIds=refs);
+ assert.equal((await x.request('/api/jobs','POST',{projectId:x.p.id,panelIds:[x.f.id],provider:'codex',referenceIdsByPanel:{[x.f.id]:refs}})).status,202);
+ for(let i=0;!x.calls.length&&i<100;i++)await new Promise(r=>setTimeout(r,10));assert.equal(x.calls.length,1);
+ await x.save(p=>p.pages[0].panels[0].referenceIds=[...refs].reverse());release();
+ const state=await x.settle(),frame=state.projects[0].pages[0].panels[0];assert.equal(state.jobs[0].applied,false);assert.equal(frame.imageAssetId,null);assert.equal(frame.candidates.length,1);assert.deepEqual(frame.referenceIds,[...refs].reverse());
+});
 test('explicit empty never falls back, missing original reports exact path and never invokes adapter',async t=>{
  const x=await fixture(t);await x.save(p=>p.pages[0].panels[0].referenceIds=[]);assert.equal((await x.request('/api/jobs','POST',{projectId:x.p.id,panelIds:[x.f.id],provider:'codex'})).status,202);await x.settle();assert.deepEqual(x.calls[0].refs,[]);
  const missing=x.assets[2];await x.save(p=>p.pages[0].panels[0].referenceIds=[missing.id]);fs.unlinkSync(missing.filePath);

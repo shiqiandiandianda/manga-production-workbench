@@ -1,6 +1,7 @@
 {
   "coreFunctions": [
     "comic/quality/cases/guard.test.mjs",
+    "comic/quality/cases/loopback-http.test.mjs",
     "comic/quality/cases/runner-preflight.test.mjs",
     "comic/quality/cases/team-help-disabled.test.mjs",
     "comic/quality/cases/outcomes.test.mjs",
@@ -18,6 +19,7 @@
     "comic/tests/model.test.mjs",
     "comic/tests/layers.test.mjs",
     "comic/tests/panel-references.test.mjs",
+    "comic/tests/panel-reference-order-ui.test.mjs",
     "comic/tests/asset-bindings.test.mjs",
     "comic/tests/automatic-character-identity.test.mjs",
     "comic/tests/bubble-editor.test.mjs",

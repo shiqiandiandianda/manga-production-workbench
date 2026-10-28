@@ -5,6 +5,7 @@ const net = require('node:net');
 const cp = require('node:child_process');
 const Module = require('node:module');
 const path = require('node:path');
+const {isFetchBlockedPort}=require('./port-policy.cjs');
 const deny = message => { throw new Error('QUALITY_GUARD: ' + message); };
 const registry = process.env.QUALITY_PORTS_FILE;
 if (!registry || !process.env.QUALITY_STAGE || !process.env.QUALITY_RUN_DIR) deny('missing isolation settings');
@@ -72,14 +73,19 @@ function allowedPort(port) {
 }
 const listen=net.Server.prototype.listen;
 net.Server.prototype.listen=function(...args){
+  let ephemeral=false;
   if(typeof args[0]==='number'){
+    ephemeral=args[0]===0;
     if(typeof args[1]==='function'||args[1]===undefined)args.splice(1,0,'127.0.0.1');
     else if(!loopback(args[1]))deny('server must bind to loopback');
   }else if(args[0]&&typeof args[0]==='object'){
     if(args[0].path)deny('named-pipe or Unix-socket listener');
     if(!loopback(args[0].host))deny('server must bind to loopback');
     args[0]={...args[0],host:args[0].host||'127.0.0.1'};
+    ephemeral=args[0].port===0;
   }else deny('named-pipe or Unix-socket listener');
+  this.__qualityRetryArgs=ephemeral?[...args]:null;this.__qualityRetries=0;
+  if(this.__qualityRetryArgs&&typeof this.__qualityRetryArgs.at(-1)==='function')this.__qualityRetryArgs.pop();
   return listen.apply(this,args);
 };
 const emit = net.Server.prototype.emit;
@@ -88,9 +94,22 @@ net.Server.prototype.emit = function (event, ...args) {
     const address = this.address();
     if (address && typeof address === 'object') {
       if (!loopback(address.address)) deny('server must bind to loopback');
+      // Do not expose an ephemeral port that both Fetch and Chromium reject.
+      // Suppress this intermediate listening/close pair, retaining the user's
+      // original once-listener for the successful bind.
+      if(this.__qualityRetryArgs&&isFetchBlockedPort(address.port)){
+        this.__qualityRetries++;this.__qualityRetrying=true;this.close();return true;
+      }
+      this.__qualityRetryArgs=null;
       fs.appendFileSync(registry, String(address.port) + '\n');
       this.__qualityPort=String(address.port);
     }
+  }
+  if(event==='close'&&this.__qualityRetrying){
+    this.__qualityRetrying=false;const retry=this.__qualityRetryArgs;
+    if(this.__qualityRetries>=64){this.__qualityRetryArgs=null;process.nextTick(()=>this.emit('error',Error('QUALITY_GUARD: cannot allocate a fetch-safe loopback port')));}
+    else process.nextTick(()=>{try{listen.apply(this,retry);}catch(error){this.emit('error',error);}});
+    return true;
   }
   if(event==='close'&&this.__qualityPort){
     try{const ports=fs.readFileSync(registry,'utf8').split(/\s+/).filter(port=>port&&port!==this.__qualityPort);fs.writeFileSync(registry,ports.join('\n')+'\n');}catch{}

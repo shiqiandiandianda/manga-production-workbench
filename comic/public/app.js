@@ -894,9 +894,19 @@ document.addEventListener('click',safely(async event=>{
   if(action.startsWith('production-reference-')){await productionReferenceAction(button);return;}
   if(action==='process-panel-references'){if(item)await episodeAssetsUI.openTarget(item.id,undefined,'moku');return;}
   if(action==='reference-processing-report'){showReferenceProcessingResult(planPanelReferenceProcessing(project,item,assets));return;}
+  if(action==='move-panel-reference'){
+   if(selection?.type!=='panel'||!item)return;if(item.locked||selectionOwner()?.locked)throw new Error('请先解锁画格和画板');
+   if(item.productionSegment||item.productionBackground)throw new Error('制作资料附图按原顺序使用');
+   const visible=panelReferenceIds(project,item),index=visible.indexOf(button.dataset.referenceId),direction=Number(button.dataset.direction),next=index+direction;
+   if(index<0||![-1,1].includes(direction)||next<0||next>=visible.length)return;
+   const ids=Array.isArray(item.referenceIds)?[...item.referenceIds]:[...visible],a=ids.indexOf(visible[index]),b=ids.indexOf(visible[next]);
+   if(a<0||b<0)throw new Error('参考列表已变化，请重新操作');[ids[a],ids[b]]=[ids[b],ids[a]];
+   edit(()=>setPanelReferences(item,ids,{project,assets}),{operation:'panel.references.order'});return;
+  }
   if(action==='remove-panel-reference'||action==='inherit-panel-references'){
-   if(selection?.type!=='panel'||!item)return;if(item.locked)throw new Error('请先解锁画格');
-   const ids=action==='inherit-panel-references'?null:panelReferenceIds(project,item).filter(id=>id!==button.dataset.referenceId);
+   if(selection?.type!=='panel'||!item)return;if(item.locked||selectionOwner()?.locked)throw new Error('请先解锁画格和画板');
+   if(item.productionSegment||item.productionBackground)throw new Error('制作资料附图请在本话资产中调整');
+   const ids=action==='inherit-panel-references'?null:(Array.isArray(item.referenceIds)?item.referenceIds:panelReferenceIds(project,item)).filter(id=>id!==button.dataset.referenceId);
    edit(()=>setPanelReferences(item,ids,{project,assets}),{operation:'panel.references'});return;
   }
   if(action==='sfx-image-crop'&&isSfxImage(item)){tool='image';renderCanvas();renderInspector();return;}

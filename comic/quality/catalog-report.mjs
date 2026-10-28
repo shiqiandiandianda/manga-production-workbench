@@ -12,7 +12,7 @@ let group='';for(const f of catalog.features){if(group!==f.group){group=f.group;
   out+=`- **${f.id} ${f.name}**${f.core?' 【强感知】':''}。入口：${f.entry}；边界：${f.boundary}。源码：${code(f.source)}；关联测试：${f.tests.length?code(f.tests):'未建立自动测试'}。\n`;
 }
 out+='\n## 工作链路\n\n';for(const f of catalog.flows)out+=`- **${f.id} ${f.name}**${f.core?' 【核心链路】':''}：${f.steps}。边界：${f.boundary}；关联测试：${f.tests.length?code(f.tests):'未建立自动测试'}。\n`;
-out+='\n## 验收边界\n\n- 运行器中的“全量”是当前仓库发现的测试全集和已登记链路，不等于所有动作都有独立断言或已经真实操作。缺失、失败、跳过及超时需要单独处理。\n- 墨库测试包含模拟接口，以及配置 `QUALITY_MOKU_SOURCE` 后对本地 1.1.0／2.0.1 实际代码的普通合成账号闭环。生产墨库需要普通账号和隔离测试项目做另行联调；不要向生产资料写入。\n- 本分支新增逐话正式版本联动；不能把源代码或合成测试等同于生产验收。多话工程含尚不能拆分的额外字段时会明确阻止提交。真实生图、跨机协作、视觉质量和部署均须另行验收。\n';
+out+='\n## 验收边界\n\n- 运行器中的“全量”是当前仓库发现的测试全集和已登记链路，不等于所有动作都有独立断言或已经真实操作。缺失、失败、跳过及超时需要单独处理。\n- 墨库测试包含模拟接口，以及配置 `QUALITY_MOKU_SOURCE` 后对本地 1.1.0／2.0.1／2.0.2 实际代码的普通合成账号闭环。生产墨库需要普通账号和隔离测试项目做另行联调；不要向生产资料写入。\n- 本分支新增逐话正式版本联动；不能把源代码或合成测试等同于生产验收。多话工程含尚不能拆分的额外字段时会明确阻止提交。真实生图、跨机协作、视觉质量和部署均须另行验收。\n';
 const target=path.join(here,'功能与链路清单.md');fs.writeFileSync(target,out);
 const excluded=new Set(['.git','node_modules','runtime','runtime-data','.runtime','.quality-deps','audit','audit-data','verification','outputs','cache','data','quality-runs','__pycache__']),testFiles=[];
 function scan(dir){for(const ent of fs.readdirSync(dir,{withFileTypes:true})){if(ent.isSymbolicLink()||excluded.has(ent.name))continue;const file=path.join(dir,ent.name);if(ent.isDirectory())scan(file);else if(/\.(?:test|spec)\.[cm]?js$/.test(ent.name)||/^test_.*\.py$/.test(ent.name))testFiles.push(file);}}

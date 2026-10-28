@@ -27,3 +27,5 @@
 #moku-login-dialog input:focus{outline:2px solid #9acaff;outline-offset:1px}#moku-login-dialog [type=submit]{width:100%;min-height:42px;margin-top:4px}
 #moku-login-dialog [role=status]{font-size:13px;line-height:1.7;min-height:22px;color:#a8c9e5;margin:16px 0 10px}#moku-login-dialog [role=status].error{color:#f2c199}
 #moku-login-dialog .moku-login-note{font-size:12px;color:#91aec8;line-height:1.7;margin:14px 0 0}
+
+.moku-project-open{width:min(720px,94vw);max-height:90vh;overflow:auto;padding:24px;color:#dfebf7;background:#132333;border:1px solid #456080;border-radius:12px}.moku-project-open label{display:block;margin:12px 0}.moku-project-open select,.moku-project-open input{display:block;width:100%;min-height:40px}.moku-project-open [data-status]{line-height:1.6;overflow-wrap:anywhere}.moku-project-open::backdrop{background:#0009}

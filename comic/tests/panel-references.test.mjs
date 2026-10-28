@@ -29,7 +29,7 @@ test('request uses exact per-panel order and roles; save/export/import/reopen pr
  const queued=await x.request('/api/jobs','POST',{projectId:x.p.id,panelIds:[x.f.id],provider:'codex',expectedRevision:saved.revision,referenceIdsByPanel:{[x.f.id]:ids}});assert.equal(queued.status,202);
  const state=await x.settle();assert.equal(state.jobs[0].applied,true);assert.deepEqual(x.calls[0].refs,ids.map(id=>x.studio.store.assetPath(id)));assert.deepEqual(x.calls[0].input.referenceRoles.map(r=>[r.assetId,r.role]),[[ids[0],'prop'],[ids[1],'scene']]);
  assert.equal(state.projects[0].pages[0].panels.at(-1).imageAssetId,null);assert.deepEqual(state.projects[0].pages[0].panels.at(-1).referenceIds,[x.assets[0].id]);assert.deepEqual(state.projects[0].references,x.p.references);
- const exported=(await x.request('/api/projects/'+x.p.id+'/export')).data;for(const id of ids)assert.ok(exported.assets.some(a=>a.id===id&&a.filePath&&!a.dataUrl));
+ const exported=(await x.request('/api/projects/'+x.p.id+'/export?mode=local')).data;for(const id of ids)assert.ok(exported.assets.some(a=>a.id===id&&a.filePath&&!a.dataUrl));
  for(const id of ids)delete x.studio.store.asset(id).libraryRole;
  const imported=await x.request('/api/projects/import','POST',exported);assert.equal(imported.status,201);assert.deepEqual(imported.data.pages[0].panels[0].referenceIds,ids);assert.notEqual(imported.data.pages[0].panels[0].id,x.f.id);assert.equal(x.studio.store.asset(ids[0]).libraryRole,'prop');assert.equal(x.studio.store.asset(ids[1]).libraryRole,'scene');
 });

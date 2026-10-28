@@ -198,7 +198,7 @@ test('切换墨库账号后旧同步队列暂停，重新确认归属前不写�
  const link=()=>sync.handle({body:{projectId:project.id,remoteProjectId:remoteProject.id,classification:{characterIds:[],sceneIds:[]}}},{},{pathname:'/api/project-sync/link',method:'POST',url:new URL('http://fixture/api/project-sync/link')});
  await link();await sync.push(project.id);const writes=()=>remote.state.requests.filter(r=>r.url.startsWith('/api/documents')&&['POST','PUT'].includes(r.method)).length,before=writes();
  remote.state.accountId=randomUUID();project.revision++;sync.mark(project);await sync.drain();assert.equal(writes(),before);assert.equal(sync.status(project.id).setupRequired,true);assert.equal(sync.status(project.id).pending,false);
- await assert.rejects(sync.push(project.id),error=>error.code==='project_account_confirmation_required');assert.equal(writes(),before);
+ await assert.rejects(sync.push(project.id),error=>error.code==='project_account_confirmation_required');await assert.rejects(sync.exportTarget(project.id),/账号已变化/);assert.equal(writes(),before);
  await link();await sync.push(project.id);assert.equal(writes(),before+1);
 });
 

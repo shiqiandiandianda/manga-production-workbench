@@ -87,7 +87,7 @@ if (!fs.existsSync(path.join(dep, 'playwright')) || !fs.existsSync(path.join(dep
 let mokuStage='';
 if(selected.includes('comic/quality/cases/moku-real-contract.test.mjs')&&process.env.QUALITY_MOKU_SOURCE){
   const source=path.resolve(process.env.QUALITY_MOKU_SOURCE),manifest=JSON.parse(fs.readFileSync(path.join(source,'package.json'),'utf8'));
-  const supportedBuilds={'1.1.0-20261027-global1':23,'2.0.1-20261028-recovery1':24},schemaVersion=supportedBuilds[manifest.buildId];
+  const supportedBuilds={'1.1.0-20261027-global1':23,'2.0.1-20261028-recovery1':24,'2.0.2-20261028-svg1':24},schemaVersion=supportedBuilds[manifest.buildId];
   if(manifest.name!=='comic-library'||!schemaVersion||!fs.existsSync(path.join(source,'node_modules/@electric-sql/pglite')))throw Error('QUALITY_MOKU_SOURCE 必须指向带测试依赖的受支持墨库源码：'+Object.keys(supportedBuilds).join('、'));
   mokuStage=path.join(output,'moku-source');console.log('复制墨库测试源码至：'+mokuStage);copy(source,mokuStage);
   fs.symlinkSync(path.join(source,'node_modules'),path.join(mokuStage,'node_modules'),process.platform==='win32'?'junction':'dir');

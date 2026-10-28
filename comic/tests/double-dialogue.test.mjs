@@ -67,3 +67,9 @@ test('选择当前屏段始终优先于左侧旧记忆，模式切换仅改变�
  const bBefore=JSON.stringify(pb);switchProductionSegmentUnit(p,a.id,'screen');assert.equal(JSON.stringify(pb),bBefore);assert.equal(productionSegmentUnit(p,ep.episode,b.id),'panel');
  assert.equal(selectedProductionSegment(p,ep,{id:'text',parentPanelId:panel.id},{current:b.id}),a.id);
 });
+test('旧工程页面仍为单格但缓存模式已是整屏时，切回整屏恢复原图且不改变其他屏',async()=>{
+ const p=productionProject(await inspectProductionPackage(syntheticFiles())),segment=p.productionPackage.episodes[0].segments[0],root=productionFrame(p,segment.id),page=p.pages.find(x=>x.panels.includes(root)),other=structuredClone(p.pages.find(x=>x!==page));
+ const image=id('asset');root.imageAssetId=image;root.visible=false;delete root.productionModeHidden;delete root.productionModeVisible;page.productionUnit='panel';
+ const slice={...structuredClone(root),id:id('panel'),visible:true,panelSlice:{rootPanelId:root.id,segmentId:segment.id,panelId:segment.panelIds[0]}};delete slice.productionSegment;page.panels.push(slice);
+ switchProductionSegmentUnit(p,segment.id,'screen',{ensureLettering:false,previousUnit:'screen'});assert.equal(root.visible,true);assert.equal(root.imageAssetId,image);assert.equal(slice.visible,false);assert.deepEqual(p.pages.find(x=>x.id===other.id),other);
+});

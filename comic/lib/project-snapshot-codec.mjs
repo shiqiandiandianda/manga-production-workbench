@@ -19,9 +19,10 @@ export async function encodeProjectSnapshot(content,library,{projectId,forceAsse
  encoded.payload={...payload,storage:'asset',assetId:uploaded.assetId,revisionId:uploaded.revisionId};
  return {content:encoded,schemaVersion:2,references:[uploaded.revisionId],uploadedAsset:{assetId:uploaded.assetId,revisionId:uploaded.revisionId,sha256:payload.sha256}};
 }
-export async function decodeProjectSnapshot(content,library){
+export async function decodeProjectSnapshot(content,library,depth=0){
+ check(depth<4,'工程快照引用层级过深或循环');
  check(content?.format===SNAPSHOT_FORMAT,'不是漫画工程快照');
- if(content.version===3){const p=content.payload;check(p?.encoding==='json'&&p.storage==='asset'&&Number.isSafeInteger(p.size)&&p.size>0&&p.size<=MAX_BYTES&&/^[a-f0-9]{64}$/.test(p.sha256||'')&&/^[a-f0-9-]{36}$/i.test(p.revisionId||''),'工程快照文件引用无效');const response=await library.remote('/api/revisions/'+p.revisionId+'/download');check(Number(response.headers.get('content-length')||0)<=MAX_BYTES,'工程快照文件过大');const bytes=Buffer.from(await response.arrayBuffer());check(bytes.length===p.size&&digest(bytes)===p.sha256,'工程快照文件摘要不符');const result=await decodeProjectSnapshot(JSON.parse(bytes),library);check(result.projectId===content.projectId&&result.stableHash===content.stableHash,'工程快照文件身份不符');return result;}
+ if(content.version===3){const p=content.payload;check(p?.encoding==='json'&&p.storage==='asset'&&Number.isSafeInteger(p.size)&&p.size>0&&p.size<=MAX_BYTES&&/^[a-f0-9]{64}$/.test(p.sha256||'')&&/^[a-f0-9-]{36}$/i.test(p.revisionId||''),'工程快照文件引用无效');const response=await library.remote('/api/revisions/'+p.revisionId+'/download');check(Number(response.headers.get('content-length')||0)<=MAX_BYTES,'工程快照文件过大');const bytes=Buffer.from(await response.arrayBuffer());check(bytes.length===p.size&&digest(bytes)===p.sha256,'工程快照文件摘要不符');const result=await decodeProjectSnapshot(JSON.parse(bytes),library,depth+1);check(result.projectId===content.projectId&&result.stableHash===content.stableHash,'工程快照文件身份不符');return result;}
  if(content.version===1){check(content.project&&Array.isArray(content.assets),'工程快照正文缺失');const decoded={...content};delete decoded.mokuDocumentType;return decoded;}
  const p=content.payload;check(content.version===2&&p?.encoding==='br'&&Number.isSafeInteger(p.jsonBytes)&&p.jsonBytes>0&&p.jsonBytes<=MAX_BYTES&&Number.isSafeInteger(p.size)&&p.size>0&&p.size<=MAX_BYTES,'快照压缩格式或大小无效');
  check(/^[a-f0-9]{64}$/.test(p.sha256||'')&&/^[a-f0-9]{64}$/.test(p.jsonSha256||''),'快照缺少完整性摘要');
@@ -30,5 +31,5 @@ export async function decodeProjectSnapshot(content,library){
  else{check(p.storage==='asset'&&/^[a-f0-9-]{36}$/i.test(p.revisionId||''),'快照固定版本无效');const response=await library.remote('/api/revisions/'+p.revisionId+'/download');check(Number(response.headers.get('content-length')||0)<=MAX_BYTES,'快照下载过大');bytes=Buffer.from(await response.arrayBuffer());}
  check(bytes.length===p.size&&digest(bytes)===p.sha256,'压缩快照摘要不符');
  const raw=brotliDecompressSync(bytes,{maxOutputLength:MAX_BYTES});check(raw.length===p.jsonBytes&&digest(raw)===p.jsonSha256,'工程快照还原摘要不符');
- const decoded=JSON.parse(raw.toString('utf8'));check(decoded.format===SNAPSHOT_FORMAT&&decoded.version===1&&decoded.projectId===content.projectId&&decoded.stableHash===content.stableHash&&decoded.project&&Array.isArray(decoded.assets),'工程快照还原内容不符');return decoded;
+ const decoded=JSON.parse(raw.toString('utf8'));check(decoded.format===SNAPSHOT_FORMAT&&decoded.version===1&&decoded.projectId===content.projectId&&decoded.stableHash===content.stableHash&&decoded.project&&Array.isArray(decoded.assets),'工程快照还原内容不符');return {...decoded,...(content.moku?{moku:content.moku}:{})};
 }

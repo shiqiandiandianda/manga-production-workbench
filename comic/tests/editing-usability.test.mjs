@@ -20,6 +20,6 @@ test('说话人头像的路径随工程导出和导入保留，原页面图像�
  const filePath=path.join(directory,'synthetic-avatar.png');fs.writeFileSync(filePath,canvas.createCanvas(40,40).toBuffer('image/png'));
  const call=async(url,method='GET',body)=>{const response=await fetch('http://127.0.0.1:'+studio.server.address().port+url,{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});assert.equal(response.ok,true,await response.clone().text());return response.json();};
  const asset=await call('/api/assets','POST',{filePath}),project=createProject('合成头像工程',true);project.pages[0].bubbles[0].speaker='测试人物甲';project.speakerAvatars={'测试人物甲':asset.id};studio.store.db.projects.push(project);studio.store.save();
- const exported=await call('/api/projects/'+project.id+'/export');assert.ok(exported.assets.some(a=>a.id===asset.id&&a.filePath===filePath));
+ const exported=await call('/api/projects/'+project.id+'/export');assert.ok(exported.assets.some(a=>a.id===asset.id&&!a.filePath&&a.dataBase64));
  const imported=await call('/api/projects/import','POST',exported);assert.ok(imported.speakerAvatars['测试人物甲']);assert.equal(imported.pages[0].bubbles[0].text,project.pages[0].bubbles[0].text);assert.equal(imported.pages[0].bubbles[0].speaker,'测试人物甲');
 });

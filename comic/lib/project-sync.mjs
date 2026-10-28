@@ -4,6 +4,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {check} from './store.mjs';
 import {writeFileAtomicSync} from './durable-files.mjs';
 import {encodeProjectSnapshot,decodeProjectSnapshot} from './project-snapshot-codec.mjs';
+import {fixedResourceReferences} from './project-portability.mjs';
 
 /**
  * 工程快照自动上传墨库。
@@ -17,7 +18,7 @@ const CONTENT_FORMAT='comic-strip-project-snapshot';
 const CONTENT_VERSION=1;
 // 撤销步骤、导入中间数据和已迁移的工作流只服务当前窗口，不是可恢复的工程正文；
 // 带上它们会让单次快照从几百 KB 放大到数 MB（本机实测 4.7MB 工程里有 4.0MB 是 layoutHistory）。
-const LOCAL_ONLY_FIELDS=['layoutHistory','layoutImports','designHistory','storyboardWorkflow','novelProductionWorkflow','productionAssets'];
+const LOCAL_ONLY_FIELDS=['layoutHistory','layoutImports','designHistory','storyboardWorkflow','novelProductionWorkflow'];
 const ASSET_ID=/^asset_[0-9a-f-]{36}$/i;
 const MAX_REFERENCES=2000;
 function boundedReferences(values){
@@ -176,7 +177,7 @@ export function createProjectSync({
     if(classified){const me=await library.read('/api/auth/me'),accountId=me.user?.id||me.id;if(!/^[a-f0-9-]{36}$/i.test(accountId||''))throw Object.assign(Error('请先登录墨库并重新确认同步归属'),{status:401});if(item.ownerAccountId!==accountId)throw Object.assign(Error('墨库账号已变化或原同步账号未知；请重新确认项目和话，本机工程已保留'),{status:409,code:'project_account_confirmation_required'});}
     const {view,assets,references}=snapshot(project);
     // revision/updated 每次保存都会刷新（即使内容完全相同）；只用正文摘要判断是否真的变了。
-    const digest=sha256(JSON.stringify({project:{...view,revision:null,updated:null},assets}));
+    let digest=sha256(JSON.stringify({project:{...view,revision:null,updated:null},assets}));
     if(!force&&item.hash===digest&&item.documentId)return {status:'unchanged',projectId,documentId:item.documentId,revision:view.revision,syncedAt:item.syncedAt||null};
     const target=await resolveTarget(project,item);
     const name=(text(view.title)||'未命名工程')+' · 工程快照';
@@ -187,7 +188,10 @@ export function createProjectSync({
       exportedAt:item.pendingExportedAt,stableHash:digest,
       project:view,assets,
     };
-    const complete=await library.packProject?.(view,target.projectId);if(complete)Object.assign(content,{assets:complete.assets,fonts:complete.fonts,originals:complete.originals});
+    const complete=await library.packProject?.(view,target.projectId);if(complete){Object.assign(content,{project:complete.project,assets:complete.assets,fonts:complete.fonts,originals:complete.originals,...(complete.packageSources?{packageSources:complete.packageSources}:{})});references.push(...fixedResourceReferences(complete).map(r=>r.revisionId));}
+    // Packing can attach new fixed references to local images. Hash that final
+    // manifest, so the next unchanged local save does not create a second snapshot.
+    if(complete){digest=sha256(JSON.stringify({project:{...view,revision:null,updated:null},assets:manifest(view)}));content.stableHash=digest;if(item.pendingHash!==digest){item.pendingHash=digest;delete item.pendingUpload;delete item.pendingKeys;}}
     item.pending=true;persist();
     const pack=async forceAsset=>{const result=await encodeProjectSnapshot(content,library,{projectId:target.projectId,forceAsset,uploadedAsset:item.pendingUpload,inlineOnly:await library.supportsClassified?.()});if(result.uploadedAsset){item.pendingUpload=result.uploadedAsset;persist();}return result;};
     let packed=await pack(false);
@@ -359,5 +363,5 @@ export function createProjectSync({
     timer=setTimeout(()=>{timer=null;void drain();},debounceMs);timer.unref?.();
   }
 
-  return {handle,mark,status,close,push:projectId=>attempt(projectId,{force:true}),drain,running:()=>running,forget(projectId){delete state.projects[projectId];persist();}};
+  return {handle,mark,status,close,async exportTarget(projectId){const item=state.projects[projectId];if(!item?.remoteProjectId)return '';if(await library.supportsClassified?.()){const me=await library.read('/api/auth/me');check(item.ownerAccountId&&(me.user?.id||me.id)===item.ownerAccountId,'墨库账号已变化，请重新确认项目和话后再归档；本机工程保留',409);}return item.remoteProjectId;},push:projectId=>attempt(projectId,{force:true}),drain,running:()=>running,forget(projectId){delete state.projects[projectId];persist();}};
 }

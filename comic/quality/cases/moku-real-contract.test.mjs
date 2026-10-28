@@ -15,9 +15,11 @@ import {createFormalEngineeringVersions} from '../../lib/formal-engineering-vers
 import {createEpisodeVersionStore} from '../../lib/episode-versions.mjs';
 import {createMokuRecycle} from '../../lib/moku-recycle.mjs';
 import {createProject} from '../../public/model.js';
+import {normalizeLayerOrder} from '../../public/layers.js';
 import {createMokuReferenceSearch} from '../../public/moku-reference-search.js';
 import {Store} from '../../lib/store.mjs';
 import {createStudio} from '../../server.mjs';
+import {preserveOriginalUploads,sourceOriginalPath} from '../../lib/source-originals.mjs';
 import {loadPackageFiles,inspectProductionPackage} from '../../lib/production-package.mjs';
 import {syntheticFiles} from '../../tests/fixtures/production-synthetic.mjs';
 import {createAssetStudioMokuUploader} from '../../../asset-studio/app/roles/moku-uploads.mjs';
@@ -28,7 +30,7 @@ const listen=server=>new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolv
 const body=async req=>{const chunks=[];for await(const chunk of req)chunks.push(chunk);return JSON.parse(Buffer.concat(chunks).toString()||'{}');};
 const json=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(value));};
 
-test('工作台与隔离的墨库实际接口闭环',{timeout:120000},async t=>{
+test('工作台与隔离的墨库实际接口闭环',{timeout:180000},async t=>{
   const root=process.env.QUALITY_MOKU_TEST_SOURCE;
   assert.ok(root,'QUALITY_MOKU_TEST_SOURCE_REQUIRED: 设置 QUALITY_MOKU_SOURCE 为带测试依赖的受支持墨库源码');
   const schemaVersion=Number(process.env.QUALITY_MOKU_SCHEMA_VERSION);
@@ -191,6 +193,88 @@ test('工作台与隔离的墨库实际接口闭环',{timeout:120000},async t=>{
     const fonts=await editorCall('/api/library/assets?projectId=public&kind=font');assert.ok(fonts.value.items.some(x=>x.id===font.assetId));
     const imported=await editorCall('/api/library/import','POST',{assetId:font.assetId,revisionId:font.revisionId});assert.equal(imported.status,201);assert.equal(imported.value.font.provenance.sha256,hash(fontBytes));assert.equal(imported.value.font.revisionId,font.revisionId);
   });
+
+  await t.test('两个空白工作台跨机打开墨库工程、固定原件、字体和制作资料，回收后历史仍能恢复',async()=>{
+    const studios=[];
+    async function machine(name){
+      const data=path.join(dir,name);fs.mkdirSync(data,{recursive:true});
+      fs.writeFileSync(path.join(data,'library-session.local.json'),JSON.stringify({base:'http://127.0.0.1:'+port,cookie:f.cookie}));
+      fs.writeFileSync(path.join(data,'project-sync.local.json'),JSON.stringify({version:1,auto:false,projects:{}}));
+      const enabled=process.env.COMIC_PROJECT_SYNC;process.env.COMIC_PROJECT_SYNC='1';let studio;
+      try{studio=createStudio({dataDir:data,seedReference:false,bridge:{status:async()=>({connected:false}),close(){}},jimengBridge:{close(){}}});}finally{if(enabled===undefined)delete process.env.COMIC_PROJECT_SYNC;else process.env.COMIC_PROJECT_SYNC=enabled;}
+      studios.push(studio);const origin=await listen(studio.server);
+      const api=async(route,method='GET',input,expected=200)=>{const r=await fetch(origin+route,{method,headers:input?{'Content-Type':'application/json'}:{},body:input?JSON.stringify(input):undefined}),value=await r.json();assert.equal(r.status,expected,JSON.stringify(value));return value;};
+      return {data,studio,origin,api};
+    }
+    try{
+      const a=await machine('portable-machine-a'),b=await machine('portable-machine-b');
+      const scan=await a.api('/api/production-packages/scan','POST',{files:syntheticFiles().map(x=>({relativePath:x.relativePath,dataBase64:x.bytes.toString('base64')}))});
+      const p=await a.api('/api/production-packages/import','POST',{scanId:scan.scanId},201);
+      const ref=(await a.api('/api/library/import','POST',{assetId:character.assetId,revisionId:character.revisionId},201)).asset;
+      const bubbleImage=(await a.api('/api/library/import','POST',{assetId:bubble.assetId,revisionId:bubble.revisionId},201)).asset;
+      const fontValue=(await a.api('/api/library/import','POST',{assetId:font.assetId,revisionId:font.revisionId},201)).font;a.studio.store.db.libraryFonts.find(x=>x.revisionId===font.revisionId).name='不带后缀的字体';
+      const file=path.join(a.data,'only-on-machine-a.png');fs.writeFileSync(file,png);
+      const artwork=await a.api('/api/assets','POST',{name:'无PNG后缀的原画',filePath:file},201),live=a.studio.store.project(p.id),panel=live.pages[0].panels[0];a.studio.store.asset(artwork.id).library={revisionId:randomUUID(),projectId:project.id,sha256:hash(png)};
+      const novel=Buffer.from('跨机器恢复的整本合成小说原文');live.sourceOriginalFiles=preserveOriginalUploads({dataDir:a.data,projectId:live.id,files:[{role:'novel',name:'整本小说.txt',bytes:novel}]});
+      panel.imageAssetId=artwork.id;panel.imageTransform={x:17,y:29,scale:1,rotation:0};panel.referenceIds=[ref.id];
+      // Keep an unrelated reference too: snapshots must retain the full document manifest.
+      live.references.push({assetId:ref.id,role:'character',name:'合成角色'});
+      const text={id:'bubble_'+randomUUID(),shotId:panel.shotId,x:40,y:60,w:220,h:80,text:'跨机后保留的原台词',type:'speech',fontSize:28,visible:true};live.pages[0].bubbles.push(text);text.fontFamily=fontValue.key;text.styleTextureAssetId=bubbleImage.id;
+      normalizeLayerOrder(live);a.studio.store.save();
+      await a.api('/api/project-sync/link','POST',{projectId:live.id,remoteProjectId:project.id,classification:{characterIds:[],sceneIds:[]}});
+      const receipt=await a.api('/api/project-sync/push','POST',{projectId:live.id});assert.equal(receipt.status,'synced');assert.equal((await a.api('/api/project-sync/push','POST',{projectId:live.id,force:false})).status,'unchanged','写回固定引用后不应重复创建快照');
+      const savedRef=a.studio.store.asset(artwork.id).library;assert.ok(savedRef.revisionId);assert.equal(savedRef.sha256,hash(png));
+      const portable=await a.api('/api/projects/'+live.id+'/export','POST',{});assert.equal(portable.imageStorage,'moku');assert.ok(portable.assets.every(x=>x.library&&!x.filePath&&!x.dataBase64));
+      const newerCanvas=createCanvas(32,48);newerCanvas.getContext('2d').fillRect(0,0,7,11);const newerBytes=newerCanvas.toBuffer('image/png');
+      const oldDetail=await call('GET','/api/project-library/'+project.id+'/'+savedRef.scopeId+'/image/comic_panel/assets/'+savedRef.assetId);
+      const newer=await library.uploadAsset({...savedRef,assetId:savedRef.assetId,objectVersion:oldDetail.objectVersion,characterIds:[subject.id],name:'后续原画.png',bytes:newerBytes,mime:'image/png',operationId:'portable-later-image'});assert.notEqual(newer.revisionId,savedRef.revisionId);
+      fs.renameSync(file,path.join(a.data,'only-on-machine-a.unavailable'));
+      const restored=await b.api('/api/projects/import','POST',portable,201),importedPanel=restored.pages[0].panels[0];
+      assert.deepEqual(importedPanel.imageTransform,panel.imageTransform);assert.deepEqual(restored.pages.map(x=>x.bubbles.map(y=>y.text)),live.pages.map(x=>x.bubbles.map(y=>y.text)));
+      assert.equal(hash(fs.readFileSync(b.studio.store.assetPath(importedPanel.imageAssetId))),hash(png));assert.ok(b.studio.store.assetPath(importedPanel.imageAssetId).startsWith(b.data));
+      assert.equal(b.studio.store.asset(importedPanel.imageAssetId).library.revisionId,savedRef.revisionId);const restoredFont=b.studio.store.db.libraryFonts.find(x=>x.revisionId===font.revisionId);assert.ok(restoredFont);assert.match(restoredFont.filePath,/\.(ttf|otf|ttc|woff2?)$/);
+      const packedAgain=await b.api('/api/projects/'+restored.id+'/export');assert.equal(packedAgain.assets.find(x=>x.id===importedPanel.imageAssetId).library.revisionId,savedRef.revisionId);assert.equal(packedAgain.packageSources.length,syntheticFiles().length);
+      const document=await b.api('/api/library/documents/'+receipt.documentId),viaDocument=await b.api('/api/projects/import','POST',{documentId:receipt.documentId},201);assert.equal(hash(fs.readFileSync(b.studio.store.assetPath(viaDocument.pages[0].panels[0].imageAssetId))),hash(png));
+      assert.equal(hash(fs.readFileSync(sourceOriginalPath(b.data,viaDocument.id,hash(novel)))),hash(novel));
+      const target=document.restoreSnapshots[0],snapRoot='/api/project-library/'+target.projectId+'/engineerings/'+target.engineeringId,snap=await call('GET',snapRoot+'/snapshots/'+target.snapshotId);
+      assert.ok(snap.references.some(x=>x.revisionId===font.revisionId));assert.ok(snap.references.some(x=>x.revisionId===savedRef.revisionId));
+      assert.ok(snap.references.some(x=>x.assetType==='novel'&&x.episodeId===null),'整本小说保留项目级归属');
+      const engineering=(await call('GET','/api/project-library/'+project.id+'/engineerings')).items.find(x=>x.id===target.engineeringId);
+      const fileContext={projectId:project.id,scopeId:engineering.episodeId,assetKind:'file',assetType:'comic_project',assetId:engineering.assetId,revisionId:snap.engineeringRevisionId};
+      await b.api('/api/projects/import','POST',{mokuFile:fileContext},201);
+
+      const {chromium}=createRequire(import.meta.url)(process.env.COMIC_TEST_PLAYWRIGHT_MODULE),browser=await chromium.launch({headless:true});
+      try{
+        const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+        await page.goto(b.origin+'/?project='+restored.id);await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');
+        await page.locator('#project-trigger').click();await page.locator('#open-moku-project').click();
+        await page.locator('.moku-project-open [data-project] option[value="'+project.id+'"]').waitFor({state:'attached'});
+        await page.locator('.moku-project-open [data-project]').selectOption(project.id);
+        await page.locator('.moku-project-open [data-episode] option[value="'+engineering.episodeId+'"]').waitFor({state:'attached'});
+        await page.locator('.moku-project-open [data-episode]').selectOption(engineering.episodeId);
+        const open=page.locator('[data-open-engineering="'+engineering.assetId+'"]');await open.waitFor();
+        fs.mkdirSync(path.resolve('quality-evidence/portable-project'),{recursive:true});await page.screenshot({path:path.resolve('quality-evidence/portable-project/moku-open.png')});
+        await page.setViewportSize({width:480,height:800});await page.screenshot({path:path.resolve('quality-evidence/portable-project/moku-open-mobile.png')});
+        const received=page.waitForResponse(r=>r.url().endsWith('/api/projects/import')&&r.request().method()==='POST');await open.click();const response=await received;assert.equal(response.status(),201,await response.text());
+        await page.locator('.moku-project-open').waitFor({state:'detached'});assert.deepEqual(errors,[]);
+        await page.locator('#project-trigger').click();await page.locator('#open-moku-project').click();await page.locator('.moku-project-open [data-project] option[value="'+project.id+'"]').waitFor({state:'attached'});await page.locator('.moku-project-open [data-project]').selectOption(project.id);
+        const delayed=page.locator('[data-open-engineering="'+engineering.assetId+'"]');await delayed.waitFor();let entered,release;const started=new Promise(r=>entered=r),gate=new Promise(r=>release=r);
+        await page.route('**/api/projects/import',async route=>{entered();await gate;await route.continue();});await delayed.click();await started;
+        await page.locator('.moku-project-open [data-project]').selectOption(other.id);await page.locator('.moku-project-open [data-episode] option[value="'+foreign.id+'"]').waitFor({state:'attached'});
+        const previousTitle=await page.locator('#project-label').textContent(),finished=page.waitForResponse(r=>r.url().endsWith('/api/projects/import')&&r.request().method()==='POST');release();assert.equal((await finished).status(),201);
+        await page.getByText('此前所选工程已恢复到本机列表，当前选择保留。').waitFor();assert.equal(await page.locator('.moku-project-open [data-project]').inputValue(),other.id);assert.equal(await page.locator('#project-label').textContent(),previousTitle);await page.locator('.moku-project-open [data-close]').click();
+
+      }finally{await browser.close();}
+
+      // Import exactly the bytes downloaded in Moku's UI, including its wrapper.
+      const archive=await library.remote(snapRoot+'/archives/'+snap.engineeringRevisionId+'/download');const raw=await archive.json();await b.api('/api/projects/import','POST',raw,201);
+      const imageRoot='/api/project-library/'+project.id+'/'+savedRef.scopeId+'/image/comic_panel/assets/'+savedRef.assetId,detail=await call('GET',imageRoot);
+      await call('DELETE',imageRoot,{objectVersion:detail.objectVersion});
+      const c=await machine('portable-machine-c-after-recycle'),history=await c.api('/api/projects/import','POST',{documentId:receipt.documentId},201);assert.equal(hash(fs.readFileSync(c.studio.store.assetPath(history.pages[0].panels[0].imageAssetId))),hash(png));
+      fs.mkdirSync(path.resolve('quality-evidence/portable-project'),{recursive:true});fs.writeFileSync(path.resolve('quality-evidence/portable-project/roundtrip.json'),JSON.stringify({sourceProjectId:live.id,restoredProjectId:restored.id,documentId:receipt.documentId,fixedImage:savedRef.revisionId,sha256:hash(png),resources:snap.references.length,sourceFiles:packedAgain.packageSources.length,localPathUnavailable:true,retainedReferenceRestored:true},null,2));
+    }finally{for(const studio of studios)studio.close();}
+  });
+
   await t.test('相同原件的不同格保持独立，同格明确追加版本',async()=>{
     const engineering=await call('POST','/api/project-library/'+project.id+'/engineerings',{episodeId:episode.id,name:'格图身份合成工程',externalSystem:'quality-test',externalId:'identity-engineering'});
     const root='/api/project-library/'+project.id+'/engineerings/'+engineering.id;

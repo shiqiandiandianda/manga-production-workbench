@@ -38,7 +38,7 @@ function switchPageUnit(project,page,unit,previousOverride=null){
  }
  // Older crops hid their source without recording a mode flag. A deliberate
  // switch back to screen restores that source; never replace its image.
- if(unit==='screen'&&previous==='panel')for(const root of page.panels){
+ if(unit==='screen'&&(previous==='panel'||page.productionUnit==='panel'))for(const root of page.panels){
   if(root.productionSegment&&root.imageAssetId&&root.visible===false&&page.panels.some(f=>f.panelSlice?.rootPanelId===root.id)){if(root.productionModeHidden===true)root.productionModeVisible=true;else root.visible=true;}
  }
  const frames=new Map(page.panels.map(f=>[f.id,f]));

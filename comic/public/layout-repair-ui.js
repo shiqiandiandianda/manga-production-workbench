@@ -3,7 +3,7 @@ import {mountLocalRepairWorkspace} from './local-repair-workspace.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 // One document, one selection and one undo stack. Processing history is server-owned.
-export function mountIntegratedWorkspace({api,getProject,getPanel,getSelectedIds=()=>[],canvasActions,flushSave,onApplied,onHistory,canApply=()=>true,openLibrary,toast,onLocalRegion=()=>{},onAction=()=>{}}){
+export function mountIntegratedWorkspace({api,getProject,getPanel,getSelectedIds=()=>[],flushSave,onApplied,onHistory,canApply=()=>true,openLibrary,toast,onLocalRegion=()=>{},onAction=()=>{}}){
  const shell=document.querySelector('.app-shell'),frame=document.createElement('div');frame.className='workspace-frame';shell.before(frame);frame.append(shell);
  const editor=shell.querySelector('.editor'),bar=document.createElement('section');bar.className='layout-repair-toolbar';bar.hidden=true;bar.setAttribute('aria-label','排版修图工具');
  bar.innerHTML=`<div class="layout-repair-heading"><strong>修图</strong><span data-repair-target>先在画布选择图片</span><button data-repair-action="history">处理记录</button><button data-repair-action="close" aria-label="收起修图工具">×</button></div>
@@ -11,12 +11,11 @@ export function mountIntegratedWorkspace({api,getProject,getPanel,getSelectedIds
  editor.prepend(bar);
  const drawer=document.createElement('aside');drawer.className='layout-repair-history';drawer.hidden=true;drawer.setAttribute('aria-label','修图处理记录');drawer.innerHTML='<header><strong>处理记录</strong><button data-history-refresh>刷新</button><button data-history-close aria-label="关闭处理记录">×</button></header><p>撤销、关闭或刷新后，完成的结果仍保留。取回不会重新计算。</p><div data-repair-records></div>';editor.append(drawer);
  const button=document.createElement('button');button.id='layout-repair-toggle';button.textContent='修图工具';button.setAttribute('aria-expanded','false');const entry=document.createElement('div');entry.id='workspace-modes';entry.append(button);document.querySelector('#storyboard-import').before(entry);
- const loadButton=document.createElement('button');loadButton.id='repair-current-panel';loadButton.title='直接在排版页修图';loadButton.innerHTML='<b aria-hidden="true">✦</b><span>修图</span>';canvasActions.addAction(loadButton,{visible:()=>!!getPanel()?.imageAssetId});
  let busy=false,active=false,timer=null,records=[],historyProject=null,catalog=null;
  const localRepair=mountLocalRepairWorkspace({api,getProject,getPanel,flushSave,onApplied,onHistory,canApply,openLibrary,onLocalRegion,toast});
  const status=(text,error=false)=>{bar.querySelector('[role="status"]').textContent=text;bar.querySelector('[role="status"]').classList.toggle('error',error);};
  function show(value=true){active=value;bar.hidden=!value;button.setAttribute('aria-expanded',String(value));button.classList.toggle('active',value);if(!value)drawer.hidden=true;sync();window.dispatchEvent(new Event('resize'));}
- button.onclick=()=>show(!active);loadButton.onclick=()=>show();
+ button.onclick=()=>show(!active);
  function sync(){const p=getProject(),panel=getPanel(),owner=p?.pages.find(p=>p.panels.includes(panel)),valid=!!panel?.imageAssetId&&!panel.locked&&!owner?.locked;
   bar.querySelector('[data-repair-target]').textContent=panel?.imageAssetId?(panel.name||p.shots.find(s=>s.id===panel.shotId)?.code||'当前图片')+(panel.cutoutLayer?.kind==='upscale'?' · 高清层':''): '先在画布选择图片';
   for(const b of bar.querySelectorAll('[data-repair-action]'))if(!['close','history'].includes(b.dataset.repairAction))b.disabled=busy||!valid||(b.dataset.repairAction==='upscale'&&catalog&&!catalog.find(m=>m.id===bar.querySelector('[data-repair-model]').value)?.ready);

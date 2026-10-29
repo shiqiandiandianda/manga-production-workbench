@@ -1,6 +1,7 @@
 import fs from 'node:fs';import path from 'node:path';import {spawn} from 'node:child_process';import {randomUUID} from 'node:crypto';import {check} from './store.mjs';
 import {createUpscaleEngines} from './upscale-engines.mjs';
 import {upscaleScale} from '../public/upscale-models.js';
+import {localImageMessage} from '../public/local-image-messages.js';
 export function createLocalImageTools({runtimeRoot,dataDir,script,python}){
  const exe=path.join(runtimeRoot,'AI工具/realesrgan/realesrgan-ncnn-vulkan.exe'),models=path.join(runtimeRoot,'AI工具/realesrgan/models'),model=path.join(runtimeRoot,'AI工具/models/u2net.onnx'),tasks=new Map();let busy=false,maskRuns=0;
  const regionScript=path.join(path.dirname(script),'local_region_tools.py'),inpaintModel=path.join(runtimeRoot,'AI工具/models/lama_fp32.onnx'),extras=path.join(runtimeRoot,'extras','cv2');
@@ -16,7 +17,7 @@ export function createLocalImageTools({runtimeRoot,dataDir,script,python}){
  async function execute(task){busy=true;task.status='running';task.message='本机模型处理中';persist(task);try{if(task.selection){const config=path.join(path.dirname(task.output),'region-config.json');fs.writeFileSync(config,JSON.stringify({operation:task.operation,selection:task.selection}));await run(python,[regionScript,'--input',task.input,'--output',task.output,'--config',config,'--model',task.operation==='inpaint'?inpaintModel:model],m=>task.message=m);}else if(task.operation==='cutout'){await run(python,[script,'--input',task.input,'--output',task.output,'--model',model],m=>task.message=m);}else{await engines.execute(task,m=>task.message=m);}
  check(fs.existsSync(task.output)&&fs.statSync(task.output).size>0,'模型没有产出图片');task.status='done';task.message='处理完成';}catch(e){task.status='failed';task.message=e.message;}finally{task.finishedAt=new Date().toISOString();persist(task);busy=false;pump();}}
  function pump(){if(busy)return;const next=[...tasks.values()].find(t=>t.status==='queued');if(next)void execute(next);}
- const publicTask=task=>({id:task.id,status:task.status,operation:task.operation,sourceId:task.sourceId,scale:task.scale,nativeScale:task.nativeScale,outputScale:task.outputScale,model:task.model,modelLabel:task.modelLabel,message:task.message,createdAt:task.createdAt,finishedAt:task.finishedAt,regionSelection:!!task.selection});
+ const publicTask=task=>({id:task.id,status:task.status,operation:task.operation,sourceId:task.sourceId,scale:task.scale,nativeScale:task.nativeScale,outputScale:task.outputScale,model:task.model,modelLabel:task.modelLabel,message:localImageMessage(task.message),createdAt:task.createdAt,finishedAt:task.finishedAt,regionSelection:!!task.selection});
  function start({input,operation,sourceId,scale=2,model:chosen,selection,outputScale,requestId}){
   if(requestId){const existing=[...tasks.values()].find(t=>t.requestId===requestId);if(existing){check(existing.sourceId===sourceId&&existing.operation===operation&&existing.model===(chosen||existing.model),'处理请求与原任务不符',409);return publicTask(existing);}}
   check(['upscale','cutout','inpaint'].includes(operation),'本地操作无效');check([2,3,4].includes(Number(scale)),'放大倍率无效');check(status()[operation].ready,'本地模型尚未就绪');check(operation!=='inpaint'||selection,'请先框选去除区域');

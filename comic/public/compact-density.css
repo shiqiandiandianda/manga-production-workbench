@@ -1,0 +1,89 @@
+/* Compact desktop controls only; keep SVG artwork and canvas coordinates intact. */
+@media (min-width: 1001px) {
+  body.modern-workbench.unified-workbench { font-size: 13px; }
+  .modern-workbench.unified-workbench button { min-height: 30px; padding: 5px 8px; gap: 6px; }
+  .modern-workbench.unified-workbench :is(input,select,textarea) { padding: 6px 8px; }
+  .modern-workbench.unified-workbench label { margin: 8px 0 5px; }
+  body.modern-workbench.unified-workbench :is(.sidebar,#inspector-panel,dialog,.ui-popover,.workbench-menu-panel,#job-list) :is(button,input,select,textarea,label) { font-size: 13px; }
+  body.modern-workbench.unified-workbench :is(.sidebar,#inspector-panel,dialog,.workbench-menu-panel,#job-list) :is(.sub-note,small) { font-size: 12px; line-height: 1.5; }
+
+  .modern-workbench.unified-workbench .topbar { height: 44px; min-height: 44px; padding: 6px 10px; gap: 5px; }
+  .modern-workbench.unified-workbench .topbar :is(button,summary),
+  .modern-workbench.unified-workbench #workbench-primary-nav>a,
+  .modern-workbench.unified-workbench #workbench-primary-nav #asset-studio-open { min-height: 28px; padding: 4px 6px; }
+  .modern-workbench.unified-workbench .canvas-toolbar { min-height: 40px; padding: 5px 10px; gap: 6px; }
+  .modern-workbench.unified-workbench .canvas-toolbar :is(button,summary) { min-height: 28px; padding: 4px 8px; font-size: 13px; }
+  .modern-workbench.unified-workbench #zoom { height: 28px; min-height: 28px; width: 96px; font-size: 12px; margin: 0 4px; }
+
+  .modern-workbench.unified-workbench .workspace-frame>.app-shell { --rail-width: 50px; --sidebar-width: 220px; --inspector-width: 272px; grid-template-columns: var(--rail-width) var(--sidebar-width) minmax(0,1fr) var(--inspector-width); }
+  .modern-workbench.unified-workbench .workspace-frame>.app-shell.sidebar-collapsed { --sidebar-width: 0px; }
+  .modern-workbench.unified-workbench .workspace-frame>.app-shell.inspector-collapsed { --inspector-width: 0px; }
+  .modern-workbench.unified-workbench .app-shell>.sidebar { width: 220px; }
+  .modern-workbench.unified-workbench .app-shell>#inspector-panel { width: 272px; }
+  .modern-workbench.unified-workbench .workspace-frame.repair-mode>.app-shell { --sidebar-width: 0px; --inspector-width: 0px; }
+  .modern-workbench.unified-workbench .repair-mode .app-shell>.sidebar { left: 50px; width: 220px; }
+  .modern-workbench.unified-workbench .repair-mode .app-shell>#inspector-panel { width: 272px; }
+  .modern-workbench.unified-workbench .workspace-rail { width: 50px; padding: 8px 4px; gap: 4px; }
+  .modern-workbench.unified-workbench .rail-button { width: 41px; height: 52px; min-height: 52px; padding: 5px 2px; gap: 4px; font-size: 11px; }
+  .modern-workbench.unified-workbench .rail-button .ui-icon { width: 19px; height: 19px; }
+  .modern-workbench.unified-workbench .panel-close-heading { height: 40px; padding: 8px 11px; font-size: 13px; }
+  .modern-workbench.unified-workbench .episode-workspace { padding: 8px 10px; }
+  .modern-workbench.unified-workbench .side-tabs { padding: 5px 7px; }
+  .modern-workbench.unified-workbench .side-tabs button { min-height: 27px; padding: 4px 7px; }
+  .modern-workbench.unified-workbench .side-content { padding: 10px; }
+  .modern-workbench.unified-workbench .section-heading { margin-bottom: 8px; }
+  .modern-workbench.unified-workbench .sidebar .page-card { padding: 7px; margin-bottom: 6px; gap: 8px; }
+  .modern-workbench.unified-workbench .sidebar .page-thumb { width: 32px; height: 74px; }
+  .modern-workbench.unified-workbench .fixed-board-thumb { flex-basis: 42px; height: 52px; font-size: 22px; }
+  .modern-workbench.unified-workbench .sidebar-foot { padding: 7px 10px; gap: 6px; }
+  .modern-workbench.unified-workbench .inspector-title { padding: 12px; }
+  .modern-workbench.unified-workbench #inspector-kind { font-size: 16px; margin-bottom: 10px; }
+  .modern-workbench.unified-workbench #inspector-body { padding: 0 12px 12px; }
+  .modern-workbench.unified-workbench .board-inspector section { padding: 12px; }
+  .modern-workbench.unified-workbench .unified-typography { margin: 12px 0; padding: 10px; }
+  .modern-workbench.unified-workbench .typography-fields { gap: 8px; }
+  .modern-workbench.unified-workbench .typography-heading { margin-bottom: 8px; }
+  .modern-workbench.unified-workbench .typography-note { font-size: 11px; margin: 6px 0; }
+
+  .modern-workbench.unified-workbench .layout-repair-toolbar { padding: 6px 10px; }
+  .modern-workbench.unified-workbench .layout-repair-heading { margin-bottom: 5px; gap: 8px; }
+  .modern-workbench.unified-workbench .layout-repair-actions { gap: 4px; }
+  .modern-workbench.unified-workbench .layout-repair-actions label { margin: 0; font-size: 12px; }
+  .modern-workbench.unified-workbench .layout-repair-toolbar :is(button,select) { min-height: 28px; padding: 4px 7px; font-size: 12px; }
+  .modern-workbench.unified-workbench .layout-repair-actions select[data-repair-model] { max-width: 248px; }
+  .modern-workbench.unified-workbench .layout-repair-status { margin-top: 4px; }
+  .modern-workbench.unified-workbench .layout-repair-status:empty { display: none; }
+  .modern-workbench.unified-workbench .canvas-wrap.novel-source-open { grid-template-columns: minmax(0,1fr) min(300px,35vw); }
+  .modern-workbench.unified-workbench .canvas-wrap.novel-source-open.history-steps-open { grid-template-columns: minmax(0,1fr) min(240px,26vw) min(300px,32vw); }
+  .modern-workbench.unified-workbench #novel-source-panel header { padding: 8px 10px; }
+  .modern-workbench.unified-workbench .novel-source-body { padding: 0 10px 16px; font-size: 14px; line-height: 1.8; }
+  .modern-workbench.unified-workbench .novel-source-body h3 { font-size: 15px; margin: 12px 0; }
+  .modern-workbench.unified-workbench .novel-source-body p { margin-bottom: 10px; padding: 4px; }
+  .modern-workbench.unified-workbench .canvas-tool-content { padding: 9px; }
+  .modern-workbench.unified-workbench .canvas-tool-dock .frame-shortcuts { gap: 8px; }
+  .modern-workbench.unified-workbench .job-heading { min-height: 30px; padding: 3px 10px; gap: 8px; font-size: 12px; }
+  .modern-workbench.unified-workbench .job-tray.collapsed { min-height: 30px; }
+  .modern-workbench.unified-workbench .job-heading button { min-height: 23px; padding: 2px 6px; font-size: 11px; }
+
+  .modern-workbench.unified-workbench #asset-gallery-workspace { left: 50px; }
+  .modern-workbench.unified-workbench #asset-gallery-workspace #asset-inventory { padding: 0 14px 12px; }
+  .modern-workbench.unified-workbench #asset-gallery-workspace .asset-gallery-heading { padding: 12px 0 10px; gap: 8px; }
+  .modern-workbench.unified-workbench #asset-gallery-workspace .asset-gallery-title>strong { font-size: 18px; }
+  .modern-workbench.unified-workbench .asset-gallery-toolbar { gap: 10px; }
+  .modern-workbench.unified-workbench #asset-gallery-workspace .asset-gallery-filters { padding-bottom: 9px; margin-bottom: 9px; gap: 8px; }
+  .modern-workbench.unified-workbench #asset-gallery-workspace #asset-inventory .asset-list { gap: 10px; }
+  .modern-workbench.unified-workbench #asset-gallery-workspace .asset-gallery-columns { column-width: 240px; column-gap: 10px; }
+  .modern-workbench.unified-workbench #asset-gallery-workspace .asset-gallery-columns>.asset-gallery-card { margin-bottom: 10px; }
+  .modern-workbench.unified-workbench .asset-gallery-caption { padding: 9px 10px; gap: 4px 8px; }
+  .modern-workbench.unified-workbench .asset-gallery-caption strong { font-size: 14px; line-height: 20px; }
+  .modern-workbench.unified-workbench .asset-gallery-media { margin: 0 9px; }
+  .modern-workbench.unified-workbench .asset-gallery-actions { padding: 0 9px 9px; gap: 4px; }
+  .modern-workbench.unified-workbench #asset-gallery-workspace .asset-gallery-actions button { min-height: 30px; padding: 4px 2px; }
+}
+/* Preserve the existing status slots and menu reachability at smaller widths. */
+@media (min-width: 1101px) and (max-width: 1739px) {
+  .modern-workbench.unified-workbench .topbar { height: 78px; min-height: 78px; grid-template-rows: 28px 28px; }
+}
+@media (min-width: 1001px) and (max-width: 1100px) {
+  .modern-workbench.unified-workbench .topbar { height: 110px; min-height: 110px; grid-template-rows: 28px 28px 28px; }
+}

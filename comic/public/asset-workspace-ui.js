@@ -267,6 +267,24 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
    return true;
  }
  async function adoptMoku(item,revisionId=mokuRevision(item)){const projectId=ownerId,ticket=epoch;status('正在取用墨库固定版本…');const result=await api('/api/library/import','POST',{assetId:item.id,revisionId});verify(projectId,ticket);const chosen=importedMokuAsset(result,item,revisionId);onAssets([chosen]);return await adoptAsset(chosen.id);}
+ async function adoptGalleryText(row){
+  if(!row)throw Error('这项资产已不在当前资料中，请重新选择');
+  const projectId=getProject().id,ticket=batchTicket,episode=pageEpisode(getProject(),getPage());
+  const uses=row.uses.filter(u=>u.episode===episode),editable=uses.filter(u=>!u.locked);
+  if(!editable.length)throw Error('本话没有这项资产的可编辑位置，请先解锁或切换到对应话');
+  const pending=editable.filter(u=>!u.text);
+  if(!pending.length){batchMessage=row.name+' 已采用文生描述。';paintBatchState();return;}
+  const scoped={...row,uses:pending},description=(textDrafts.get(row.key)||row.textDescriptions[0]||automaticTextAssetDescription(getProject(),scoped).description).trim();
+  const selectedTargets=pending.map(({panelId,needId})=>({panelId,needId}));
+  const operation={};galleryAdoptionToken=operation;busy=true;rowMessages.set(row.key,'正在采用文生描述…');paintList();
+  try{
+   await flushSave();galleryCheck(projectId,ticket);
+   const saved=await api('/api/projects/'+projectId+'/asset-workspace/text','POST',{mode:'text',description,targets:selectedTargets,expectedRevision:getProject().revision});galleryCheck(projectId,ticket);
+   await accept(saved.project,{message:''});galleryCheck(projectId,ticket);
+   textDrafts.delete(row.key);rowMessages.delete(row.key);batchMessage='已采用 '+row.name+' 的文生描述，更新本话 '+selectedTargets.length+' 处。';refresh(true);
+  }catch(error){if(getProject()?.id===projectId&&ticket===batchTicket)rowMessages.set(row.key,'采用失败：'+error.message);throw error;}
+  finally{if(galleryAdoptionToken===operation){galleryAdoptionToken=null;busy=false;if(getProject()?.id===projectId&&!workspace.hidden){paintList();paintBatchState();}}}
+ }
  async function adoptGalleryCandidate(row,item){
   if(!row||!item||!mokuRevision(item))throw Error('图片已变化，请重新查找');
   const projectId=getProject().id,ticket=batchTicket,revisionId=mokuRevision(item);
@@ -373,7 +391,7 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
   if(b.dataset.galleryVariants){await openRow(row,{tab:'variants'});return;}
   if(b.dataset.galleryEvidence){await openRow(row,{tab:'source'});return;}
   if(b.dataset.assetKey){const records=galleryRecords.get(row.key)||[];await openRow(row,{tab:!row.assetIds.length&&records.some(r=>r.available||ongoing(r))?'records':row.status==='text'?'text':row.assetIds.length||row.availableIds.length?'current':'moku'});return;}
-  if(b.dataset.galleryText){await openRow(row,{tab:'text'});return;}
+  if(b.dataset.galleryText){await adoptGalleryText(row);return;}
   if(b.dataset.galleryChoose){await openRow(row,{tab:'moku'});return;}
   if(b.dataset.galleryRecordAdopt){await adoptRecordItem((galleryRecords.get(row?.key)||[]).find(x=>x.id===b.dataset.galleryRecordAdopt),{fromGallery:true});return;}
    if(b.dataset.galleryPreview){const list=[];for(const id of [...new Set([...row.assetIds,...row.availableIds])]){const a=asset(id);if(a)list.push({url:assetUrl(id),name:a.name});}for(const item of galleryRecords.get(row.key)||[])if(item.imageUrl&&!item.deletedAt)list.push({url:item.imageUrl,name:item.name});for(const item of foundCandidates.get(row.key)||[])if(mokuRevision(item))list.push({url:'/api/library/revisions/'+mokuRevision(item)+'/download',name:item.name});if(!list.length){await openRow(row);return;}showPreview(list[0].url,list[0].name,list);return;}

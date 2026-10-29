@@ -2,7 +2,7 @@ import {isSfxImage,sfxImageBounds} from './sfx-image-layer.js';
 import {isLibrarySfx,sfxBounds} from './sfx-library.js';
 import {resizeStripSpace} from './strip-space.js';
 import {bounds,layoutLongStrip,clone} from './model.js';
-import {allLayers,sceneLayers,normalizeLayerOrder} from "./layers.js";
+import {allLayers,sceneLayers,normalizeLayerOrder,gradientFrame} from "./layers.js";
 import {panelInPage} from './layer-groups.js';
 import {bubbleLayout,bubbleTailGeometry} from './lettering.js';
 import {applyBubbleEdit} from './bubble-editor.js';
@@ -39,7 +39,10 @@ export function translateSelection(project,keys,{dx,dy},initial=project){
  const selected=interactionSelection(initial,keys);if(!selected.length||selected.some(e=>locked(initial,e)||e.item.stripSpace)||![dx,dy].every(Number.isFinite))return false;
  const layout=layoutLongStrip(initial.pages),pages=new Map(layout.pages.map(p=>[p.pageId,p])),current=new Map(allLayers(project).map(e=>[e.item.id,e.item]));
  dx=constrainedPanelDelta(selected.filter(entry=>entry.type==='panel').map(entry=>({...entry,scale:pages.get(entry.pageId)?.scale||1})),dx);
+ const gradients=selected.filter(e=>e.type==='gradient'),gradientFrames=new Map(gradients.map(e=>[e.item.id,gradientFrame(e.item,layout)]));
+ for(const entry of gradients){const f=gradientFrames.get(entry.item.id);dx=Math.max(-f.x,Math.min(layout.width-f.x-f.w,dx));dy=Math.max(-f.y,Math.min(layout.height-f.y-f.h,dy));}
  for(const entry of selected){const item=current.get(entry.item.id);if(!item)continue;const scale=entry.pageId?pages.get(entry.pageId).scale:1,x=dx/scale,y=dy/scale;if(entry.type==='bubble')Object.assign(item,applyBubbleEdit(entry.item,{type:'move',dx:x,dy:y}));else{item.x=entry.item.x+x;item.y=entry.item.y+y;}}
+ for(const entry of gradients){const item=current.get(entry.item.id),f=gradientFrames.get(entry.item.id);if(!item)continue;Object.assign(item,{x:f.x+dx,y:f.y+dy,w:f.w,h:f.h});if(item.assistantLayoutAnchor)item.assistantLayoutAnchor.y=item.y-(pages.get(item.assistantLayoutAnchor.pageId)?.y||0);}
  return true;
 }
 export function deleteSelection(project,keys,{bubbleSizes={}}={}){

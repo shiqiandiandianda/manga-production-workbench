@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import vm from 'node:vm';import {createRequire} from 'node:module';
 import {createProject,panel,id,rectangle,layoutLongStrip} from '../public/model.js';
 import {makeGradientLayer,migrateLayerDocument,normalizeLayerOrder,gradientFrame,orderedLayers} from '../public/layers.js';
-import {GRADIENT_HANDLES,resizeGradientRegion} from '../public/gradient-region.js';
+import {GRADIENT_HANDLES,resizeGradientRegion,constrainGradientRegion} from '../public/gradient-region.js';
 import {attachBubbleGroups,panelForBubble,layerGroups,assignBubbleToPanel,movePanelGroup,moveGroupedLayer,setGroupFlag,deleteGroupedLayer} from '../public/layer-groups.js';
 import {layerListMarkup} from '../public/layer-ui.js';
 import {renderSceneSvg} from '../public/scene-svg.js';
@@ -19,8 +19,8 @@ test('四角及四边八种调整保持相对边固定，并限制为正尺寸',
 test('真实渐变拖动事件：边中点按增量移动，抓取边缘与没有所属页时也不会跳',()=>{
  const code=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8'),start=code.indexOf("stage.addEventListener('pointermove',event=>{"),end=code.indexOf('function finishDrag(event)',start);assert.ok(start>0&&end>start);
  for(const [handle,hx,hy] of GRADIENT_HANDLES){const initial={id:'gradient',x:100,y:200,w:1280,h:1920},item=structuredClone(initial),at={x:initial.x+hx*initial.w+7,y:initial.y+hy*initial.h+9};let handler;
- const context={stage:{addEventListener(type,fn){handler=fn;}},drag:{kind:'gradient-resize',type:'gradient',pointer:3,pageId:null,handle,initial,start:at},dragItem:()=>item,documentPoint:e=>e.point,project:{pages:[]},GRADIENT_HANDLES,resizeGradientRegion,renderCanvas(){},queueBatchPreview(){}};
- vm.runInNewContext(code.slice(start,end),context);handler({pointerId:3,point:at});assert.deepEqual(item,initial);handler({pointerId:3,point:{x:at.x-25,y:at.y-50}});const expected=resizeGradientRegion(initial,handle,{x:initial.x+hx*initial.w-25,y:initial.y+hy*initial.h-50});assert.deepEqual({x:item.x,y:item.y,w:item.w,h:item.h},expected);}
+ const context={stage:{addEventListener(type,fn){handler=fn;}},drag:{kind:'gradient-resize',type:'gradient',pointer:3,pageId:null,handle,initial,start:at},dragItem:()=>item,documentPoint:e=>e.point,project:fixture(),layoutLongStrip,constrainGradientRegion,GRADIENT_HANDLES,resizeGradientRegion,renderCanvas(){},queueBatchPreview(){}};
+ vm.runInNewContext(code.slice(start,end),context);handler({pointerId:3,point:at});assert.deepEqual(item,initial);handler({pointerId:3,point:{x:at.x-25,y:at.y-50}});const expected=resizeGradientRegion(initial,handle,{x:initial.x+hx*initial.w-25,y:initial.y+hy*initial.h-50},layoutLongStrip(fixture().pages));assert.deepEqual({x:item.x,y:item.y,w:item.w,h:item.h},expected);}
 });
 test('范围模式八点和渐变起止点模式分别可用；绘制捕获仅限区域，锁定禁用控制点',()=>{
  const p=fixture(),g=makeGradientLayer(p,{y:0});g.gradient.enabled=true;p.gradients=[g];normalizeLayerOrder(p);

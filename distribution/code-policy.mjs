@@ -8,7 +8,7 @@ const extensions=new Set(['.mjs','.js','.cjs','.py','.css','.html','.json','.svg
 const roots=new Set(['portable-env.mjs','start-all.mjs','start-comic-local.mjs','start-assets-local.mjs','start-center-local.mjs','AGENTS.md','README.md','安装并接入.cmd','启动全部.cmd','检查并升级.cmd','同事Codex接入指南.md','主版本发布与升级说明.md']);
 export function allowedCodePath(value){
  if(typeof value!=='string'||!value||value.includes('\\')||value.includes(':')||value.startsWith('/')||value.includes('\0'))return false;
- const parts=value.split('/');if(parts.some(p=>!p||p==='.'||p==='..'||skipped.has(p)||/^prompt-rewrite-[A-Za-z0-9]{6}$/.test(p)||/[. ]$/.test(p)))return false;
+ const parts=value.split('/');if(parts.some(p=>!p||p==='.'||p==='..'||skipped.has(p)||/[. ]$/.test(p)))return false;
  const name=parts.at(-1);if(name.startsWith('.')||/\.local\.|\.bak(?:-|$)|\.log$|\.pyc$/i.test(name)||['auth.json','tokens.json','settings.json','assistant-token.txt','moku.json','asset-studio.json','studio.json'].includes(name))return false;
  if(!extensions.has(path.posix.extname(name).toLowerCase()))return false;
  if(parts.length===1)return roots.has(name);
@@ -20,7 +20,7 @@ export function allowedCodePath(value){
 }
 export function collectCode(root){
  const files=new Map(),libraryManifest=path.join(root,'auto-layout/public/bootstrap/code-library-manifest.json'),useFrozenLibrary=fs.existsSync(libraryManifest);
- function walk(dir,base){if(!fs.existsSync(dir))return;for(const item of fs.readdirSync(dir,{withFileTypes:true})){if(item.isSymbolicLink())continue;const relative=base+'/'+item.name,full=path.join(dir,item.name);if(item.isDirectory()){if(relative==='auto-layout/library'&&useFrozenLibrary)continue;if(!skipped.has(item.name))walk(full,relative);}else if(allowedCodePath(relative)&&!(item.name==='AGENTS.md'&&base==='workbench'))files.set(relative,fs.readFileSync(full));}}
+ function walk(dir,base){if(!fs.existsSync(dir))return;for(const item of fs.readdirSync(dir,{withFileTypes:true})){if(item.isSymbolicLink())continue;const relative=base+'/'+item.name,full=path.join(dir,item.name);if(item.isDirectory()){if(relative==='auto-layout/library'&&useFrozenLibrary)continue;if(!skipped.has(item.name)&&!/^prompt-rewrite-[A-Za-z0-9]{6}$/.test(item.name))walk(full,relative);}else if(allowedCodePath(relative)&&!(item.name==='AGENTS.md'&&base==='workbench'))files.set(relative,fs.readFileSync(full));}}
  if(useFrozenLibrary){const manifest=JSON.parse(fs.readFileSync(safeTarget(root,'auto-layout/public/bootstrap/code-library-manifest.json')));if(manifest.format!=='comic-release-library-code-v1'||!Array.isArray(manifest.files)||manifest.files.length>1000)throw Error('冻结代码库清单无效');const seen=new Set();for(const row of manifest.files){if(!row.path.startsWith('auto-layout/library/')||!/^auto-layout\/public\/bootstrap\/blobs\/[a-f0-9]{64}\.(json|png|jpe?g|webp|txt|md)$/.test(row.blob)||seen.has(row.path))throw Error('冻结代码库路径无效');seen.add(row.path);safeTarget(root,row.path);const bytes=fs.readFileSync(safeTarget(root,row.blob));if(bytes.length!==row.bytes||digest(bytes)!==row.sha256)throw Error('冻结代码库摘要不匹配：'+row.path);files.set(row.path,bytes);}}
  for(const component of COMPONENTS)walk(path.join(root,component),component);
  // Source trees package their portable launchers; installed colleagues use the root copies.

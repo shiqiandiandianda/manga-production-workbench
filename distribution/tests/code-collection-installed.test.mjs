@@ -1,7 +1,11 @@
 import test from'node:test';import assert from'node:assert/strict';import fs from'node:fs';import path from'node:path';import {collectCode}from'../code-policy.mjs';
+import {generateKeyPairSync} from 'node:crypto';
+import {createRelease,decodeRelease} from '../updates.mjs';
 const evidence=path.resolve(import.meta.dirname,'../../verification/publication-installed-collection');fs.mkdirSync(evidence,{recursive:true});
 function fixture(){const root=fs.mkdtempSync(path.join(evidence,'fixture-'));for(const[name,content]of [['comic/public/app.js','export const app=1;'],['README.md','installed guide'],['start-all.mjs','export const start=1;'],['runtime-data/studio.json','PRIVATE'],['comic/data/image.png','PRIVATE']]){const file=path.join(root,name);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,content);}return root;}
 test('已安装同事包没有portable目录仍可预览发布，工程和数据不进入代码包',()=>{const root=fixture(),files=collectCode(root);assert.equal(files.get('README.md').toString(),'installed guide');assert.ok(files.has('start-all.mjs'));assert.ok(files.has('comic/public/app.js'));assert.equal(files.size,3);assert.ok([...files.values()].every(v=>!v.toString().includes('PRIVATE')));});
 test('主版本源码仍优先使用portable目录内的发布启动文件',()=>{const root=fixture(),portable=path.join(root,'distribution/portable');fs.mkdirSync(portable,{recursive:true});fs.writeFileSync(path.join(portable,'README.md'),'packaged guide');const files=collectCode(root);assert.equal(files.get('README.md').toString(),'packaged guide');assert.equal(files.has('start-all.mjs'),false);assert.ok(files.has('comic/public/app.js'));});
 
 test('提示词改写临时工程和请求内容不能进入团队升级包',()=>{const root=fixture();for(const name of ['comic/prompt-rewrite-AAGvzE/prompt-rewrites/jobs.json','comic/prompt-rewrite-k5PXWf/prompt-rewrites/job/request.txt']){const file=path.join(root,name);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,'PRIVATE');}const files=collectCode(root);assert.equal(files.size,3);assert.ok([...files.values()].every(v=>!v.toString().includes('PRIVATE')));});
+
+test('旧签名包的历史临时路径仍可验签，避免阻断主机发布和同事升级',()=>{const keys=generateKeyPairSync('ed25519'),name='comic/prompt-rewrite-AAGvzE/prompt-rewrites/jobs.json',release=createRelease(new Map([[name,Buffer.from('[]')]]),keys.privateKey);assert.ok(decodeRelease(release.archive,keys.publicKey).files.has(name));});

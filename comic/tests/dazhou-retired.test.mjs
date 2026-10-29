@@ -50,7 +50,3 @@ test('旧阅读单元画格首次生成提示词时只用单元自己的描述�
  assert.equal(g.narrativePromptVersion,undefined);assert.equal(g.readingUnitId,f.layoutIntent.readingUnit.id);
  ensurePanelGeneration(p,f);for(const prompt of prompts(p,f))assert.doesNotMatch(prompt,RETIRED_TEXT);
 });
-
-
-
-

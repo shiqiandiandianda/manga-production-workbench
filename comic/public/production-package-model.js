@@ -1,3 +1,4 @@
+import {productionReferenceOutfit} from './episode-outfit.js';
 import {roundBubbleSize} from './round-bubble-default.js';
 import {bubbleSourceTextIds,dialogueSegments} from './bubble-dialogue-segments.js';
 import {productionTailVisible} from './bubble-tail-compat.js';
@@ -27,12 +28,12 @@ export function validateProductionPackage(project){
 export function productionSourceAsset(frame){return frame?.packageCutout?.assetId===frame?.imageAssetId?frame.packageCutout.originalAssetId:frame?.imageAssetId;}
 export function productionRequirementKey(ref){return JSON.stringify([ref['类型'],ref['人物']||'',ref['服装']||'',ref['说明']||'']);}
 export function productionJobSignature(project,frame){const s=productionSegment(project,frame.productionSegment||frame.productionBackground?.replace(/-BG$/,'')),shot=project.shots.find(v=>v.id===frame.shotId);return JSON.stringify([project.productionPackage.hash,shot?.sourceFields,frame.generation?.promptSource||'imported',s?.references.map(r=>[r.slot,r.binding,r.skipped]),...(s?.unifiedLayoutRuleDigest?[s.unifiedLayoutRuleDigest,project.layoutRuleBindings?.[s.episode]]:[]),...(textAssetSignature(frame).length?[textAssetSignature(frame)]:[]),...(frame.generation?.omitCharacterOutfitLabels===true?['character-labels-identity-only']:[])]);}
-export function productionTextReference(frame,segment,ref){return textAssetBinding(frame,{id:segment.id+'@'+ref.slot,name:productionReferenceSubject(ref),role:ref['类型']==='设定卡'?'character':ref['类型'].includes('场景')?'scene':/道具/.test(ref['类型'])?'prop':'style',state:ref['服装']||ref['说明']||ref['段ID']||'',predecessor:ref['类型']==='上一段成图'});}
+export function productionTextReference(frame,segment,ref,project){return textAssetBinding(frame,{id:segment.id+'@'+ref.slot,name:productionReferenceSubject(ref),role:ref['类型']==='设定卡'?'character':ref['类型'].includes('场景')?'scene':/道具/.test(ref['类型'])?'prop':'style',state:(project?productionReferenceOutfit(project,ref):ref['服装'])||ref['说明']||ref['段ID']||'',predecessor:ref['类型']==='上一段成图'});}
 export function productionReferencePlan(project,frame,assets=[]){
  if(!frame.productionSegment&&!frame.productionBackground)return null;const s=productionSegment(project,frame.productionSegment||frame.productionBackground.replace(/-BG$/,''));if(!s)throw invalid('屏段来源缺失');if(s.pendingSourceFields)throw invalid('此屏段有待处理的源提示词更新，请先接受或保留本地版本');
  const refs=[],dependencies=[],missing=[];const byId=new Map(assets.map(a=>[a.id,a]));
  for(const ref of frame.productionBackground?[]:s.references.filter(r=>!obsoleteProductionReference(r))){
-  if(productionTextReference(frame,s,ref))continue;
+  if(productionTextReference(frame,s,ref,project))continue;
   if(ref.skipped){if(ref['必须'])missing.push('必需参考不能跳过');continue;}
   if(ref['类型']==='上一段成图'){const predecessor=project.productionPackage.episodes.find(e=>e.episode===s.episode).segments.find(v=>v.localId===ref['段ID']),prior=productionFrame(project,predecessor?.id),assetId=productionSourceAsset(prior);if(assetId)refs.push({assetId,name:ref['段ID']+' · 接续成图',role:'style'});else dependencies.push(prior?.id);continue;}
   const binding=ref.binding,asset=binding&&byId.get(binding.assetId);

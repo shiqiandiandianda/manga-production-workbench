@@ -18,9 +18,10 @@ export function mountFloatingCanvasTools({dock,area,toolbar}){
   dock.style.transform='scale('+scale+')';
   const naturalWidth=Math.min(224,(innerWidth-margin*2)/scale),width=naturalWidth*scale,rect=canvas.getBoundingClientRect();
   dock.style.width=naturalWidth+'px';
-  const target=position||{x:rect.right-width-12,y:toolbar.getBoundingClientRect().bottom+12};
+  const top=Math.max(rect.top,toolbar.getBoundingClientRect().bottom);
+  const target=position||{x:rect.right-width-12,y:top+12};
   const x=Math.max(margin,Math.min(innerWidth-width-margin,target.x));
-  const minY=Math.max(margin,Math.min(toolbar.getBoundingClientRect().bottom+margin,innerHeight-160-margin));
+  const minY=Math.max(margin,Math.min(top+margin,innerHeight-160-margin));
   const y=Math.max(minY,Math.min(innerHeight-160-margin,target.y));
   dock.style.left=x+'px';dock.style.top=y+'px';dock.style.maxHeight=Math.max(44,(innerHeight-y-margin)/scale)+'px';
   return {x,y};

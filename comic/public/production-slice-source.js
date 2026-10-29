@@ -10,7 +10,7 @@ import {projectLibraryAssets} from './project-asset-library.js';
 import {stateKey} from './character-states.js';
 import {characterPreparationNote} from './character-preparation.js';
 import {productionPanelPromptFields,productionPanelPrompts,productionPanelPromptSource} from './production-panel-prompts.js';
-import {SHOT_SIZES,CAMERA_ANGLES,normalizeCameraAngle} from './shot-settings.js';
+import {SHOT_SIZES,validCameraAngle,normalizeCameraAngle} from './shot-settings.js';
 import {migrateLegacyPanelPrompt} from './prompt-source.js';
 const gridSource=panel=>panel.productionGrid||panel.panelSlice;
 const list=value=>(Array.isArray(value)?value:String(value||'').split(/[、，,；;\n]+/u)).map(v=>String(v).trim()).filter(v=>v&&!/^(无|空镜|暂无|—|-)$/u.test(v));
@@ -24,8 +24,8 @@ function sourceShot(project,panel,record){
  if(variants)Object.assign(fields,productionPanelPromptFields(record));
  const episode=project.productionPackage.episodes.find(e=>e.panelRecords.some(r=>r.id===record.id));
  const shotSizeRaw=String(raw['景别']||fields['景别']||''),cameraAngleRaw=String(raw['机位角度']||fields['机位角度']||''),cameraAngle=normalizeCameraAngle(cameraAngleRaw);
- // Freeform source directions stay verbatim in the prompt and provenance; only recognized choices populate inspector enums.
- return {id:id('shot'),episode:episode.episode,code:record.id,title:record.id,description:String(raw['画面内容']||fields['画面内容']||''),productionPrompt:prompt,...(variants?{productionPromptVariants:1}:{}),participants:list(raw['出现角色']||fields['出现角色']),location:String(raw['当前场景']||fields['当前场景']||''),propNames:list(raw['出现道具']||fields['出现道具']),shotSize:SHOT_SIZES.includes(shotSizeRaw)?shotSizeRaw:'',shotSizeRaw,cameraAngle:CAMERA_ANGLES.includes(cameraAngle)?cameraAngle:'',cameraAngleRaw,dialogue:'',referenceIds:[],sourceFields:fields,sourceLocation:[record.source?.file,record.source?.pointer].filter(Boolean).join(' '),productionSourceRecord:clone(record.source),productionGridId:record.id,productionSliceSegment:record.segmentId};
+ // Preserve valid freeform camera directions as well as preset camera choices.
+ return {id:id('shot'),episode:episode.episode,code:record.id,title:record.id,description:String(raw['画面内容']||fields['画面内容']||''),productionPrompt:prompt,...(variants?{productionPromptVariants:1}:{}),participants:list(raw['出现角色']||fields['出现角色']),location:String(raw['当前场景']||fields['当前场景']||''),propNames:list(raw['出现道具']||fields['出现道具']),shotSize:SHOT_SIZES.includes(shotSizeRaw)?shotSizeRaw:'',shotSizeRaw,cameraAngle:validCameraAngle(cameraAngle)?cameraAngle:'',cameraAngleRaw,dialogue:'',referenceIds:[],sourceFields:fields,sourceLocation:[record.source?.file,record.source?.pointer].filter(Boolean).join(' '),productionSourceRecord:clone(record.source),productionGridId:record.id,productionSliceSegment:record.segmentId};
 }
 /** Carry the screen's fixed-version confirmation to the same source need.
  * Names come from the source slot, never an inferred image alias. */

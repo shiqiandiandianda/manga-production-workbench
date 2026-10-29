@@ -39,7 +39,7 @@ export function mountProductionWorkspace({api,getProject,getSelected,getAssets=(
  async function navigate(fn){if(navigating)return;navigating=true;stamp='';refresh();try{return await fn();}finally{navigating=false;stamp='';refresh();}}
  function refresh(force=false){
   const project=getProject(),pkg=project?.productionPackage,selected=getSelected(),key=[project?.id,project?.revision,selected?.id,selected?.imageAssetId,getEpisode?.(),productionSegmentUnit(project,getEpisode?.(),current),project&&productionFrame(project,current)?.imageAssetId,current].join(':');if(!force&&stamp===key)return;stamp=key;
-  if(!pkg){root.innerHTML='<p class="sub-note">打开 JSON 工程，或导入本地／墨库制作资料。</p><button type="button" data-production-import>导入制作资料</button>';root.querySelector('[data-production-import]').onclick=()=>openImport?.({target:'new'});return;}
+  if(!pkg){root.innerHTML='<button type="button" data-production-import>导入制作资料</button>';root.querySelector('[data-production-import]').onclick=()=>openImport?.({target:'new'});return;}
   const activeEpisode=pkg.episodes.find(e=>e.episode===getEpisode?.())||pkg.episodes[0],episodeKey=project.id+':'+activeEpisode.episode;
   if(restoredEpisode!==episodeKey){restoredEpisode=episodeKey;current='';currentGrid='';lastSelection='';}
   current=selectedProductionSegment(project,activeEpisode,selected,{current,remembered:rememberedSegment(project.id,activeEpisode.episode)});
@@ -142,4 +142,3 @@ export function mountProductionWorkspace({api,getProject,getSelected,getAssets=(
  });}
  return {refresh,applyAssistantPreview,async open(){if(opening)return opening;refresh(true);if(!getProject()?.productionPackage)return;opening=Promise.resolve().then(()=>navigate(async()=>{const p=getProject(),episode=getEpisode?.()||p.productionPackage.episodes[0]?.episode;if(episodeLetteringPending(p,episode))await change('episode-lettering',{projectId:p.id,episode});if(getProject()?.id===p.id)await activateCurrent?.();}));try{await opening;}finally{opening=null;}},openLayout,openStyles(scope='screen'){refresh();const p=getProject(),e=p?.productionPackage?.episodes.find(e=>e.episode===getEpisode?.()),segment=e?.segments.find(s=>s.id===current)||e?.segments[0];if(!segment)throw Error('请先选择有制作资料的屏段');return openProductionStyles({segmentId:segment.id,getProject,change,modal,closeModal,initialScope:scope});}};
 }
-

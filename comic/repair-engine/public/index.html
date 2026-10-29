@@ -22,23 +22,23 @@
 <span class="source-active">正在编辑</span></button></div>
       <div class="section-label">漫画项目 <span id="project-count">0</span><button id="add-project" class="text-button">＋ 新增</button>
 </div>
-<button id="import-project-file" type="button" class="button secondary full">导入工程文件</button><p class="fine-print">工程文件包含原图、可编辑图层、蒙版和已生成的结果，可换电脑继续编辑。</p>
+<button id="import-project-file" type="button" class="button secondary full">导入工程文件</button>
 <div id="project-list" class="project-list"></div>
 
       <div class="section-label history-label">修改记录 <span id="history-count">0</span>
 </div>
       <div id="history-list" class="history-list"></div>
-    <details class="storage-panel"><summary>保存与归档</summary><p class="fine-print">原图、工程、任务和成品自动保存到中文归档文件夹。</p>
+    <details class="storage-panel"><summary>保存与归档</summary>
 <button id="choose-storage" class="button secondary full">选择保存文件夹</button><label for="storage-base">保存目录</label><input id="storage-base" type="text" placeholder="也可直接填写本地完整路径"><label for="archive-name">中文归档名称</label><input id="archive-name" type="text" value="漫画修图归档" maxlength="80"><button id="save-storage" class="button secondary">保存目录设置</button><p id="storage-path" class="storage-path"></p>
 <button id="archive-page" class="button secondary full">归档当前漫画</button><p id="archive-status" class="fine-print" role="status"></p></details><span class="version">本地工作台 · V18</span></aside>
     <section class="editor">
-      
+
       <div class="canvas-shell">
         <div class="canvas-toolbar" id="floating-tools">
 <div class="tools-handle" id="tools-handle"><img class="ui-icon" src="/repair/icons/dots-six.svg" alt=""></div>
           <div class="tool-group" aria-label="选区工具">
 <button class="tool" data-tool="select" aria-pressed="false" title="选择修复位置（A · 右键切换工具）"><img class="ui-icon" src="/repair/icons/pointer.svg" alt=""><span>选择</span></button><button class="tool active" data-tool="rect" aria-pressed="true" title="选区（D）"><img class="ui-icon" src="/repair/icons/selection.svg" alt=""><span>新建选区</span><small id="current-ratio">1:1</small></button><button class="tool" data-tool="frame-move" aria-pressed="false" title="选框移动（右键切换工具）"><img class="ui-icon" src="/repair/icons/selection-move.svg" alt=""><span>选框移动</span></button><button class="tool" data-tool="layer-move" aria-pressed="false" title="图片移动（V · 拖动四角缩放 · 右键切换工具）"><img class="ui-icon" src="/repair/icons/arrows-out-cardinal.svg" alt=""><span>图片移动</span></button><button class="tool" data-tool="pan" aria-pressed="false" title="画板移动（Shift+D）"><img class="ui-icon" src="/repair/icons/hand.svg" alt=""><span>画板移动</span></button><button class="tool" data-tool="paint" aria-pressed="false" title="画笔（P）"><img class="ui-icon" src="/repair/icons/paint-brush.svg" alt=""><span>画笔</span></button><button class="tool" data-tool="mask" aria-pressed="false" title="蒙版（M · X 切换黑白）"><img class="ui-icon" src="/repair/icons/circle-half.svg" alt=""><span>蒙版</span></button><button class="tool" data-tool="extract" aria-pressed="false" title="自由剪切选框（R）" aria-label="自由剪切选框"><img class="ui-icon" src="/repair/icons/free-crop.svg" alt=""><span>自由选框</span></button></div>
-          
+
         </div>
         <div id="stage" class="stage" tabindex="0" aria-label="图片画布，拖动框选需要修复的区域">
           <section id="empty-project" class="empty-project" aria-labelledby="welcome-title">
@@ -61,7 +61,7 @@
 <div id="quick-library" class="quick-library" hidden><div class="quick-library-toolbar"><label>选图 <select id="quick-library-mode"><option value="multiple">多选</option><option value="single">单选</option></select></label><button type="button" data-quick-action="manage-library">管理 / 恢复图库</button></div><div id="quick-library-grid" class="quick-library-grid"></div></div>
 </div>
 <label class="auto-text-option" title="仅转文字时先识字校对；分离气泡时由 Codex 同轮读取原文"><input id="quick-auto-text" type="checkbox">创建可编辑文字图层</label>
-<label class="auto-text-option"><input id="quick-separate-bubble" type="checkbox">分离气泡：Codex 生成背景＋透明气泡</label><p class="auto-text-help">分离气泡可直接提交，无需前置识字。只转文字时，先由 Codex 识字并校对确认；普通修图无需识字。</p>
+<label class="auto-text-option"><input id="quick-separate-bubble" type="checkbox">分离气泡：Codex 生成背景＋透明气泡</label><p class="auto-text-help">仅转文字需先识字校对。</p>
 <div class="quick-foot"><button type="button" data-quick-action="mode" title="修图方式与连接">Codex 自动</button><button type="button" data-quick-action="reconnect" hidden>重新连接</button><span id="quick-status" role="status" hidden></span></div>
 </div></aside>
 
@@ -78,24 +78,24 @@
 </div>
         </div>
         <div class="canvas-footer canvas-info"><span id="image-info"></span></div>
-        
+
       </div>
       <div class="editor-bottom"><span>滚轮上下移动 · Ctrl＋滚轮缩放 · 空格对比 · Q 比例 · F 锁定/解锁</span></div>
     </section>
     <aside class="inspector" id="repair-inspector"><div class="inspector-resize left" data-edge="left" role="separator" aria-orientation="vertical" tabindex="0" aria-label="拖动调节修复图层面板宽度" title="左右拖动调整宽度 · 双击恢复默认"></div><div class="inspector-resize right" data-edge="right" role="separator" aria-orientation="vertical" tabindex="0" aria-label="拖动调节右侧面板宽度" title="左右拖动调整宽度 · 双击恢复默认"></div><div class="inspector-height-resize top" data-edge="top" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="拖动调整面板顶部高度" title="上下拖动调整高度 · 双击恢复默认"></div><div class="inspector-height-resize bottom" data-edge="bottom" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="拖动调整面板底部高度" title="上下拖动调整高度 · 双击恢复默认"></div><div class="inspector-heading" id="inspector-handle">
 <strong>修复图层</strong><img class="ui-icon" src="/repair/icons/dots-six.svg" alt=""><button id="collapse-inspector" type="button" title="收起 / 展开" aria-label="收起 / 展开"><img class="ui-icon" src="/repair/icons/minus.svg" alt="">收起 / 展开</button>
 </div>
-      
-      
 
-      
-      
-      
-      
-      
-      
-      
-      
+
+
+
+
+
+
+
+
+
+
     <div class="layer-create-actions" aria-label="新建图层">
 <button id="add-paint-layer">＋ 透明图层</button><button id="add-background-layer" type="button">＋ 底色图层</button><button id="add-image-layer" type="button">＋ 导入图片图层</button><input id="image-layer-file" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
 </div>
@@ -127,8 +127,8 @@
 <details class="context-section" id="image-stroke-details" hidden><summary>图片描边</summary><label>描边粗细（px）<input id="image-stroke-width" type="number" min="0" max="200" step="1" value="0"></label><label>描边颜色 <input id="image-stroke-color" type="color" value="#111111"></label><p>粗细为 0 时关闭描边。</p></details>
 <details class="context-section" id="background-details"  open hidden><summary>底色</summary><label>填充方式 <select id="background-fill" aria-label="底色填充方式"><option value="solid">纯色</option><option value="linear">线性渐变</option><option value="radial">径向渐变</option></select></label><label>起点颜色 <input id="background-color" type="color" value="#ffffff"></label><div id="background-gradient-controls" hidden><label>终点颜色 <input id="background-end-color" type="color" value="#000000"></label><label id="background-angle-field">渐变角度 <input id="background-angle" type="number" min="0" max="360" value="90"> °</label><label>起点不透明度 <input id="background-start-opacity" type="range" min="0" max="100" value="100"></label><label>终点不透明度 <input id="background-end-opacity" type="range" min="0" max="100" value="100"></label></div><div id="background-preview" aria-label="底色预览"></div><div id="background-gradient-controls" hidden><label>终点颜色 <input id="background-end-color" type="color" value="#000000"></label><label id="background-angle-field">渐变角度 <input id="background-angle" type="number" min="0" max="360" value="90"> °</label><label>起点不透明度 <input id="background-start-opacity" type="range" min="0" max="100" value="100"></label><label>终点不透明度 <input id="background-end-opacity" type="range" min="0" max="100" value="100"></label></div><div id="background-preview" aria-label="底色预览"></div><label>底色不透明度 <input id="background-opacity" type="range" min="0" max="100" value="100"></label><p>底色显示在漫画和新增图片下方，覆盖透明区域。</p><button id="background-delete" type="button">删除底色</button></details>
 <details class="context-section" id="repair-details"  open><summary>修改要求与参考图</summary><section class="selected-repair" id="selected-repair"><div class="selected-title-row"><p id="selected-region-label" class="sr-only">先画框，或选择一个选区图层。</p></div>
-<label class="auto-text-option"><input id="auto-text" type="checkbox">创建可编辑文字图层</label><label class="auto-text-option"><input id="separate-bubble" type="checkbox">分离气泡：Codex 生成背景＋透明气泡</label><p class="auto-text-help">分离气泡无需前置识字，直接返回背景与透明无字气泡；勾选文字图层时由 Codex 同轮读取原文。仅创建文字图层时，先校对原文再去字。普通修图无需识字。</p>
-<label>生成调度 <select id="generation-mode" aria-label="生成调度模式"><option value="low">快速调度（低推理，推荐）</option><option value="configured">沿用 Codex 配置</option></select></label><p class="fine-print">快速调度减少调用生图前的推理，沿用当前模型和生图设置。单张生成耗时仍由图像服务决定。</p>
+<label class="auto-text-option"><input id="auto-text" type="checkbox">创建可编辑文字图层</label><label class="auto-text-option"><input id="separate-bubble" type="checkbox">分离气泡：Codex 生成背景＋透明气泡</label><p class="auto-text-help">仅转文字需先校对；分离气泡可直接提交。</p>
+<label>生成调度 <select id="generation-mode" aria-label="生成调度模式"><option value="low">快速调度（低推理，推荐）</option><option value="configured">沿用 Codex 配置</option></select></label>
 <textarea id="prompt" rows="4" placeholder="这个选区的专属要求，例如：按参考图修正右手戒指。"></textarea><div id="custom-prompt-buttons" class="prompt-chips"></div>
 <div class="prompt-template-controls">
 <span>自定义提示词</span><button id="edit-prompt-templates">编辑这4个提示词</button>
@@ -144,7 +144,7 @@
 </div>
 <p id="reference-library-help" class="fine-print"></p>
 <div id="reference-library" class="reference-library" hidden></div>
-<p class="fine-print">点击这里后 Ctrl+V 粘贴；已上传参考图可从图库重复选用。</p>
+
 </div>
 <div class="annotation-actions">
 <div id="annotation-preview" class="annotation-preview" hidden>
@@ -181,7 +181,7 @@
 <div class="range-field">
 <label for="feather">边缘羽化 <output id="feather-value">6 px</output></label><input id="feather" type="range" min="0" max="64" value="6"><p id="feather-status" class="fine-print">选择修复选区或生成图层后调整羽化。</p>
 </div>
-<details class="context-section" id="layer-mask-details"><summary>图层蒙版</summary><canvas id="mask-preview" width="72" height="72" aria-label="当前图层蒙版预览"></canvas><p class="fine-print">先解锁图片图层，再用 M 画笔隐藏或显示，原图像素保留。</p>
+<details class="context-section" id="layer-mask-details"><summary>图层蒙版</summary><canvas id="mask-preview" width="72" height="72" aria-label="当前图层蒙版预览"></canvas><p class="fine-print">解锁后用 M 画笔编辑蒙版，原图保留。</p>
 <div class="mask-actions">
 <button id="mask-hide" aria-pressed="true">黑笔：隐藏</button><button id="mask-show" aria-pressed="false">白笔：显示</button><button id="mask-reset" title="清除手工遮挡，保留边缘羽化">全部显示</button>
 </div>
@@ -212,10 +212,10 @@
 <button id="restore-job" class="text-button restore-job">↶ 恢复最近的本地任务</button><button class="text-button" id="hold-before" type="button" title="按住查看本任务修改前" aria-label="按住查看本任务修改前">按住查看本任务修改前</button></details><details class="context-section" id="paint-details"><summary>画笔属性</summary><div id="paint-controls">
 <label>边缘 <select id="paint-edge"><option value="hard">硬边缘</option>
 <option value="soft">柔边缘／羽化</option></select></label><label>大小 <input id="paint-size" type="range" min="1" max="300" value="36"><output id="paint-size-value">36 px</output></label><label>输出不透明度 <input id="paint-opacity" type="range" min="1" max="100" value="100"><output id="paint-opacity-value">100%</output></label><label>颜色 <input id="paint-color" type="color" value="#111111"></label>
-</div></details><details class="context-section" id="text-details"><summary>文字属性</summary><label for="layer-text">文字内容</label><textarea id="layer-text" maxlength="2000" rows="3" placeholder="输入文字，可换行"></textarea><label>字体 <select id="text-font" aria-label="中文字体"><optgroup label="思源系列"><option value="Source Han Sans SC">思源黑体</option><option value="Source Han Serif SC">思源宋体</option></optgroup><optgroup label="楷书与手写"><option value="LXGW WenKai">霞鹜文楷</option><option value="LXGW WenKai Mono">霞鹜文楷等宽</option><option value="Ma Shan Zheng">马善政毛笔楷书</option><option value="Long Cang">龙藏体</option><option value="Zhi Mang Xing">志莽行书</option><option value="Liu Jian Mao Cao">刘建毛草</option></optgroup><optgroup label="漫画与标题"><option value="ZCOOL KuaiLe">站酷快乐体</option><option value="ZCOOL QingKe HuangYou">站酷庆科黄油体</option><option value="Smiley Sans">得意黑</option><option value="LXGW Marker Gothic">霞鹜漫黑</option><option value="Xiangcui Wave Sans">香萃自在舒畅黑</option></optgroup><optgroup label="宋体与正文"><option value="ZCOOL XiaoWei">站酷小薇体</option></optgroup><optgroup label="圆体与繁体"><option value="Iansui">芫荽（繁体）</option><option value="Huninn">粉圆体（繁体）</option><option value="Chocolate Classical Sans">巧克力古典黑（繁体）</option></optgroup><optgroup label="像素字体"><option value="Fusion Pixel 8px SC">缝合像素 8px</option><option value="Fusion Pixel 10px SC">缝合像素 10px</option><option value="Fusion Pixel 12px SC">缝合像素 12px</option></optgroup></select></label><div class="font-preview-panel"><div id="text-font-preview" aria-label="中文字体预览">山河万里，风月同天。</div><p class="fine-print"><span id="text-font-status" role="status">内置中文字体 · 免费商用</span> · <a href="/repair/fonts/credits.html" target="_blank" rel="noopener">字体授权</a></p></div><label>粗细 <select id="text-weight" aria-label="字体粗细"><option value="400">常规 400</option></select></label><label>字号 <input id="text-size" type="number" min="6" max="512" value="36"> px</label><fieldset class="text-layout-fields"><legend>排版</legend><label>方向 <select id="text-direction" aria-label="文字排版方向"><option value="horizontal">横排</option><option value="vertical-rl">竖排 · 从右向左</option><option value="vertical-lr">竖排 · 从左向右</option></select></label><label>对齐 <select id="text-align" aria-label="文字对齐"><option value="left">居左</option><option value="center">居中</option><option value="right">居右</option><option value="justify">两端对齐</option></select></label><label>字间距 <input id="text-spacing" type="number" min="-200" max="512" step="0.5" value="0"> px</label><label>行间距 <input id="text-line-height" type="number" min="50" max="400" step="5" value="135"> %</label><label>段间距 <input id="text-paragraph-spacing" type="number" min="0" max="512" value="0"> px</label><label>文本框宽 <input id="text-box-width" type="number" min="0" max="4096" value="0"> px</label><label>文本框高 <input id="text-box-height" type="number" min="0" max="8192" value="0"> px</label><label><input id="text-wrap" type="checkbox" checked>自动换行</label><p class="fine-print">宽高为 0 时自动适应文字；设定后为固定文本框。选中文字后可拖动四边或四角调整大小，字号保持不变。竖排时高度控制换列。</p><p id="text-overflow" class="fine-print text-overflow" role="status" hidden>文字超出文本框，超出部分暂不显示；拉大文本框即可恢复，原文已保留。</p></fieldset><label class="text-style"><input id="text-italic" type="checkbox">斜体 <input id="text-underline" type="checkbox">下划线 <input id="text-strikethrough" type="checkbox">删除线</label><label class="text-color-field">文字颜色 <input id="text-color" type="color" value="#111111"></label><fieldset class="text-layout-fields"><legend>描边与阴影</legend><label>描边宽度 <input id="text-stroke-width" type="number" min="0" max="40" step="0.5" value="0"> px</label><label>描边颜色 <input id="text-stroke-color" type="color" value="#ffffff"></label><label><input id="text-shadow" type="checkbox">文字阴影</label><label>阴影颜色 <input id="text-shadow-color" type="color" value="#000000"></label><label>阴影模糊 <input id="text-shadow-blur" type="number" min="0" max="50" value="4"> px</label><label>阴影横移 <input id="text-shadow-x" type="number" min="-100" max="100" value="2"> px</label><label>阴影纵移 <input id="text-shadow-y" type="number" min="-100" max="100" value="2"> px</label></fieldset></details><details class="context-section" id="view-details"><summary>画板视图</summary><label class="view-zoom-field">缩放 <input id="view-zoom" type="number" min="0.001" max="600" step="0.1"> %</label><div class="layer-actions">
+</div></details><details class="context-section" id="text-details"><summary>文字属性</summary><label for="layer-text">文字内容</label><textarea id="layer-text" maxlength="2000" rows="3" placeholder="输入文字，可换行"></textarea><label>字体 <select id="text-font" aria-label="中文字体"><optgroup label="思源系列"><option value="Source Han Sans SC">思源黑体</option><option value="Source Han Serif SC">思源宋体</option></optgroup><optgroup label="楷书与手写"><option value="LXGW WenKai">霞鹜文楷</option><option value="LXGW WenKai Mono">霞鹜文楷等宽</option><option value="Ma Shan Zheng">马善政毛笔楷书</option><option value="Long Cang">龙藏体</option><option value="Zhi Mang Xing">志莽行书</option><option value="Liu Jian Mao Cao">刘建毛草</option></optgroup><optgroup label="漫画与标题"><option value="ZCOOL KuaiLe">站酷快乐体</option><option value="ZCOOL QingKe HuangYou">站酷庆科黄油体</option><option value="Smiley Sans">得意黑</option><option value="LXGW Marker Gothic">霞鹜漫黑</option><option value="Xiangcui Wave Sans">香萃自在舒畅黑</option></optgroup><optgroup label="宋体与正文"><option value="ZCOOL XiaoWei">站酷小薇体</option></optgroup><optgroup label="圆体与繁体"><option value="Iansui">芫荽（繁体）</option><option value="Huninn">粉圆体（繁体）</option><option value="Chocolate Classical Sans">巧克力古典黑（繁体）</option></optgroup><optgroup label="像素字体"><option value="Fusion Pixel 8px SC">缝合像素 8px</option><option value="Fusion Pixel 10px SC">缝合像素 10px</option><option value="Fusion Pixel 12px SC">缝合像素 12px</option></optgroup></select></label><div class="font-preview-panel"><div id="text-font-preview" aria-label="中文字体预览">山河万里，风月同天。</div><p class="fine-print"><span id="text-font-status" role="status">内置中文字体 · 免费商用</span> · <a href="/repair/fonts/credits.html" target="_blank" rel="noopener">字体授权</a></p></div><label>粗细 <select id="text-weight" aria-label="字体粗细"><option value="400">常规 400</option></select></label><label>字号 <input id="text-size" type="number" min="6" max="512" value="36"> px</label><fieldset class="text-layout-fields"><legend>排版</legend><label>方向 <select id="text-direction" aria-label="文字排版方向"><option value="horizontal">横排</option><option value="vertical-rl">竖排 · 从右向左</option><option value="vertical-lr">竖排 · 从左向右</option></select></label><label>对齐 <select id="text-align" aria-label="文字对齐"><option value="left">居左</option><option value="center">居中</option><option value="right">居右</option><option value="justify">两端对齐</option></select></label><label>字间距 <input id="text-spacing" type="number" min="-200" max="512" step="0.5" value="0"> px</label><label>行间距 <input id="text-line-height" type="number" min="50" max="400" step="5" value="135"> %</label><label>段间距 <input id="text-paragraph-spacing" type="number" min="0" max="512" value="0"> px</label><label>文本框宽 <input id="text-box-width" type="number" min="0" max="4096" value="0"> px</label><label>文本框高 <input id="text-box-height" type="number" min="0" max="8192" value="0"> px</label><label><input id="text-wrap" type="checkbox" checked>自动换行</label><p class="fine-print">宽高 0 为自动适配；竖排高度控制换列。</p><p id="text-overflow" class="fine-print text-overflow" role="status" hidden>文字超出文本框，超出部分暂不显示；拉大文本框即可恢复，原文已保留。</p></fieldset><label class="text-style"><input id="text-italic" type="checkbox">斜体 <input id="text-underline" type="checkbox">下划线 <input id="text-strikethrough" type="checkbox">删除线</label><label class="text-color-field">文字颜色 <input id="text-color" type="color" value="#111111"></label><fieldset class="text-layout-fields"><legend>描边与阴影</legend><label>描边宽度 <input id="text-stroke-width" type="number" min="0" max="40" step="0.5" value="0"> px</label><label>描边颜色 <input id="text-stroke-color" type="color" value="#ffffff"></label><label><input id="text-shadow" type="checkbox">文字阴影</label><label>阴影颜色 <input id="text-shadow-color" type="color" value="#000000"></label><label>阴影模糊 <input id="text-shadow-blur" type="number" min="0" max="50" value="4"> px</label><label>阴影横移 <input id="text-shadow-x" type="number" min="-100" max="100" value="2"> px</label><label>阴影纵移 <input id="text-shadow-y" type="number" min="-100" max="100" value="2"> px</label></fieldset></details><details class="context-section" id="view-details"><summary>画板视图</summary><label class="view-zoom-field">缩放 <input id="view-zoom" type="number" min="0.001" max="600" step="0.1"> %</label><div class="layer-actions">
 <button id="view-fit">适应窗口</button><button id="view-top">回到顶部</button>
 </div>
-<p class="fine-print">滚轮上下移动 · Ctrl＋滚轮缩放。仅调整查看位置。</p></details><div class="privacy-note">
+</details><div class="privacy-note">
 <span>⌂</span> 图片与任务保存在这台电脑上</div>
 </div>
 </div>
@@ -224,7 +224,7 @@
 
   <dialog id="attempt-preview-dialog" class="attempt-preview-dialog" aria-labelledby="attempt-preview-title">
     <div class="dialog-heading"><strong id="attempt-preview-title">对照这次生成结果</strong><button id="attempt-preview-close" type="button">关闭</button></div>
-    <p class="fine-print">对照原图检查位置、轮廓、尖刺和尾巴。白底便于看黑色边缘，深底便于看白色填充；两种底色显示的是同一张透明图片。</p>
+
     <p id="attempt-preview-status" class="fine-print" role="status"></p>
     <div class="attempt-preview-grid">
       <figure><figcaption>提交时原图</figcaption><img id="attempt-compare-original" alt="提交时的原始局部图"></figure>
@@ -235,14 +235,14 @@
   </dialog>
   <dialog id="text-review-dialog" class="text-review-dialog" aria-labelledby="text-review-title">
     <div class="dialog-heading"><strong id="text-review-title">校对原文</strong><button id="text-review-reload" type="button">重新读取草稿</button><button id="text-review-close" type="button">关闭</button></div>
-    <p class="text-review-intro">请对照原图逐字校对。蓝色实线是文字框，橙色虚线是气泡框；删除装饰线等假识别，属于同一气泡的段落可合并。确认前不会生成图片或建立正式文字层。</p>
+    <p class="text-review-intro">请核对原文。蓝框为文字，橙框为气泡；确认后生成。</p>
     <p id="text-review-status" class="text-review-status" role="status" aria-live="polite"></p>
     <button id="text-review-restore-local" type="button" class="button secondary" hidden>恢复本机未保存草稿</button>
     <div class="text-review-layout">
       <section class="text-review-source" aria-label="原图及定位框"><div class="text-review-preview-controls"><strong>原始局部图</strong><button id="text-review-zoom-out" type="button" aria-label="缩小原图">−</button><output id="text-review-zoom">100%</output><button id="text-review-zoom-in" type="button" aria-label="放大原图">＋</button><button id="text-review-zoom-fit" type="button">适合窗口</button></div><div class="text-review-image-scroll"><div id="text-review-image-space" class="text-review-image-space"><img id="text-review-image" alt="用于校对的原始局部漫画"><svg id="text-review-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="文字和气泡定位框"></svg></div></div><p class="fine-print">点击图上的编号选择对应气泡。框坐标以原始局部图为基准，可在右侧调整。</p></section>
       <section class="text-review-editor" aria-label="原文校对"><div class="text-review-toolbar"><button id="text-review-add" type="button">＋ 添加漏识气泡</button><button id="text-review-merge" type="button" disabled>合并勾选段落</button></div><div id="text-review-bubbles" class="text-review-bubbles"></div></section>
     </div>
-    <div class="text-review-footer"><div><button id="text-review-save" type="button" class="button secondary">保存校对草稿</button><button id="text-review-refine" type="button" class="button secondary">Codex 复核疑字</button><p class="fine-print">草稿保存在本机。点击复核时会再次将原始局部图交给 Codex；复核可能需要等待，结果仍需人工校对。</p></div><button id="text-review-confirm" type="button" class="button primary">确认原文并生成</button></div>
+    <div class="text-review-footer"><div><button id="text-review-save" type="button" class="button secondary">保存校对草稿</button><button id="text-review-refine" type="button" class="button secondary">Codex 复核疑字</button><p class="fine-print">复核会再次提交原图至 Codex，结果需人工校对。</p></div><button id="text-review-confirm" type="button" class="button primary">确认原文并生成</button></div>
   </dialog>
   <dialog id="generated-viewer" class="image-dialog"><div class="dialog-heading">
 <strong id="generated-title">生成原图</strong><button id="generated-fit">适合窗口</button><button id="generated-actual">100% 原尺寸</button><button id="generated-close">关闭</button>
@@ -274,7 +274,7 @@
 <strong>自定义提示词 · 4个</strong><button id="close-prompt-templates">关闭</button>
 </div>
 <div id="prompt-template-fields"></div>
-<p class="fine-print">点击模板载入当前图层的输入框，修改后再提交。提示词保存在本机，重新打开可继续使用。</p>
+
 <button id="save-prompt-templates" class="button primary full">保存提示词</button></dialog>
   <input id="image-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
   <input id="project-file-input" type="file" accept=".patchproj,.zip" hidden>
@@ -302,4 +302,3 @@
 
 </body>
 </html>
-

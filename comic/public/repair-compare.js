@@ -2,6 +2,7 @@
 // into the undo history, and never substitute a different frame's source.
 export function repairPreview(project,rows,assetMap,panelIds){
  const targets=new Set(panelIds),matches=rows.filter(r=>r.projectId===project.id&&targets.has(r.panelId)),next=structuredClone(project);let count=0;
+ for(const page of next.pages)for(const layer of page.panels)if(layer.visible!==false&&layer.cutoutLayer?.kind==='repair-patch'&&(targets.has(layer.id)||targets.has(layer.cutoutLayer.parentPanelId))){layer.visible=false;count++;}
  for(const page of next.pages)for(const panel of page.panels){const row=matches.findLast(r=>r.panelId===panel.id&&r.afterAssetId===panel.imageAssetId),before=row&&assetMap.get(row.beforeAssetId),after=row&&assetMap.get(row.afterAssetId);if(!before||!after)continue;panel.imageAssetId=before.id;panel.imageTransform={...panel.imageTransform,scale:(panel.imageTransform?.scale||1)*after.width/before.width};delete panel.imageEffects;count++;}
  return {project:count?next:project,count};
 }

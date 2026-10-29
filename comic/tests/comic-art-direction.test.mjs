@@ -70,4 +70,3 @@ test('Codex前景验收读取解码后的真实alpha，文件名或PNG头不能�
  await assert.rejects(inspectTransparentForegroundFile(cutout,python,run,{backgroundRect:{x:0,y:0,w:20,h:20},canvas:{w:20,h:20}}),/没有实际越过/);
  const crossing=await inspectTransparentForegroundFile(cutout,python,run,{backgroundRect:{x:8,y:8,w:4,h:4},canvas:{w:20,h:20}});assert.equal(crossing.outsideVisiblePixels,84);assert.equal(crossing.valid,true);
 });
-

@@ -8,7 +8,7 @@ const unsupported=[['第15话','G17'],['第15话','G31'],['第17话','G17'],['�
 test('机位只做明确别名映射，正视保留正面方向、复合机位保留两个要素',()=>{
  const expected={'正视':'正面拍摄','侧视':'侧拍','侧位':'侧拍','背视':'背面拍摄','俯视':'俯拍','仰视':'仰拍','过肩':'过肩镜头','过肩俯视':'过肩俯拍','仰视过肩':'过肩仰拍','过肩仰视':'过肩仰拍','俯视侧位':'侧面俯拍','正面平视':'正面平视','正反打':'正反打'};
  for(const [raw,canonical] of Object.entries(expected)){const shot=validateShotSettings({description:'原描述',cameraAngle:raw});assert.equal(shot.cameraAngle,canonical);assert.ok(CAMERA_ANGLES.includes(canonical));if(raw!==canonical)assert.equal(shot.cameraAngleRaw,raw);assert.match(effectiveShotDescription(shot),new RegExp(canonical));}
- assert.notEqual(normalizeCameraAngle('正视'),'平视');assert.throws(()=>validateShotSettings({cameraAngle:'未知自由值'}),/未知自由值/);assert.throws(()=>validateShotSettings({cameraAngle:'特写'}),/属于景别/);
+ assert.notEqual(normalizeCameraAngle('正视'),'平视');assert.equal(validateShotSettings({cameraAngle:'自定义低位斜看'}).cameraAngle,'自定义低位斜看');assert.throws(()=>validateShotSettings({cameraAngle:'特写'}),/属于景别/);
 });
 
 test('实际结构：标题行＋11列表头＋10工作表，保留原文、原机位和真实 Excel 行号',async t=>{
@@ -30,9 +30,9 @@ test('明确选择机位未指定后原值仍保留，原表不改、原行不�
 });
 
 test('XLSX 空白行不造成定位漂移，表头行和列字母来自原工作表',async()=>{
- const dataBase64=writeXlsx([{name:'定位测试',rows:[['标题'],[],structure.headers,[1,'甲','','','','中景','未知机位','原描述','原句'],[],[2,'乙','','','','中景','正视','第二原描述','第二原句']]}]).toString('base64');
+ const dataBase64=writeXlsx([{name:'定位测试',rows:[['标题'],[],structure.headers,[1,'甲','','','','中景','特写','原描述','原句'],[],[2,'乙','','','','中景','正视','第二原描述','第二原句']]}]).toString('base64');
  const imported=await importStoryboard({name:'定位.xlsx',dataBase64});assert.deepEqual(imported.rowNumbers,[4,6]);assert.equal(imported.headerRow,3);assert.equal(imported.columns['机位角度'],'G');
- assert.throws(()=>normalizeRows(imported.rows,imported),e=>{assert.equal(e.importIssues[0].cell,'G4');assert.equal(e.importIssues[0].sheet,'定位测试');assert.equal(e.importIssues[0].originalValue,'未知机位');return true;});
+ assert.throws(()=>normalizeRows(imported.rows,imported),e=>{assert.equal(e.importIssues[0].cell,'G4');assert.equal(e.importIssues[0].sheet,'定位测试');assert.equal(e.importIssues[0].originalValue,'特写');return true;});
 });
 
 test('用户实际 XLSX 只读复核：10表292行，首表30格可导入，6个不支持值准确定位', {skip:!process.env.COMIC_REAL_XLSX},async t=>{

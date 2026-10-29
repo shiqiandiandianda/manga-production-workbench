@@ -50,11 +50,11 @@ async function fixture({existing=true}={}){
  const call=async(action,input={})=>{const res={};await api.handle({projectId:project.id,episode:11,learningProjectId:'synthetic',expectedRevision:store.project(project.id).revision,...input},res,{method:'POST',pathname:'/api/auto-layout/reflow/'+action});return res.value;};
  return {project,store,dir,records,assets,scripts,request,api,call,other};
 }
-test('成图接回保留工程、画板与手动中心；不足100%补足，重复接回只写一次',async()=>{
+test('成图接回保留工程、画板与手动中心；保持已确认取景，重复接回只写一次',async()=>{
  const f=await fixture(),before=JSON.stringify(f.project),ready=await f.call('source',{records:f.records,learningProjectId:'synthetic'}),script=f.scripts.get(ready.scriptId),packet=geometry(script),ids=f.project.pages.map(p=>p.id),oldCrop=f.project.pages[0].panels.find(p=>p.panelSlice);
  const result=await f.api.importResult(script,packet);validateProject(result);
  assert.equal(result.id,f.project.id);assert.equal(result.title,f.project.title);assert.equal(result.revision,1);assert.equal(f.store.db.projects.length,1);assert.deepEqual(result.pages.map(p=>p.id),ids);assert.deepEqual(result.pages.at(-1),f.other);assert.equal(JSON.stringify(f.project),before);
- const crop=result.pages[0].panels.find(p=>p.id===oldCrop.id);assert.equal(crop.imageAssetId,oldCrop.imageAssetId);assert.ok(Math.abs(artworkZoomPercent(crop,f.assets.find(a=>a.id===crop.imageAssetId))-100)<1e-8);assert.ok(Math.abs((crop.w/2-crop.imageTransform.x)/crop.imageTransform.scale-(oldCrop.w/2-oldCrop.imageTransform.x)/oldCrop.imageTransform.scale)<1e-8);assert.ok(Math.abs((crop.h/2-crop.imageTransform.y)/crop.imageTransform.scale-(oldCrop.h/2-oldCrop.imageTransform.y)/oldCrop.imageTransform.scale)<1e-8);assert.equal(crop.visible,true);
+ const crop=result.pages[0].panels.find(p=>p.id===oldCrop.id);assert.equal(crop.imageAssetId,oldCrop.imageAssetId);assert.ok(Math.abs(artworkZoomPercent(crop,f.assets.find(a=>a.id===crop.imageAssetId))-artworkZoomPercent(oldCrop,f.assets.find(a=>a.id===oldCrop.imageAssetId)))<1e-8);assert.ok(Math.abs((crop.w/2-crop.imageTransform.x)/crop.imageTransform.scale-(oldCrop.w/2-oldCrop.imageTransform.x)/oldCrop.imageTransform.scale)<1e-8);assert.ok(Math.abs((crop.h/2-crop.imageTransform.y)/crop.imageTransform.scale-(oldCrop.h/2-oldCrop.imageTransform.y)/oldCrop.imageTransform.scale)<1e-8);assert.equal(crop.visible,true);
  const visibleBackgrounds=result.gradients.filter(g=>g.visible);assert.equal(visibleBackgrounds.length,2);assert.ok(visibleBackgrounds.every(g=>g.gradient.startColor===g.gradient.endColor));assert.ok(visibleBackgrounds.some(g=>g.featherEdges?.top>0));assert.ok(visibleBackgrounds.some(g=>g.featherEdges?.bottom>0));
  for(const g of result.gradients.filter(g=>g.visible)){assert.equal(g.assistantLayoutAnchor.pageId,ids[0]);assert.equal(g.designEpisode,11);assert.notEqual(g.gradient.startColor,'#000000');assert.equal(gradientFrame(g,{pages:[{pageId:ids[0],y:500}],width:1280,height:3000}).y,g.y+500);}
  const again=await f.api.importResult(script,packet);assert.equal(again.revision,1);assert.equal(f.store.db.projects.length,1);assert.ok(fs.existsSync(path.join(f.dir,'backups',result.id+'_before_canvas_layout_0.json')));assert.ok(result.layoutHistory.records.length);
@@ -105,4 +105,13 @@ test('正式成图接回接口将旧单画板稿恢复为来源屏段；取景�
 
 test('无首尾画板或只有一侧时成图重排仍正常接回，并保留画板启用状态',async()=>{
  for(const mode of ['none','cover-only','tail-only']){const f=await fixture();if(mode==='none')delete f.project.episodeBoards;else{const state=ensureEpisodeBoards(f.project),e=state.episodes[11]={};e[mode==='cover-only'?'tail':'cover']={useOwnBackground:false,backgroundAssetId:null,enabled:false};}const before=structuredClone(f.project.episodeBoards),ready=await f.call('source',{records:f.records}),script=f.scripts.get(ready.scriptId),result=await f.api.importResult(script,geometry(script));validateProject(result);assert.equal(result.id,f.project.id);assert.deepEqual(result.episodeBoards,before);assert.equal(hasEpisodeBoard(result,'cover',11),mode==='cover-only');assert.equal(hasEpisodeBoard(result,'tail',11),mode==='tail-only');assert.ok(result.gradients.some(g=>g.visible&&g.designEpisode===11));assert.equal(f.store.db.projects.length,1);}
+});
+
+
+test('R3收框预览与实际接回一致，原图和其他话不改',async()=>{
+ const f=await fixture(),before=JSON.stringify(f.project),ready=await f.call('source',{records:f.records,uniformFraming:true}),script=f.scripts.get(ready.scriptId),packet=geometry(script);
+ for(const [i,p]of packet.panels.entries()){const a=script.shots[i].artworkLayout;p.h=p.w*a.height/a.width;if(i)p.y=packet.panels[i-1].y+packet.panels[i-1].h+80;}packet.canvas.height=Math.ceil(Math.max(...packet.panels.map(p=>p.y+p.h))+100);
+ packet.backgrounds[0].h=packet.canvas.height;assert.ok(script.shots.every(s=>s.artworkLayout.tighten));
+ const result=await f.api.importResult(script,packet);validateProject(result);assert.deepEqual(result.pages.at(-1),f.other);assert.equal(JSON.stringify(f.project),before);
+ for(const crop of result.pages.flatMap(p=>p.panels).filter(p=>p.visible!==false&&p.panelSlice)){const a=f.assets.find(a=>a.id===crop.imageAssetId),t=crop.imageTransform;assert.ok(t.x<=.01&&t.y<=.01);assert.ok(t.x+a.width*t.scale>=crop.w-.01);assert.ok(t.y+a.height*t.scale>=crop.h-.01);}
 });

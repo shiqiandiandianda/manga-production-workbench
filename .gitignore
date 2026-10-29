@@ -49,3 +49,4 @@ comic/repair-engine/public/fonts/*.woff*
 *.woff2
 
 **/data/
+**/prompt-rewrite-*/

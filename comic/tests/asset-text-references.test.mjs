@@ -20,8 +20,18 @@ import {createProject,clone,id} from '../public/model.js';
 import {migrateLayerDocument,normalizeLayerOrder} from '../public/layers.js';
 import {ensureProjectPanelGeneration} from '../public/panel-generation.js';
 import {ensureLayoutHistory} from '../public/layout-history.js';
+import {automaticTextAssetDescription} from '../public/asset-text-description.js';
+import {textAssetDescriptionContent,textAssetInstructions} from '../public/asset-text-references.js';
 const require=createRequire(import.meta.url),{createCanvas}=require(process.env.COMIC_TEST_CANVAS_MODULE),{chromium}=require('playwright');
 const evidence=path.resolve(import.meta.dirname,'../../verification/text-assets-20261023');fs.mkdirSync(evidence,{recursive:true});
+test('旧自动描述剥离整格参考操作说明；新描述聚焦画面，保留原文和手工描述',()=>{
+ const imported='【一、单格规格与构图】\n单格规格\n【二、实际参考图对应】\n待绑定资产：舞姬；人物外观以参考图为准\n【六、本格画面提示词】\n舞姬正在起舞，乐工演奏。\n【七、本格连续性核对】\n检查前后格',saved='人物：舞姬\n原文摘录：舞姬起舞\n本格画面依据：'+imported;
+ assert.equal(textAssetDescriptionContent(saved),'人物：舞姬\n原文摘录：舞姬起舞\n本格画面依据：舞姬正在起舞，乐工演奏。');
+ const description=automaticTextAssetDescription({pages:[]},{role:'character',name:'舞姬',sources:[{description:imported}]}).description;
+ assert.ok(description.includes('舞姬正在起舞'));assert.ok(!description.includes('待绑定资产'));
+ const hand='浅色舞衣，衣缘有“待绑定”字样。';assert.equal(textAssetDescriptionContent(hand),hand);
+ const prompt=textAssetInstructions([{role:'character',name:'舞姬',state:'未知（待确认）',description:saved}]);assert.ok(!prompt.includes('未知（待确认）'));assert.ok(prompt.includes('不等待或索取其图片、服装卡'));assert.ok(prompt.includes('舞姬正在起舞'));
+});
 async function until(fn){for(let i=0;i<300;i++){if(fn())return;await new Promise(r=>setTimeout(r,20));}throw Error('等待合成任务超时');}
 async function fixture(t,files=syntheticFiles()){
  const dir=fs.mkdtempSync(path.join(evidence,'fixture-')),c=createCanvas(256,512);c.getContext('2d').fillRect(0,0,256,512);const png=c.toBuffer('image/png'),sha=createHash('sha256').update(png).digest('hex'),calls=[];let release;const gate=new Promise(r=>release=r);
@@ -58,6 +68,14 @@ test('文生资产替代必需附图，保留原图及原文；原子校验、�
 test('即梦无图片的文生资产自动使用文生图，排队输入和协作输入均保留描述',{timeout:15000},async t=>{
  const f=await fixture(t);await f.apply('测试人物','黑衣少年');await f.apply('测试庭院','青砖小院');const frame=productionFrame(f.current(),'E011-S001');
  const jobs=await f.api('/api/jobs',{projectId:f.p.id,panelIds:[frame.id],provider:'jimeng',model:'fake',mode:'i2i'});assert.equal(jobs.length,1);const job=f.studio.store.db.jobs.find(j=>j.id===jobs[0].id);assert.equal(job.input.mode,'t2i');assert.equal(job.input.referenceRoles.length,0);assert.equal(job.input.textAssetReferences.length,2);await until(()=>f.calls.length===1);assert.equal(f.calls[0].mode,'t2i');f.release();await until(()=>job.status==='failed');assert.match(job.message,/合成通道/);
+});
+
+test('统一服装后的屏段文生使用当前有效状态，准备与实际生成不再回退原服装图片',{timeout:15000},async t=>{
+ const f=await fixture(t);f.current().characterOutfitOverrides={11:{测试人物:{state:'青衣',previousStates:['黑衣']}}};f.studio.store.save();
+ await f.apply('测试人物','青衣人物，按剧情绘制');await f.apply('测试庭院','青砖庭院');
+ const frame=()=>productionFrame(f.current(),'E011-S001');assert.equal(auditPanelReferences(f.current(),frame(),[]).ready,true);assert.deepEqual(productionReferencePlan(f.current(),frame(),[]).refs,[]);
+ await f.api('/api/projects/'+f.p.id+'/production/mode',{expectedRevision:f.current().revision,segmentId:'E011-S001',mode:'empty'});
+ assert.deepEqual(productionReferencePlan(f.current(),frame(),[]).refs,[]);await f.api('/api/jobs',{projectId:f.p.id,panelIds:[frame().id],provider:'codex'});await until(()=>f.calls.length===1);assert.equal(f.calls[0].referenceRoles.length,0);assert.ok(f.calls[0].textAssetReferences.some(r=>r.name==='测试人物'&&r.state==='青衣'));f.release();await until(()=>f.studio.idle());
 });
 test('普通画格文生按位置隔离、同状态覆盖，来源和模型提示词保留；旧生成结果不覆盖新描述',{timeout:30000},async t=>{
  const f=await fixture(t),p=migrateLayerDocument(createProject('合成文生资产',true)).project,shot=p.shots[0];p.shots=[shot];Object.assign(shot,{participants:'甲',location:'走廊',propNames:'木剑',characterStates:'甲:青衫',description:'原始镜头：甲手持木剑站在走廊。'});p.pages=[p.pages[0]];p.pages[0].panels=[p.pages[0].panels[0]];p.pages[0].bubbles=[];const panel=p.pages[0].panels[0];p.pages[0].panels.push({...clone(panel),id:id('panel')});p.assetLibrary={version:1,assetIds:[],directories:[],recursive:true};ensureProjectPanelGeneration(p,[]);normalizeLayerOrder(p);ensureLayoutHistory(p);validateProject(p);f.studio.store.db.projects.push(p);f.studio.store.save();

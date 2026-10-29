@@ -1,5 +1,5 @@
 import {createProject,id,clone,panel,rectangle} from './model.js';
-import {SHOT_SIZES,CAMERA_ANGLES,normalizeCameraAngle} from './shot-settings.js';
+import {SHOT_SIZES,CAMERA_ANGLES,validCameraAngle,normalizeCameraAngle} from './shot-settings.js';
 
 // Geometry is supplied by the learning workbench. This adapter never designs a layout.
 export function buildLayoutProject(script,geometry,{originalProject=null}={}){
@@ -17,7 +17,7 @@ export function buildLayoutProject(script,geometry,{originalProject=null}={}){
   if(originalProject&&(!original||original.code!==s.code||original.description!==s.description||original.dialogue!==s.dialogue))throw Error('原分镜已改变，请重新送入排版');
   const shot={...(original?clone(original):clone(s)),id:id('shot'),code:String(s.code),title:String(s.title||s.code).slice(0,180),description:String(s.description||''),dialogue:String(s.dialogue||''),referenceIds:original?clone(original.referenceIds):[],episode,sourceLayoutKey:s.key};
   if(!original){shot.participants??=String(s.characters||'');shot.sfxWords??=String(s.sfx||'');}
-  for(const [key,options]of [['shotSize',SHOT_SIZES],['cameraAngle',CAMERA_ANGLES]])if(shot[key]){const raw=shot[key],normalized=key==='cameraAngle'?normalizeCameraAngle(raw):raw;if(!options.includes(normalized)){shot[key+'Raw']=raw;delete shot[key];}else shot[key]=normalized;}
+  for(const [key,options]of [['shotSize',SHOT_SIZES],['cameraAngle',CAMERA_ANGLES]])if(shot[key]){const raw=shot[key],normalized=key==='cameraAngle'?normalizeCameraAngle(raw):raw;if(!(key==='cameraAngle'?validCameraAngle(normalized):options.includes(normalized))){shot[key+'Raw']=raw;delete shot[key];}else shot[key]=normalized;}
   return shot;
  });
  const page={id:id('page'),name:'第'+episode+'话 · 自动排版',width:1280,height:geometry.canvas.height,background:'#ffffff',storyboard:{episode,projection:'manual'},panels:[],bubbles:[]};

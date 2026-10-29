@@ -32,6 +32,7 @@
 .bubble-properties-pane{padding-top:11px;display:flex;flex-direction:column;gap:10px}
 .bubble-properties-pane h3{font-size:12px;color:#c4daec;margin:1px 0 0}
 .bubble-properties-pane>button{min-height:34px;font-size:12px;padding:6px 8px}
+.bubble-fit-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.modern-workbench #inspector-body .bubble-fit-actions button{min-width:0;min-height:30px;padding:5px 3px;margin:0;font-size:11px}
 .bubble-properties .sub-note,.bubble-properties .bubble-overflow-note{font-size:11px;line-height:1.55;margin:0;color:#9ebbd4}
 .bubble-properties .bubble-overflow-note{padding:7px;border-left:2px solid #deaa69;background:#44392d;color:#f0c797}
 .modern-workbench #inspector-body .bubble-properties .checkbox-field{display:flex;align-items:center;gap:7px;margin:0;min-height:25px}

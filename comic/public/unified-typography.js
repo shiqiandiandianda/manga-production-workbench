@@ -1,4 +1,5 @@
 import {FONT_FAMILIES,normalizeBubbleStyle,bubbleLayout,svgBubbleMarkup} from './lettering.js';
+import {formatInputNumber} from './numeric-inputs.js';
 
 export const TYPOGRAPHY_DEFAULT={fontFamily:'source-han-sans',fontSize:48,fontWeight:400,letterSpacing:0,lineHeight:1.32,textColor:'#171b20',textAlign:'center',writingMode:'horizontal',textDirection:'ltr',padding:28};
 export const TYPOGRAPHY_FIELDS=Object.keys(TYPOGRAPHY_DEFAULT);
@@ -41,16 +42,15 @@ export function applyProjectTypography(project,input){
 export function typographyMarkup(value,prefix,{scope=false,projectCount=0,trial=false}={}){
   const config=validateTypography({...TYPOGRAPHY_DEFAULT,...value});
   const select=(key,label,choices)=>'<label>'+label+'<select id="'+prefix+'-'+key+'" data-typography-field aria-label="统一'+label+'">'+Object.entries(choices).map(([v,text])=>'<option value="'+v+'" '+(String(config[key])===v?'selected':'')+'>'+text+'</option>').join('')+'</select></label>';
-  const number=(key,label,min,max,step=1)=>'<label>'+label+'<input id="'+prefix+'-'+key+'" data-typography-field aria-label="统一'+label+'" type="number" min="'+min+'" max="'+max+'" step="'+step+'" value="'+config[key]+'"></label>';
+  const number=(key,label,min,max,step=1)=>'<label>'+label+'<input id="'+prefix+'-'+key+'" data-typography-field aria-label="统一'+label+'" type="number" min="'+min+'" max="'+max+'" step="'+step+'" value="'+formatInputNumber(config[key])+'"></label>';
   return '<section class="unified-typography" data-typography-panel><div class="typography-heading"><div><strong>统一字体</strong><small>对白 · 心声 · 旁白</small></div><button type="button" data-typography-reset>恢复默认</button></div>'
     +'<div class="typography-fields">'+select('fontFamily','字体',FONT_LABELS)+number('fontSize','字号 px',10,1024)
     +select('fontWeight','字重 / 粗细',{...WEIGHTS,...(!Object.hasOwn(WEIGHTS,config.fontWeight)?{[config.fontWeight]:String(config.fontWeight)}:{})})
     +'<label>文字颜色<div class="typography-color"><input id="'+prefix+'-textColor" data-typography-field type="color" value="'+config.textColor+'" aria-label="统一文字颜色"><input id="'+prefix+'-textColorHex" data-typography-field type="text" value="'+config.textColor+'" maxlength="7" spellcheck="false" aria-label="统一颜色 HEX"></div></label>'
     +number('letterSpacing','字间距 px',-10,64,.5)+number('lineHeight','行距 × 字号',.8,3,.05)+'</div>'
-    +'<details class="typography-advanced"><summary>更多排版：对齐、横竖排、内边距</summary><div class="typography-fields">'+select('textAlign','文字对齐',{left:'靠左',center:'居中',right:'靠右'})+select('writingMode','文字排列',{horizontal:'横排',vertical:'竖排'})+select('textDirection','书写方向',{ltr:'左到右',rtl:'右到左'})+number('padding','文字内边距 px',0,96)+'</div></details>'
+    +'<details class="typography-advanced"><summary>更多排版</summary><div class="typography-fields">'+select('textAlign','文字对齐',{left:'靠左',center:'居中',right:'靠右'})+select('writingMode','文字排列',{horizontal:'横排',vertical:'竖排'})+select('textDirection','书写方向',{ltr:'左到右',rtl:'右到左'})+number('padding','文字内边距 px',0,96)+'</div></details>'
     +(scope?'<label>应用范围<select id="'+prefix+'-scope" aria-label="字体应用范围"><option value="project">当前工程全部画板</option><option value="all">全部已保存话（'+projectCount+' 个工程）</option></select></label>':'')
-    +'<p class="typography-note">'+(trial?'本次导入各话沿用同一设置。重新试排会按字重、间距和文字排列计算气泡。':'统一对白、心声和旁白，锁定文字需先解锁。修改间距或排列后，可用“分类 / 重排”调整气泡布局。')+'</p>'
-    +(trial?'<div class="typography-actions"><button type="button" data-typography-replan class="primary">应用并重新试排</button><button type="button" data-typography-sync>同步全部已保存话</button></div>':'<button type="button" data-typography-apply class="primary wide">统一应用字体</button>')
+    +(trial?'<div class="typography-actions"><button type="button" data-typography-replan class="primary">应用并重新试排</button><button type="button" data-typography-sync>同步全部已保存话</button></div>':'<button type="button" data-typography-apply class="primary wide" title="应用到所选范围的对白、心声和旁白；跳过锁定文字">应用字体</button>')
     +'</section>';
 }
 export function readTypography(host,prefix){

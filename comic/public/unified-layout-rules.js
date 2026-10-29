@@ -42,6 +42,11 @@ export function unifiedGenerationInstructions(project,panel){
  if(!panel.productionSegment)return '';
  const ep=project.productionPackage?.episodes.find(e=>e.segments.some(s=>s.id===panel.productionSegment)),binding=project.layoutRuleBindings?.[ep?.episode];
  if(!binding)return '';
+ // Canvas-only reflow bindings have no generation plan. Do not invent one.
+ if(!Array.isArray(binding.generationSegments)){
+  if(ep.segments.some(s=>s.unifiedLayoutRuleDigest))throw Error('统一排版规划缺失，未执行整屏生图');
+  return '';
+ }
  const plan=binding.generationSegments.find(s=>s.segmentId===panel.productionSegment);
  if(!plan||ep.segments.find(s=>s.id===panel.productionSegment)?.unifiedLayoutRuleDigest!==binding.contract.digest)throw Error('统一排版规划与当前屏段不一致，请重新规划');
  return '\n\n【统一版式约束：框位与尺寸以此段为准；下方源提示词的旧排数、格宽高与框位不再作为布局依据，人物、剧情、台词、构图内容仍原样保留】\n'

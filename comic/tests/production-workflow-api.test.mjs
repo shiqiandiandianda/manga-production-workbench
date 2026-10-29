@@ -39,18 +39,3 @@ function fakeBridge(provider){const calls=[];let active=0,peak=0;return {
  calls,python:pythonBin,get peak(){return peak;},status:async()=>({connected:true,installed:true,imageFeature:true,supportsTransparentBackground:true,provider}),close(){for(const c of calls)c.finish();},
  async generate(directory,input,referenceFiles,options={}){let release;const wait=new Promise(resolve=>release=resolve),entry={directory,input:structuredClone(input),referenceFiles:[...referenceFiles],options,finish:release};calls.push(entry);active++;peak=Math.max(peak,active);try{const supplied=await wait;return supplied||{bytes:png,imageToolSeen:true,description:'隔离合成输出',timings:{totalMs:1}};}finally{active--;}}
 };}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

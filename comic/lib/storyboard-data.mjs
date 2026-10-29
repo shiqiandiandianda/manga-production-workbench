@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {importStoryboard} from './storyboard-import.mjs';
 import {delimitedTable} from './delimited-table.mjs';
 import {normalizeRows,id} from '../public/model.js';
-import {SHOT_SIZES,CAMERA_ANGLES} from '../public/shot-settings.js';
+import {SHOT_SIZES,validCameraAngle,normalizeCameraAngle} from '../public/shot-settings.js';
 import {episodeFromLabel} from '../public/storyboard-episodes.js';
 const fail=message=>{throw Object.assign(Error(message),{status:400,code:'storyboard_data_invalid'});};
 const value=(row,...keys)=>{for(const key of keys)if(row[key]!==undefined&&String(row[key]).trim())return Array.isArray(row[key])?row[key].join('、'):String(row[key]);return '';};
@@ -22,7 +22,7 @@ export async function readStoryboardData(input){
  const shots=[],episodes=[];
  for(const [episode,rows] of [...grouped].sort(([a],[b])=>a-b)){
   const normalized=rows.map(({raw,sourceSheet,sourceRow},index)=>{const row={...raw,code:value(raw,'code','格号','镜头编号','编号')||String(index+1),sourceSheet,sourceRow};const size=value(raw,'shotSize','景别'),angle=value(raw,'cameraAngle','机位角度','镜头角度');
-   for(const key of ['shotSize','景别','cameraAngle','机位角度','镜头角度'])delete row[key];if(SHOT_SIZES.includes(size))row.shotSize=size;if(CAMERA_ANGLES.includes(angle))row.cameraAngle=angle;
+   for(const key of ['shotSize','景别','cameraAngle','机位角度','镜头角度'])delete row[key];if(SHOT_SIZES.includes(size))row.shotSize=size;if(validCameraAngle(normalizeCameraAngle(angle)))row.cameraAngle=angle;
    row.shotSizeRaw=size;row.cameraAngleRaw=angle;row.sourceLocation=value(raw,'sourceLocation','分镜出处','来源位置','原著位置','原文出处');return row;});
   const imported=normalizeRows(normalized);for(const [index,shot] of imported.entries()){shot.episode=episode;shot.sourceFields=structuredClone(rows[index].raw);shot.shotSizeRaw=normalized[index].shotSizeRaw;shot.cameraAngleRaw=normalized[index].cameraAngleRaw;}
   shots.push(...imported);episodes.push({episode,title:value(rows[0].raw,'episodeTitle','话名'),shotIds:imported.map(s=>s.id),sourceSheets:[...new Set(rows.map(row=>row.sourceSheet))],status:'imported'});

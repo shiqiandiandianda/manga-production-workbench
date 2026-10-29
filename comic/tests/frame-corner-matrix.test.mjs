@@ -9,3 +9,7 @@ test('矩形、圆形、多边形、5481背景及负坐标抠图：全部角点�
  }assert.equal(checked,192);
 });
 test('超高自由节点允许小幅加高；负坐标边框移动保持负Y；对角锚点稳定',()=>{const f={...panel('',247,-383,699.37,716.89),imageTransform:{x:13,y:17,scale:1.1}};for(let i=0;i<4;i++){const p=createProject('锚点');p.pages[0].panels=[structuredClone(f)];p.pages[0].bubbles=[];p.layerOrder=[f.id];resizePanelGroup(p,f.id,i,{dx:2,dy:3});const n=p.pages[0].panels[0],op=(i+2)%4;close(n.x+f.points[op].x*n.w,f.x+f.points[op].x*f.w,'对角X');close(n.y+f.points[op].y*n.h,f.y+f.points[op].y*f.h,'对角Y');}const tall=panel('',0,0,1280,5481,'background');assert.equal(nodeDragY(tall,2,1+4/5481),1+4/5481);const moved=moveFrameBoundary(f,{dx:1,dy:2});assert.equal(moved.y,-381);assert.equal(moved.y+moved.imageTransform.y,f.y+f.imageTransform.y);});
+
+test('选择工具默认等比；明确关闭后按自由尺寸拖动',()=>{
+ for(const enabled of [undefined,false]){const p=createProject('默认等比'),f=panel('',100,100,400,600);if(enabled===false)f.proportionalResize=false;p.pages[0].panels=[f];p.pages[0].bubbles=[];p.layerOrder=[f.id];assert.equal(resizePanelGroup(p,f.id,2,{dx:50,dy:5},structuredClone(p)),true);if(enabled===undefined)close(f.w/f.h,400/600,'默认保持比例');else assert.ok(Math.abs(f.w/f.h-400/600)>.001);}
+});

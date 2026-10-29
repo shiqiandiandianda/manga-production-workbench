@@ -450,7 +450,7 @@ def generate(server, directory, digest_cache=None, skill_path=None):
             target = crop_page(task["basePagePath"], task["cropBox"], crop)
         references = [str(crop)] + references
         first = "作为 referenced_image_paths 的第一张传入" if direct else "必须先用 view_image 查看"
-        image_description = '完整原图（不是画布截图或局部裁切）' if task.get('editScope') == 'full-image' else '当前漫画格子的裁切原图'
+        image_description = '画格当前取景截图（保持此构图高清放大）' if (task.get('fullImageSource') or {}).get('frameUpscale') else ('完整原图（不是画布截图或局部裁切）' if task.get('editScope') == 'full-image' else '当前漫画格子的裁切原图')
         style_rule = '画风按本次项目统一画风设置执行。' if str(task.get('style') or '').strip() else '保持原有画风。'
         prompt = f"编辑路径清单图 1（{image_description}，{first}）。修改要求：{task.get('editPrompt', '')}。保持其他内容，{style_rule}生成同一宽高比的新图，原图比例为 {target[0]}:{target[1]}。后续路径是角色、场景或画风参考。\n" + prompt
     reference_digests = {digest_cache.digest(p) for p in references}
@@ -617,6 +617,14 @@ def generate(server, directory, digest_cache=None, skill_path=None):
 def rewrite_prompt(server, directory):
     """Text-only revision in its own read-only thread; never replay a submitted turn."""
     prompt = (directory / "request.txt").read_text(encoding="utf-8")
+    reference_manifest = directory / "references.json"
+    reference_files = json.loads(reference_manifest.read_text(encoding="utf-8")) if reference_manifest.exists() else []
+    contents = [{"type": "text", "text": prompt}]
+    for reference in reference_files:
+        image_path = Path(reference["file"]).resolve(strict=True)
+        if directory.resolve() not in image_path.parents:
+            raise ValueError("修改参考图片超出任务目录")
+        contents.append({"type": "localImage", "path": str(image_path)})
     thread_id = turn_id = None
     completed = False
     reply = ""
@@ -626,7 +634,7 @@ def rewrite_prompt(server, directory):
         thread_id = thread["thread"]["id"]
         server.generation_started = True
         progress("Codex 正在按修改意见修订提示词", "turn/start", "prompt-rewrite")
-        response = server.rpc("turn/start", {"threadId": thread_id, "input": [{"type": "text", "text": prompt}], "outputSchema": schema}, timeout=45)
+        response = server.rpc("turn/start", {"threadId": thread_id, "input": contents, "outputSchema": schema}, timeout=45)
         turn_id = response.get("turn", {}).get("id")
         if not turn_id:
             raise BridgeError("Codex 未返回修改任务编号，原提示词保留", "invalid_turn_response", "prompt-rewrite", False, True)
@@ -840,4 +848,3 @@ if __name__ == "__main__":
     except Exception as error:
         emit(error_event(error))
         sys.exit(1)
-

@@ -3,6 +3,8 @@ import {createHash} from 'node:crypto';
 import {createEpisodeGenerationBatches} from './lib/episode-generation-batches.mjs';
 import {episodeGenerationPanelIds} from './public/generation-policy.js';
 import {currentBoardEpisode} from './public/episode-boards.js';
+import {captureFrameUpscale,applyFrameUpscale,frameUpscaleStamp,frameUpscaleResultError,FRAME_UPSCALE_PROMPT} from './lib/frame-upscale.mjs';
+import {editReferenceAssets} from './lib/edit-references.mjs';
 import {createPromptRewriteAPI} from './lib/prompt-rewrite-api.mjs';
 import {Readable} from 'node:stream';
 import {pipeline as formalPreviewPipeline} from 'node:stream/promises';
@@ -147,11 +149,11 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
   bridge.ensurePoolSize?.(generationSettings.limits.codex);
   let closed=false;
   const codexLogin=createCodexLogin(bridge);
-  
-  
+
+
   for(const job of store.db.jobs){if(job.provider!=='jimeng'||job.status!=='failed')continue;const stateFile=path.join(dataDir,'jobs',job.id,'jimeng-state.json');if(!fs.existsSync(stateFile))continue;try{const state=JSON.parse(fs.readFileSync(stateFile,'utf8'));if(TERMINAL_PHASES.includes(state.phase))continue;if(state.submissionAttempted){Object.assign(job,{status:'recoverable',phase:'recoverable',requiredAction:'resume',recovery:jimengBridge.publicState(state),message:'上次即梦任务被中断；请查询原任务恢复，避免重复扣费。'});}else if(state.quote){Object.assign(job,{status:'awaiting_confirmation',phase:'awaiting_confirmation',quote:state.quote,recovery:jimengBridge.publicState(state),message:'即梦草稿已保留，请检查报价并批准消费上限后继续。'});}else if(state.nodeId&&state.submitId){Object.assign(job,{status:'recoverable',phase:'recoverable',requiredAction:'resume',recovery:jimengBridge.publicState(state),message:'即梦保存步骤被中断，请回读原节点恢复到报价；不会直接运行生成。'});}}catch{job.message='即梦恢复记录暂时无法读取，请保留原文件检查。';}}store.save();
   const findPanel=(project,panelId)=>{const page=project.pages.find(page=>page.panels.some(p=>p.id===panelId));const panel=page?.panels.find(p=>p.id===panelId);check(panel,'格子不存在',404);return {page,panel};};
-  
+
   const publicJob=job=>{const result={executionActive:running.has(job.id),...Object.fromEntries(Object.entries(job).filter(([key])=>!['input','key','panelContentKey','referenceKey','approvalCeiling','recoveryOnly','preparationOnly'].includes(key)))},waiting=packageJobWait(job,store);return waiting?{...result,waitingFor:waiting,phase:'dependency',message:waiting.message}:result;};
   const stateSnapshot=createStateSnapshot({store,publicJob,projectView:boardSharing.view});
   const imageGeometryKey=panel=>{const frame=geometryKey(panel);if(!panel.imageAssetId)return frame;const file=store.assetPath(panel.imageAssetId);try{const stat=fs.statSync(file);return JSON.stringify([frame,fs.realpathSync(file),stat.size,stat.mtimeMs,stat.ctimeMs]);}catch{return JSON.stringify([frame,file,'missing']);}};
@@ -174,7 +176,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
   }
   let projectCenter,projectSync=null;
   function saveProject(project,{editor=false}={}){stripObsoleteProductionReferences(project);hydrateProductionSlices(project,store.db.assets);syncScreenBackgrounds(project,store.db.assets);if(project.layoutHistory)ensureLayoutHistory(project);project.updated=new Date().toISOString();if(editor)project.revision++;store.markProject?.(project);store.save();projectCenter?.mark(project);projectSync?.mark(project);return boardSharing.view(project);}
-  
+
   const generationSlots=new GenerationSlots({directory:process.env.COMIC_SLOT_DIR||path.join(dataDir,'generation-slots'),platforms:generationSettings.platforms,onChange:pump});
   generationSlots.setProviderLimits(generationSettings.limits);
   const localRuntime=process.env.COMIC_IMAGE_TOOLS_ROOT||path.resolve(root,'../.runtime/image-tools');
@@ -211,11 +213,11 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
     const job=store.db.jobs.find(item=>lease.ownerId==='comic:'+item.id);
     if(job?.provider==='jimeng'&&!jimengUncertain(job))generationSlots.release(lease.token,{completed:true});
   }
-  
-  
+
+
   const handleAssetProduction=createAssetProductionHandler({store,body,json,saveProject,enqueue:enqueueProduction,checkImage:async imageId=>{const result=await resolveImageAssets(store,[imageId]);check(!result.failed.length,'图片原路径已失效，请重新登记原图');}});
-  
-  
+
+
   const handleBreakout=createBreakoutHandler({store,body,json,saveProject,enqueue:enqueueBreakout,python:process.env.COMIC_PYTHON_BIN||bridge.python});
   function enqueueBreakout(project,request){
     check(!closed,'服务正在关闭，请稍后重试',503);check(!store.db.jobs.some(j=>j.projectId===project.id&&j.panelId===request.panelId&&['queued','running','awaiting_confirmation','recoverable','delegated'].includes(j.status)),'当前画格还有生成任务，请等待完成或取消',409);
@@ -306,7 +308,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
       const referenceFiles=job.input.referenceRoles.map(reference=>localImagePath(store.assetPath(reference.assetId))),contentReferences=!!job.productionSignature||!!job.input.productionSource||job.assetProductionRequest?.referenceStamp?.startsWith('sha256:'),referencesBefore=contentReferences?referenceContentStamp(referenceFiles):referenceStamp(referenceFiles);
       if(job.productionSignature||job.input.productionSource){job.referenceContentStamp=referencesBefore;store.save();}
       const selectedBridge=job.provider==='jimeng'?jimengBridge:bridge;
-      const bridgeInput=job.provider==='jimeng'?job.input:{...job.input,referenceRoles:referencePackingRoles(job.input.referenceRoles,{project:store.db.projects.find(p=>p.id===job.projectId)||{},assets:store.db.assets})};
+      const bridgeInput=job.provider==='jimeng'?job.input:{...job.input,referenceRoles:referencePackingRoles(job.input.referenceRoles,{project:store.db.projects.find(p=>p.id===job.projectId)||{},assets:store.db.assets,panelId:job.panelId})};
       if(job.provider==='jimeng')lease.keepRemote();
       const result=await selectedBridge.generate(directory,bridgeInput,referenceFiles,{approvalCeiling:job.approvalCeiling,recoveryOnly:job.recoveryOnly===true,preparationOnly:job.preparationOnly===true,signal:operation.controller.signal,globalSlot:{origin:`http://127.0.0.1:${server.address().port}`,token:lease.token},onWorkerPid:pid=>lease.trackPid(pid),onChild:handle=>{operation.handle=handle;if(Number.isInteger(handle?.pid)&&handle.pid>0)lease.trackPid(handle.pid);},onProgress:(message,details={})=>{
         if(job.status!=='running')return;const phase=details.phase||job.phase;
@@ -320,7 +322,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
         // 协作任务：只校验/登记结果并写回 job，绝不触碰任何工程画格（回填由 A 端 collab-apply 完成）。
         if(job.kind==='collab-generation'){collabJobs.complete(job,result,{directory});return;}
         const rawAsset=generatedAsset(result,directory,`${job.shotCode} · ${job.shotTitle} · 原始生成图`,job.provider==='jimeng'?'jimeng':'codex');
-        const frameComposition=assessFrameComposition(job.input,rawAsset);if(job.input.editScope==='full-image'&&Math.abs(rawAsset.width/rawAsset.height-job.input.fullImageSource.width/job.input.fullImageSource.height)>.001)result.alignmentError='改图结果比例与原图不同，已保留候选，请人工采用';
+        const frameComposition=assessFrameComposition(job.input,rawAsset);if(job.input.fullImageSource?.frameUpscale)result.alignmentError=frameUpscaleResultError(job.input.fullImageSource,rawAsset)||result.alignmentError;if(job.input.editScope==='full-image'&&Math.abs(rawAsset.width/rawAsset.height-job.input.fullImageSource.width/job.input.fullImageSource.height)>.001)result.alignmentError='改图结果比例与原图不同，已保留候选，请人工采用';
         if(frameComposition){result.nativeComposition=frameComposition;const native=result.nativeGeneration,expectedModel=job.input.nativeSizing?.imageModelId||job.input.model;
           if(native?.notice&&result.alignmentError===native.notice&&native.provider===job.provider&&(!expectedModel||!native.imageModelId||native.imageModelId===expectedModel))result.alignmentError=null;
         }
@@ -348,10 +350,10 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
           let comparison={project,frame:target,signatureUnchanged:true};try{comparison=packageResultView(project,target,store.db.assets,job.productionSignature);}catch{comparison.signatureUnchanged=false;}bindingUnchanged&&=comparison.signatureUnchanged;
           if(target&&job.referenceKey){try{bindingUnchanged&&=panelReferenceKey(comparison.project,comparison.frame,store.db.assets)===job.referenceKey;}catch{bindingUnchanged=false;}}
           let contentUnchanged=false;if(target){try{contentUnchanged=job.panelContentKey?(job.input.editScope==='full-image'?JSON.stringify({generation:target.generation,referenceIds:target.referenceIds}):panelContentKey(comparison.project,comparison.frame,store.db.assets))===job.panelContentKey:!!shot&&sourceKey(project,shot)===job.key;}catch{}}
-          autoApplyBlocked=autoApplyBlocks({target,page,job,contentUnchanged:contentUnchanged&&(!job.panelContentKey?target?.shotId===job.shotId:true),referencesUnchanged,bindingUnchanged,geometryUnchanged:!!target&&(job.autoFillStamp?generationTargetStamp(target,job.action,id=>store.assetPath(id))===job.autoFillStamp:!job.geometryKey||imageGeometryKey(target)===job.geometryKey),alignmentError:result.alignmentError});
-          if(target){target.candidates=[...new Set([...target.candidates,...(target.imageAssetId?[target.imageAssetId]:[]),rawAsset.id,asset.id])].slice(-40);if(!autoApplyBlocked.length){if(comparison.frame!==target){target.referenceIds=[...comparison.frame.referenceIds];target.generation.referenceRoles=clone(comparison.frame.generation.referenceRoles);}target.imageAssetId=asset.id;target.imageTransform=job.input.editScope==='full-image'?{...job.input.fullImageSource.transform,scale:job.input.fullImageSource.transform.scale*job.input.fullImageSource.width/asset.width}:job.action==='edit'?{x:job.input.cropBox[0]-target.x,y:job.input.cropBox[1]-target.y,scale:1}:fitGeneratedArtwork(target,asset);target.imageEffects={version:1,imageAssetId:asset.id,artDirection:clone(job.input.shot.artDirection||{})};applied=true;if(target.productionSegment&&productionSegmentUnit(project,job.input.shot.episode,target.productionSegment)==='screen')ensureProductionScreenLettering(project,target.productionSegment);}syncScreenBackgrounds(project,store.db.assets);project.updated=new Date().toISOString();}
+          autoApplyBlocked=autoApplyBlocks({target,page,job,contentUnchanged:contentUnchanged&&(!job.panelContentKey?target?.shotId===job.shotId:true),referencesUnchanged,bindingUnchanged,geometryUnchanged:!!target&&(job.autoFillStamp?generationTargetStamp(target,job.action,id=>store.assetPath(id))===job.autoFillStamp:!job.geometryKey||imageGeometryKey(target)===job.geometryKey),alignmentError:result.alignmentError||(job.input.fullImageSource?.frameUpscale&&target&&frameUpscaleStamp(project,target,store)!==job.input.fullImageSource.appearanceStamp?'截图来源显示效果已改变':null)});
+          if(target){target.candidates=[...new Set([...target.candidates,...(target.imageAssetId?[target.imageAssetId]:[]),rawAsset.id,asset.id])].slice(-40);if(!autoApplyBlocked.length){if(comparison.frame!==target){target.referenceIds=[...comparison.frame.referenceIds];target.generation.referenceRoles=clone(comparison.frame.generation.referenceRoles);}if(job.input.fullImageSource?.frameUpscale){try{job.resultLayerId=applyFrameUpscale(project,target,asset,job.input.fullImageSource,job.id).id;applied=true;}catch(error){autoApplyBlocked.push(error.message);}}else{target.imageAssetId=asset.id;target.imageTransform=job.input.editScope==='full-image'?{...job.input.fullImageSource.transform,scale:job.input.fullImageSource.transform.scale*job.input.fullImageSource.width/asset.width}:job.action==='edit'?{x:job.input.cropBox[0]-target.x,y:job.input.cropBox[1]-target.y,scale:1}:fitGeneratedArtwork(target,asset);target.imageEffects={version:1,imageAssetId:asset.id,artDirection:clone(job.input.shot.artDirection||{})};applied=true;if(target.productionSegment&&productionSegmentUnit(project,job.input.shot.episode,target.productionSegment)==='screen')ensureProductionScreenLettering(project,target.productionSegment);}}syncScreenBackgrounds(project,store.db.assets);project.updated=new Date().toISOString();}
         }
-        updateJob(job,{status:job.status==='cancelled'?'cancelled':'done',assetId:asset.id,rawAssetId:rawAsset.id,applied,autoApplyBlocked,repairedPage:result.repairedPage,imageToolSeen:result.imageToolSeen,message:applied?'镜头已生成并贴入格子'+(result.nativeComposition?.notice?'；'+result.nativeComposition.notice:''):'结果已保留为候选：'+autoApplyBlocked.join('；'),description:result.description});
+        updateJob(job,{status:job.status==='cancelled'?'cancelled':'done',assetId:asset.id,rawAssetId:rawAsset.id,applied,autoApplyBlocked,repairedPage:result.repairedPage,imageToolSeen:result.imageToolSeen,message:applied?(job.input.fullImageSource?.frameUpscale?'截图高清已加入原位高清图层':'镜头已生成并贴入格子')+(result.nativeComposition?.notice?'；'+result.nativeComposition.notice:''):'结果已保留为候选：'+autoApplyBlocked.join('；'),description:result.description});
       if(job.status==='done')updateJob(job,{phase:'done',completedAt:new Date().toISOString(),timings:result.timings||null,...(result.recovery?{recovery:result.recovery}:{})});
      }catch(error){completed||=error.generationEnded===true;if(job.status!=='cancelled'&&!closed){
       if(error.code==='account_rate_limited'){
@@ -386,7 +388,8 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
   const autoLayout=createAutoLayoutAPI({store,dataDir,body,json,validateProject,checkAssets,addAsset,saveProject});
   async function submitGenerationJobs(input,hooks={}){
         const project=store.project(cleanId(input.projectId)),panelIds=input.panelIds,action=input.action==='edit'?'edit':'generate',provider=input.provider==='jimeng'?'jimeng':'codex';
-        const fullImage=action==='edit'&&input.editScope==='full-image';check(!input.editScope||fullImage,'改图模式无效');check(!fullImage||provider==='codex','整张原图改图使用 Codex');
+        check(input.resultPlacement===undefined||['auto','candidate'].includes(input.resultPlacement),'生成结果放置方式无效');
+        const fullImage=action==='edit'&&input.editScope==='full-image';check(!input.editScope||fullImage,'改图模式无效');check(!fullImage||provider==='codex','整张原图改图使用 Codex');const frameUpscale=fullImage&&input.frameUpscale===true;check(input.frameUpscale===undefined||frameUpscale,'截图高清模式无效');if(frameUpscale)input.editPrompt=FRAME_UPSCALE_PROMPT;const editRefs=fullImage?editReferenceAssets(store,input.editReferenceIds):[];check(!frameUpscale||!editRefs.length,'截图高清只使用当前画格截图');
         check(project.autoLayoutSource?.mode!=='screen-crop-reflow','成图重排工程只复用已有图片，不提交重新生图；请回到原工程制作新图',409);
         check(!panelIds.some(id=>project.pages.some(p=>p.panels.some(f=>f.id===id&&f.autoLayoutCrop&&panelSourceBlocksGeneration(f,project)))),'成图重排画格复用已有图片，不能直接重新生图',409);
         check(!input.provider||['jimeng','codex'].includes(input.provider),'生图来源无效');
@@ -395,7 +398,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
         if(!hooks.beforeCommit)check(!panelIds.some(id=>episodeBatches.reserved(project.id,id)),'画格已加入本话自动提交，请先停止后续批次',409);
         await teamProduction.refreshReservations(project.id);teamProduction.assertAvailable(project.id,panelIds);
         check(store.db.jobs.filter(j=>['queued','running'].includes(j.status)).length+panelIds.length<=120,'任务队列最多保留 120 个等待或运行任务');
-        const packageModel=provider==='jimeng'&&(project.productionPackage||project.pages.some(p=>p.panels.some(f=>panelIds.includes(f.id)&&textAssetSignature(f).length)))?(await jimengBridge.models()).items?.find(m=>m.model===input.model):null;if(provider==='jimeng'&&project.productionPackage)check(packageModel,'请重新选择可用的官方模型');const candidates=panelIds.map(panelId=>{const {panel}=findPanel(project,cleanId(panelId));check(!panel.locked,'请先解锁格子');check(!project.pages.find(p=>p.panels.includes(panel))?.locked,'请先解锁画板');if(fullImage){check(panel.imageAssetId&&input.sourceImageAssetId===panel.imageAssetId,'原图已改变，请重新发起改图',409);return {panel,shot:{id:panel.shotId||'',code:panel.name||'整图修改',title:panel.name||'整图修改',description:input.editPrompt||''},refs:[],packagePlan:null};}check(!panelSourceBlocksGeneration(panel,project),'该格标记为不生成，仅显示边框与文字');check(!panel.breakoutForeground,'透明前景请通过原画格的破框功能生成');ensurePanelGeneration(project,panel,store.db.assets);const packagePlan=preparePackageJob(project,panel,store.db.assets,panelIds,store.db.jobs);if(packagePlan&&packageModel){const error=referenceCountError(packageModel,textAssetGenerationMode(packageModel,input.mode,packagePlan.refs.length+packagePlan.dependencies.length,panel,{edit:action==='edit'}),packagePlan.refs.length+packagePlan.dependencies.length,{edit:action==='edit'});check(!error,error);}if(panel.productionGrid){const record=project.productionPackage.episodes.flatMap(e=>e.panelRecords).find(r=>r.id===panel.productionGrid.panelId&&r.segmentId===panel.productionGrid.segmentId),problems=productionPanelDataIssues(record,{referenceAudit:auditPanelReferences(project,panel,store.db.assets)});check(!problems.length,'本格分镜资料不完整：'+panel.productionGrid.panelId+'；'+problems.join('；'));}const shot=panelProductionShot(project,panel,store.db.assets);check(shot.description.trim(),'请先填写本格提示词');const refs=referencesForPanel(project,panel,store.db.assets);if(panel.productionGrid||panel.panelSlice)verifyProductionReferenceFiles({segment:project.productionPackage.episodes.flatMap(e=>e.segments).find(s=>s.id===(panel.productionGrid||panel.panelSlice).segmentId),refs},store.db.assets);if(input.referenceIdsByPanel!==undefined){check(input.referenceIdsByPanel&&typeof input.referenceIdsByPanel==='object'&&!Array.isArray(input.referenceIdsByPanel),'本格参考请求格式无效');check(JSON.stringify(input.referenceIdsByPanel[panelId])===JSON.stringify(refs.map(ref=>ref.assetId)),'本格参考已改变，请保存并重新发起生成',409);}refs.forEach(ref=>store.asset(ref.assetId));if(!packagePlan){if(!panel.productionGrid&&!panel.panelSlice)assertCharacterReferences(project,shot,store.db.assets,refs.map(ref=>ref.assetId),panel);assertPanelReferenceCoverage(project,panel,store.db.assets);}return {panel,shot,refs,packagePlan};});
+        const packageModel=provider==='jimeng'&&(project.productionPackage||project.pages.some(p=>p.panels.some(f=>panelIds.includes(f.id)&&textAssetSignature(f).length)))?(await jimengBridge.models()).items?.find(m=>m.model===input.model):null;if(provider==='jimeng'&&project.productionPackage)check(packageModel,'请重新选择可用的官方模型');const candidates=panelIds.map(panelId=>{const {panel}=findPanel(project,cleanId(panelId));check(!panel.locked,'请先解锁格子');check(!project.pages.find(p=>p.panels.includes(panel))?.locked,'请先解锁画板');if(fullImage){check(panel.imageAssetId&&input.sourceImageAssetId===panel.imageAssetId,'原图已改变，请重新发起改图',409);return {panel,shot:{id:panel.shotId||'',code:panel.name||'整图修改',title:panel.name||'整图修改',description:input.editPrompt||''},refs:editRefs.map((a,i)=>({assetId:a.id,name:'修改参考图 '+(i+1),role:'edit-reference'})),packagePlan:null};}check(!panelSourceBlocksGeneration(panel,project),'该格标记为不生成，仅显示边框与文字');check(!panel.breakoutForeground,'透明前景请通过原画格的破框功能生成');ensurePanelGeneration(project,panel,store.db.assets);const packagePlan=preparePackageJob(project,panel,store.db.assets,panelIds,store.db.jobs);if(packagePlan&&packageModel){const error=referenceCountError(packageModel,textAssetGenerationMode(packageModel,input.mode,packagePlan.refs.length+packagePlan.dependencies.length,panel,{edit:action==='edit'}),packagePlan.refs.length+packagePlan.dependencies.length,{edit:action==='edit'});check(!error,error);}if(panel.productionGrid){const record=project.productionPackage.episodes.flatMap(e=>e.panelRecords).find(r=>r.id===panel.productionGrid.panelId&&r.segmentId===panel.productionGrid.segmentId),problems=productionPanelDataIssues(record,{referenceAudit:auditPanelReferences(project,panel,store.db.assets)});check(!problems.length,'本格分镜资料不完整：'+panel.productionGrid.panelId+'；'+problems.join('；'));}const shot=panelProductionShot(project,panel,store.db.assets);check(shot.description.trim(),'请先填写本格提示词');const refs=referencesForPanel(project,panel,store.db.assets);if(panel.productionGrid||panel.panelSlice)verifyProductionReferenceFiles({segment:project.productionPackage.episodes.flatMap(e=>e.segments).find(s=>s.id===(panel.productionGrid||panel.panelSlice).segmentId),refs},store.db.assets);if(input.referenceIdsByPanel!==undefined){check(input.referenceIdsByPanel&&typeof input.referenceIdsByPanel==='object'&&!Array.isArray(input.referenceIdsByPanel),'本格参考请求格式无效');check(JSON.stringify(input.referenceIdsByPanel[panelId])===JSON.stringify(refs.map(ref=>ref.assetId)),'本格参考已改变，请保存并重新发起生成',409);}refs.forEach(ref=>store.asset(ref.assetId));if(!packagePlan){if(!panel.productionGrid&&!panel.panelSlice)assertCharacterReferences(project,shot,store.db.assets,refs.map(ref=>ref.assetId),panel);assertPanelReferenceCoverage(project,panel,store.db.assets);}return {panel,shot,refs,packagePlan};});
         await handleAssetCenter.ensureAssets(candidates.flatMap(candidate=>candidate.refs.map(ref=>ref.assetId)));await projectCenter.ensureAssets(candidates.flatMap(candidate=>candidate.refs.map(ref=>ref.assetId)));
         const projectPolicy=await projectCenter.preflight(project,panelIds);
         check(store.project(project.id)===project&&(input.expectedRevision===undefined||input.expectedRevision===project.revision),'读取共享资产期间工程已改变，请重新发起',409);
@@ -406,6 +409,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
           if(fullImage){
             const file=store.assetPath(panel.imageAssetId);basePanelBytes=fs.readFileSync(file);const info=imageInfo(basePanelBytes);cropBox=[0,0,info.width,info.height];
             fullImageSource={assetId:panel.imageAssetId,width:info.width,height:info.height,sha256:createHash('sha256').update(basePanelBytes).digest('hex'),transform:clone(panel.imageTransform||fitImage(panel,info))};
+            if(frameUpscale){const captured=await captureFrameUpscale(project,panel,store,path.join(dataDir,'frame-upscale-cache'));basePanelBytes=captured.bytes;fullImageSource=captured.source;cropBox=[0,0,fullImageSource.width,fullImageSource.height];}
           }else{
           const b=bounds(panel),left=Math.max(0,Math.floor(panel.x+b.x)),top=Math.max(0,Math.floor(panel.y+b.y)),right=Math.min(page.width,Math.ceil(panel.x+b.x+b.w)),bottom=Math.min(page.height,Math.ceil(panel.y+b.y+b.h));check(right>left&&bottom>top,'格子不在当前页面内');cropBox=[left,top,right-left,bottom-top];maskPolygon=panel.points.map(p=>[panel.x+p.x*panel.w,panel.y+p.y*panel.h]);
           if(input.basePanelDataUrl!==undefined){
@@ -428,7 +432,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
         if(!hooks.beforeCommit)check(!panelIds.some(id=>episodeBatches.reserved(project.id,id)),'画格已加入本话自动提交，请先停止后续批次',409);
         if(fullImage)check(fullImageSource.sha256===createHash('sha256').update(fs.readFileSync(store.assetPath(fullImageSource.assetId))).digest('hex'),'原图文件已改变，请重新提交',409);
         hooks.beforeCommit?.();
-        const batchId=uid('batch'),submittedAt=new Date().toISOString();const jobs=candidates.map(({panel,shot,refs,packagePlan})=>{const job={id:uid('job'),batchId,batchSize:candidates.length,provider,projectId:project.id,panelId:panel.id,shotId:panel.shotId||'',shotCode:shot.code,shotTitle:shot.title,action,status:'queued',phase:'queued',message:provider==='jimeng'?'等待即梦保存与报价':'等待 Codex 生成',created:submittedAt,updated:submittedAt,panelContentKey:fullImage?JSON.stringify({generation:panel.generation,referenceIds:panel.referenceIds}):panelContentKey(project,panel,store.db.assets),geometryKey:imageGeometryKey(panel),autoFillStamp:generationTargetStamp(panel,action,id=>store.assetPath(id)),referenceKey:panelReferenceKey(project,panel,store.db.assets),input:clone({action,editScope:fullImage?'full-image':undefined,fullImageSource,projectId:project.id,projectTitle:project.title,model:input.model,mode:provider==='jimeng'?textAssetGenerationMode(packageModel,input.mode,refs.length+ (packagePlan?.dependencies.length||0),panel,{edit:action==='edit'}):input.mode,ratio:input.ratio,resolution:input.resolution,shot,projectPolicy:projectPolicy||undefined,style:fullImage?'':project.style,panel:fullImage?{...panelProductionSnapshot(panel,project),nativeSizing:null}:panelProductionSnapshot(panel,project),nativeSizing:fullImage?null:panel.nativeSizing||null,referenceRoles:refs,textAssetReferences:fullImage?[]:panelTextAssets(project,panel,store.db.assets),editPrompt:input.editPrompt||'',cropBox,maskPolygon,feather:panel.feather,border:panel.border})};if(packagePlan){job.productionDependencies=packagePlan.dependencies;job.productionSignature=productionJobSignature(project,panel);if(packagePlan.dependencies.length)job.message='等待接续前段成图';}const gridSource=panel.productionGrid||panel.panelSlice;if(!fullImage&&gridSource&&project.productionPackage)job.input.productionSource={packageId:project.productionPackage.id,packageHash:project.productionPackage.hash,segmentId:gridSource.segmentId,gridId:gridSource.panelId,source:gridSource.sourceLocation,originalPrompt:shot.description,promptSource:shot.promptSource,textAssetReferences:job.input.textAssetReferences,referenceOrder:refs.map(r=>r.assetId),referenceVersions:productionReferenceVersions(project,panel,refs,store.db.assets)};if(basePageBytes){const directory=path.join(dataDir,'jobs',job.id);fs.mkdirSync(directory,{recursive:true});const base=path.join(directory,'base_page.png');fs.writeFileSync(base,basePageBytes);job.input.basePagePath=base;}if(basePanelBytes){const directory=path.join(dataDir,'jobs',job.id);fs.mkdirSync(directory,{recursive:true});const base=path.join(directory,'base_panel.png');fs.writeFileSync(base,basePanelBytes);job.input.basePanelPath=base;}panel.generationToken=job.id;store.db.jobs.push(job);return job;});hooks.onCommitted?.(jobs);store.save();if(hooks.onCommitted&&store.lastSaveError){for(const job of jobs)Object.assign(job,{status:'failed',phase:'failed',message:'任务进度未成功保存，未调用生图通道'});throw Error('任务进度暂时无法写盘，请检查磁盘后重新提交');}void pump();return jobs.map(publicJob);
+        const batchId=uid('batch'),submittedAt=new Date().toISOString();const jobs=candidates.map(({panel,shot,refs,packagePlan})=>{const job={id:uid('job'),batchId,batchSize:candidates.length,provider,resultPlacement:input.resultPlacement||'auto',projectId:project.id,panelId:panel.id,shotId:panel.shotId||'',shotCode:shot.code,shotTitle:shot.title,action,status:'queued',phase:'queued',message:provider==='jimeng'?'等待即梦保存与报价':'等待 Codex 生成',created:submittedAt,updated:submittedAt,panelContentKey:fullImage?JSON.stringify({generation:panel.generation,referenceIds:panel.referenceIds}):panelContentKey(project,panel,store.db.assets),geometryKey:imageGeometryKey(panel),autoFillStamp:generationTargetStamp(panel,action,id=>store.assetPath(id)),referenceKey:panelReferenceKey(project,panel,store.db.assets),input:clone({action,editScope:fullImage?'full-image':undefined,fullImageSource,projectId:project.id,projectTitle:project.title,model:input.model,mode:provider==='jimeng'?textAssetGenerationMode(packageModel,input.mode,refs.length+ (packagePlan?.dependencies.length||0),panel,{edit:action==='edit'}):input.mode,ratio:input.ratio,resolution:input.resolution,shot,projectPolicy:projectPolicy||undefined,style:fullImage?'':project.style,panel:fullImage?{...panelProductionSnapshot(panel,project),nativeSizing:null}:panelProductionSnapshot(panel,project),nativeSizing:fullImage?null:panel.nativeSizing||null,referenceRoles:refs,textAssetReferences:fullImage?[]:panelTextAssets(project,panel,store.db.assets),editPrompt:input.editPrompt||'',cropBox,maskPolygon,feather:panel.feather,border:panel.border})};if(packagePlan){job.productionDependencies=packagePlan.dependencies;job.productionSignature=productionJobSignature(project,panel);if(packagePlan.dependencies.length)job.message='等待接续前段成图';}const gridSource=panel.productionGrid||panel.panelSlice;if(!fullImage&&gridSource&&project.productionPackage)job.input.productionSource={packageId:project.productionPackage.id,packageHash:project.productionPackage.hash,segmentId:gridSource.segmentId,gridId:gridSource.panelId,source:gridSource.sourceLocation,originalPrompt:shot.description,promptSource:shot.promptSource,textAssetReferences:job.input.textAssetReferences,referenceOrder:refs.map(r=>r.assetId),referenceVersions:productionReferenceVersions(project,panel,refs,store.db.assets)};if(basePageBytes){const directory=path.join(dataDir,'jobs',job.id);fs.mkdirSync(directory,{recursive:true});const base=path.join(directory,'base_page.png');fs.writeFileSync(base,basePageBytes);job.input.basePagePath=base;}if(basePanelBytes){const directory=path.join(dataDir,'jobs',job.id);fs.mkdirSync(directory,{recursive:true});const base=path.join(directory,'base_panel.png');fs.writeFileSync(base,basePanelBytes);job.input.basePanelPath=base;}panel.generationToken=job.id;store.db.jobs.push(job);return job;});hooks.onCommitted?.(jobs);store.save();if(hooks.onCommitted&&store.lastSaveError){for(const job of jobs)Object.assign(job,{status:'failed',phase:'failed',message:'任务进度未成功保存，未调用生图通道'});throw Error('任务进度暂时无法写盘，请检查磁盘后重新提交');}void pump();return jobs.map(publicJob);
       }
 
   const episodeBatches=createEpisodeGenerationBatches({db:store.db,save:()=>{store.save();check(!store.lastSaveError,'自动提交进度暂时无法写盘，请检查磁盘后重新发起',503);},redact,isExecuting:id=>running.has(id),
@@ -474,18 +478,18 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
       if(await integratedRepair.handle(request,response,{pathname,method,url}))return;
       if(pathname==='/api/project-center/service/stop'&&method==='POST'&&process.env.PRODUCTION_INTEGRATION_ROOT){const input=await body(request);check(input.expectedCodeRoot===root,'服务身份不符',409);check(!episodeBatches.active().length&&!promptRewrites.running()&&!layerMerge.running()&&!integratedRepair.running()&&!running.size&&!handleAssetCenter.running()&&!comicSfxDesigner.running()&&!store.db.jobs.some(j=>['queued','running'].includes(j.status)),'服务仍有任务，未退出',409);json(response,200,{ok:true});setTimeout(shutdownStudio,50);return;}
       if(pathname.startsWith('/api/collab/')){if(process.env.COMIC_TEAM_HELP!=='1')return json(response,410,{error:'团队帮忙生图功能已移除；请使用本机生图'});if(await collabJobs.handle(request,response,{pathname,method,url}))return;if(await collabClient.handle(request,response,{pathname,method,url}))return;return json(response,404,{error:'协作接口不存在',code:'collab_route_not_found'});}
-      
-      
+
+
       if(await stripExports.handle(request,response,pathname,method))return;
       if(await generationSlots.handle(request,response,url))return;
-      
-      
-      
+
+
+
       if(await assetUpload(request,response,{pathname,method,url}))return;
       if(await assetWorkspace(request,response,{pathname,method,url}))return;
       if(await handleAssetCenter(request,response,{pathname,method,url}))return;
       if(await projectCenter?.handle(request,response,{pathname,method,url}))return;
-      
+
       if(await handleAssetProduction(request,response,{pathname,method}))return;
       if(await handleBreakout(request,response,{pathname,method}))return;
       if(await handleComicStyleLibrary(request,response,url,store,json,body))return;
@@ -493,8 +497,8 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
       const comicDesign=pathname.match(/^\/api\/comic-style-library\/design\/([a-z]+_[0-9a-f-]{36})$/);
       if(comicDesign&&method==='GET')return json(response,200,comicSfxDesigner.get(comicDesign[1]));
       if(comicDesign&&method==='DELETE')return json(response,200,comicSfxDesigner.cancel(comicDesign[1]));
-      
-      
+
+
       if(await teamRelease.handle(request,response,url))return;
       if(await teamMembers.handle(request,response,url))return;
       if(await teamProduction.handle(request,response,url))return;
@@ -503,7 +507,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
         try{const upstream=await fetch(control.origin+'/api/status',{signal:AbortSignal.timeout(2000)});if(!upstream.ok)throw Error('版本管理未就绪');const state=await upstream.json();return json(response,200,{managed:true,role:state.role,controlUrl:control.origin,current:state.current,latest:state.latest,available:state.available,busy:state.busy});}catch{return json(response,503,{error:'版本管理正在启动或重启'});}
       }
       if(method==='GET'&&pathname==='/api/runtime-memory'){response.setHeader('Cache-Control','no-store');return json(response,200,{sampledAt:Date.now(),scope:'editor-service',rssBytes:process.memoryUsage.rss()});}
-      if(method==='GET'&&pathname==='/api/health')return json(response,200,{application:'comic-merged-studio',version:'0.7.0-integrated-repair',layoutRepairVersion:1,localUpscaleModelVersion:2,localSelectionRepairVersion:1,repairArtworkOnlyVersion:2,repairAutoMergeVersion:1,mokuCompatibilityBuild:'Moku-only-20261027-r1',workspaceUpdateBuild:'20261028-compact-json-lettering-r2',assetRequirementIdentityVersion:2,typedAssetCandidateVersion:1,teamAssetCorrections:false,taskRailNavigationVersion:1,doubleDialogueVersion:1,promptRewriteVersion:2,wholeImageEditVersion:1,referencePreparationVersion:2,promptRewrite:{running:promptRewrites.running()},integrationVersion:'10.24-unified-layout-3',autoLayout:true,codeRoot:root,dataRoot:path.resolve(dataDir),teamControlUrl:process.env.COMIC_TEAM_CONTROL_URL||null,generation:{...generationSlots.snapshot(),queued:store.db.jobs.filter(j=>j.status==='queued').length,remoteUnknown:generationSlots.listRemote().length,pausedUntil:Date.now()<rateLimit.until?rateLimit.until:null,rateLimitStrikes:rateLimit.strikes,maxBatchPanels:MAX_BATCH_PANELS,sharedGateUntil:readGate(generationGateFile).until||null,activeEpisodeBatches:episodeBatches.active().length},styleDesign:{running:comicSfxDesigner.running()},workflow:'storyboard-import',productionPackageVersion:2,productionLayoutDesignVersion:1,productionPackageBoardLimit:1000,productionReferenceBindings:true,mokuReferencesOnly:true,defaultGeneratedImageZoom:95,referenceContentVerification:true,generationAutoFillVersion:2,panelSlicesVersion:1,panelSlicesInteractionVersion:2,referenceGenerationReturnVersion:1,referencePickerSplitVersion:1,sceneReferencePickerVersion:1,assetInlineWorkspaceVersion:1,textAssetReferencesVersion:1,assetProvenanceVersion:1,bubbleTextFrameVersion:1,episodeAssetOverviewVersion:1,unifiedArtStyleVersion:1,imageCornerResizeVersion:1,frameCornerDragVersion:2,localRegionToolsVersion:1,layerMergeVersion:2,productionDuplicateArchiveVersion:1,inlineEpisodeBoardsVersion:1,episodeBoardLocalImages:true,nativeReferencePackingVersion:1,nativeReferenceLimit:5,backgroundFrameDragVersion:1,productionScreenBoardsVersion:1,productionSliceGenerationVersion:1,productionPanelGenerationVersion:1,productionPanelBatchVersion:1,generationReferenceOrderVersion:2,generationFrameRatioVersion:1,fixedTextFontVersion:1,projectFileSavePickerVersion:1,sceneTextResultReturnVersion:1,failedJobDeletionVersion:1,episodeGenerationBatchVersion:1,canvasPanelGenerateShortcutVersion:1,roundBubbleDefaultVersion:1,productionLetteringStylesVersion:1,projectSnapshotCompression:true,portableProjectVersion:3,contentInputs:['production-package','storyboard-table'],imageStorage:'path',fixedEpisodeBoards:true,continuousCanvasCoverTailVisible:true,assetDirectoryImport:false,storyboardBatchImport:true,collaboration:process.env.COMIC_TEAM_HELP==='1',projectCenter:true,remoteLibrary:true,projectSync:true,integratedRepair:true,localImageTools:localTools.status(),mode:'whole-strip',assetCenter:{running:handleAssetCenter.running(),...handleAssetCenter.status()}});
+      if(method==='GET'&&pathname==='/api/health')return json(response,200,{application:'comic-merged-studio',version:'0.7.0-integrated-repair',layoutRepairVersion:1,localUpscaleModelVersion:2,localSelectionRepairVersion:1,repairArtworkOnlyVersion:2,repairAutoMergeVersion:1,repairPatchLayersVersion:1,repairReferencePickerVersion:1,mokuCompatibilityBuild:'Moku-only-20261027-r1',workspaceUpdateBuild:'20261028-compact-json-lettering-r2',assetRequirementIdentityVersion:2,typedAssetCandidateVersion:1,teamAssetCorrections:false,taskRailNavigationVersion:1,doubleDialogueVersion:1,promptRewriteVersion:2,wholeImageEditVersion:1,frameUpscaleVersion:1,editReferencePasteVersion:1,referencePreparationVersion:2,promptRewrite:{running:promptRewrites.running()},integrationVersion:'10.24-unified-layout-3',autoLayout:true,codeRoot:root,dataRoot:path.resolve(dataDir),teamControlUrl:process.env.COMIC_TEAM_CONTROL_URL||null,generation:{...generationSlots.snapshot(),queued:store.db.jobs.filter(j=>j.status==='queued').length,remoteUnknown:generationSlots.listRemote().length,pausedUntil:Date.now()<rateLimit.until?rateLimit.until:null,rateLimitStrikes:rateLimit.strikes,maxBatchPanels:MAX_BATCH_PANELS,sharedGateUntil:readGate(generationGateFile).until||null,activeEpisodeBatches:episodeBatches.active().length},styleDesign:{running:comicSfxDesigner.running()},workflow:'storyboard-import',productionPackageVersion:2,productionLayoutDesignVersion:1,productionPackageBoardLimit:1000,productionReferenceBindings:true,mokuReferencesOnly:true,defaultGeneratedImageZoom:95,referenceContentVerification:true,generationAutoFillVersion:2,panelSlicesVersion:1,panelSlicesInteractionVersion:2,referenceGenerationReturnVersion:1,referencePickerSplitVersion:1,sceneReferencePickerVersion:1,assetInlineWorkspaceVersion:1,textAssetReferencesVersion:2,assetProvenanceVersion:1,bubbleTextFrameVersion:1,episodeAssetOverviewVersion:1,unifiedArtStyleVersion:1,imageCornerResizeVersion:1,frameCornerDragVersion:2,localRegionToolsVersion:1,layerMergeVersion:2,productionDuplicateArchiveVersion:1,inlineEpisodeBoardsVersion:1,episodeBoardLocalImages:true,nativeReferencePackingVersion:1,nativeReferenceLimit:5,backgroundFrameDragVersion:1,productionScreenBoardsVersion:1,productionSliceGenerationVersion:1,productionPanelGenerationVersion:1,productionPanelBatchVersion:1,generationReferenceOrderVersion:2,generationFrameRatioVersion:1,fixedTextFontVersion:1,projectFileSavePickerVersion:1,sceneTextResultReturnVersion:1,failedJobDeletionVersion:1,episodeGenerationBatchVersion:1,canvasPanelGenerateShortcutVersion:1,roundBubbleDefaultVersion:1,productionLetteringStylesVersion:2,projectSnapshotCompression:true,portableProjectVersion:3,contentInputs:['production-package','storyboard-table'],imageStorage:'path',fixedEpisodeBoards:true,continuousCanvasCoverTailVisible:true,assetDirectoryImport:false,storyboardBatchImport:true,collaboration:process.env.COMIC_TEAM_HELP==='1',projectCenter:true,remoteLibrary:true,projectSync:true,integratedRepair:true,localImageTools:localTools.status(),mode:'whole-strip',assetCenter:{running:handleAssetCenter.running(),...handleAssetCenter.status()}});
       if(method==='GET'&&pathname==='/api/state')return json(response,200,stateSnapshot(url.searchParams,{login:codexLogin.snapshot({links:false}),scheduler:scheduler(),...(store.lastSaveError?{storageWarning:'工程数据暂时无法写盘（'+store.lastSaveError+'），工作台会自动重试；请检查磁盘空间或是否有程序占用数据文件。'}:{})}));
       if(method==='GET'&&pathname==='/api/generation-settings')return json(response,200,generationSettings.snapshot());
       if(method==='GET'&&pathname==='/api/platform-generation-settings')return json(response,200,generationSettings.platformSnapshot());
@@ -527,22 +531,22 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
       if(method==='GET'&&pathname==='/api/jimeng/models')return json(response,200,await jimengBridge.models());
       if(method==='POST'&&pathname==='/api/jimeng/login')return json(response,202,await jimengBridge.startLogin());
       if(method==='GET'&&pathname==='/api/jimeng/login')return json(response,200,{...await jimengBridge.status(),login:jimengBridge.publicLogin()});
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
+
+
+
+
+
+
+
+
+
+
+
+
       if(method==='POST'&&pathname==='/api/projects/storyboard-import'){
 const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'请直接导入分镜表');const old=input.projectId?store.project(input.projectId):null,revision=old?.revision,before=old?documentHash(boardSharing.view(old)):null;const idle=()=>{if(old){check(store.project(old.id).revision===input.expectedRevision,'工程已有新修改，请重新导入',409);check(!store.db.jobs.some(job=>job.projectId===old.id&&['queued','running','awaiting_confirmation','recoverable','delegated'].includes(job.status)),'当前工程有任务正在进行，请完成后再导入',409);}};idle();check(!old?.productionPackage,'单表不能覆盖屏段工程，请导入完整制作资料包',409);const incoming=await readStoryboardData(input),project=old?mergeStoryboardImport(boardSharing.view(old),incoming):incoming;idle();if(old)check(old.revision===revision&&documentHash(boardSharing.view(store.project(old.id)))===before,'导入期间工程已有新修改，未覆盖',409);ensureProjectPanelGeneration(project,store.db.assets);normalizeLayerOrder(project);validateProject(project);if(input.dataBase64)project.sourceOriginalFiles=preserveOriginalUploads({dataDir,projectId:project.id,records:project.sourceOriginalFiles||[],files:[decodeOriginalUpload({name:input.name,base64:input.dataBase64},'storyboard')]});if(old){boardSharing.accept(old,project);store.db.projects[store.db.projects.indexOf(old)]=project;}else store.db.projects.push(project);return json(response,old?200:201,saveProject(project,{editor:!!old}));
 }
-      
+
       if(method==='POST'&&pathname==='/api/projects'){
         const input=await body(request),project=createProject(String(input.title||'未命名漫画').slice(0,180));boardSharing.inherit(project);ensureProjectPanelGeneration(project,store.db.assets);store.db.projects.push(project);store.save();projectSync?.mark(project);return json(response,201,project);
       }
@@ -584,18 +588,18 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
       }
       if(projectMatch&&method==='PUT'){
         const input=await body(request,EDITOR_SAVE_COMPATIBILITY_LIMIT),old=store.project(projectMatch[1]);check(input.id===old.id,'工程编号不一致');check(old.layerSchema!==1||input.layerSchema===1,'工程已升级为联通图层，请刷新页面后继续编辑。',409);check(old.editorLayoutVersion!==2||input.editorLayoutVersion===2,'工程已升级为渐变区域和镜头组，请保存旧窗口副本后刷新页面。',409);check(input.revision===old.revision,'工程已在其他窗口修改，请先保存本地工程副本再重新载入。',409);for(const key of [...EDITOR_SERVER_FIELDS,'formalVersionBindings']){if(old[key]!==undefined)input[key]=clone(old[key]);else delete input[key];}
-        
-        
-        
-        
+
+
+
+
         check(Array.isArray(input.pages)&&input.pages.every(page=>Array.isArray(page.bubbles))&&(input.archivedBubbles===undefined||Array.isArray(input.archivedBubbles)),'长图或归档格式无效');archiveRemovedDialogue(input,old);
-        
-        
-        
-        
-        
-        
-        
+
+
+
+
+
+
+
         const priorNative=new Map(old.pages.flatMap(page=>page.panels.map(panel=>[panel.id,panel])));for(const page of input.pages)for(const panel of page.panels){if(panel.nativeSizing){const prior=priorNative.get(panel.id);panel.nativeSizing=JSON.stringify(prior?.nativeSizing)===JSON.stringify(panel.nativeSizing)?clone(prior.nativeSizing):sanitizeTrustedNativeSizing(panel.nativeSizing,{assets:store.db.assets,panelWidth:panel.w});}}
         ensureProjectPanelGeneration(input,store.db.assets);normalizeLayerOrder(input);validateProject(input);checkAssets(input);
         const mergeRestores=new Set([...layerMerge.restorableImages(old,input),...integratedRepair.restorableImages(old,input),...panelImageImports.restorableImages(old,input)]),oldPanels=new Map(old.pages.flatMap(page=>page.panels.map(panel=>[panel.id,panel])));
@@ -603,12 +607,12 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
         rotateProjectHistory(input);boardSharing.accept(old,input);delete input.deletedAt;input.created=old.created;input.revision=old.revision+1;input.updated=new Date().toISOString();store.db.projects[store.db.projects.indexOf(old)]=input;store.save();projectSync?.mark(input);return json(response,200,input);
       }
       if(method==='GET'&&pathname==='/api/assets')return json(response,200,store.db.assets);
-      if(method==='POST'&&pathname==='/api/episode-board-images'){
+      if(method==='POST'&&['/api/episode-board-images','/api/edit-reference-images'].includes(pathname)){
         const input=await body(request,84*1024*1024);store.project(input.projectId);
         check(typeof input.dataBase64==='string'&&input.dataBase64.length<=84*1024*1024&&/^[A-Za-z0-9+/=]+$/.test(input.dataBase64),'图片内容无效');
         const bytes=Buffer.from(input.dataBase64,'base64');check(bytes.length>0&&bytes.length<=60*1024*1024,'图片为空或超过60MB',413);const info=imageInfo(bytes);
         const dir=path.join(dataDir,'board-images');fs.mkdirSync(dir,{recursive:true});const file=path.join(dir,uid('image')+info.extension);let asset;
-        try{fs.writeFileSync(file,bytes,{flag:'wx'});asset=addAsset(file,path.basename(String(input.name||'粘贴图片')).slice(0,180),'episode-board-upload');}catch(error){if(fs.existsSync(file))fs.unlinkSync(file);throw error;}
+        try{fs.writeFileSync(file,bytes,{flag:'wx'});asset=addAsset(file,path.basename(String(input.name||'粘贴图片')).slice(0,180),pathname==='/api/edit-reference-images'?'edit-reference-upload':'episode-board-upload');}catch(error){if(fs.existsSync(file))fs.unlinkSync(file);throw error;}
         store.save();return json(response,201,{asset});
       }
       if(method==='POST'&&['/api/manual-panel-image','/api/panel-images/import'].includes(pathname)){
@@ -626,10 +630,10 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
       }
       if(method==='POST'&&pathname==='/api/assets/pick'){const input=await body(request);return json(response,200,{paths:await selectImageFiles({multiple:input.multiple===true})});}
       if(method==='POST'&&pathname==='/api/assets/batch'){const input=await body(request);check(Array.isArray(input.filePaths)&&input.filePaths.length<=60,'图片路径数量无效');return json(response,200,await registerImagePaths(store,input.filePaths));}
-      
-      
-      
-      
+
+
+
+
       if(method==='POST'&&pathname==='/api/assets/resolve'){const input=await body(request);check(Array.isArray(input.assetIds),'资产编号无效');input.assetIds.forEach(cleanId);await handleAssetCenter.ensureAssets(input.assetIds);await projectCenter.ensureAssets(input.assetIds);return json(response,200,await resolveImageAssets(store,input.assetIds));}
       const thumbnailMatch=pathname.match(/^\/api\/assets\/([a-z]+_[0-9a-f-]{36})\/thumbnail$/);
       if(thumbnailMatch&&method==='GET'){await handleAssetCenter.ensureAssets([cleanId(thumbnailMatch[1])]);await projectCenter.ensureAssets([cleanId(thumbnailMatch[1])]);const file=await imageThumbnails(store.asset(cleanId(thumbnailMatch[1])));return await sendFile(response,file,{'Content-Type':'image/png','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff'},{missingMessage:'缩略图暂时无法读取，请稍后重试'});}
@@ -747,7 +751,7 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
         for(const page of project.pages){const oldPageId=page.id;page.id=uid('page');pageMapping.set(oldPageId,page.id);for(const panel of page.panels){const oldId=panel.id;panel.id=uid('panel');layerMapping.set(oldId,panel.id);panel.shotId=shotMapping.get(panel.shotId)||'';if(panel.generation){panel.generation.referenceRoles=panel.generation.referenceRoles.filter(ref=>mapping.has(ref.assetId));for(const ref of panel.generation.referenceRoles)ref.assetId=mapping.get(ref.assetId);}if(panel.referenceIds)panel.referenceIds=panel.referenceIds.map(id=>mapping.get(id));if(panel.referenceTextBindings)for(const b of Object.values(panel.referenceTextBindings))b.imageIds=b.imageIds.map(id=>mapping.get(id)).filter(Boolean);if(panel.referenceNeedBindings)for(const b of Object.values(panel.referenceNeedBindings))b.assetId=mapping.get(b.assetId);panel.imageAssetId=panel.imageAssetId?mapping.get(panel.imageAssetId):null;panel.candidates=panel.candidates.map(id=>mapping.get(id));panel.generationToken=null;}for(const bubble of page.bubbles){const oldId=bubble.id;bubble.id=uid('bubble');layerMapping.set(oldId,bubble.id);bubble.shotId=shotMapping.get(bubble.shotId)||'';}}
         remapWorkspaceRemovals(project,mapping,layerMapping);
         for(const shot of project.shots)if(shot.nativeSizing)shot.nativeSizing=restoreNative(shot.nativeSizing,1280);for(const page of project.pages)for(const panel of page.panels)if(panel.nativeSizing)panel.nativeSizing=restoreNative(panel.nativeSizing,panel.w);
-        
+
         for(const layer of [...project.pages.flatMap(page=>[...page.panels,...page.bubbles]),...(project.gradients||[])]){for(const key of ['designParentPanelId','parentPanelId'])if(layer[key])layer[key]=layerMapping.get(layer[key])||layer[key];}
         for(const page of project.pages)for(const b of page.bubbles)if(b.parentPanelId&&layerMapping.has(b.parentPanelId))b.parentPanelId=layerMapping.get(b.parentPanelId);
         for(const bubble of [...project.pages.flatMap(page=>page.bubbles),...(project.archivedBubbles||[])]){remapBubbleAssets(bubble,mapping);if(bubble.localReplacement)bubble.localReplacement.patchLayerId=layerMapping.get(bubble.localReplacement.patchLayerId)||bubble.localReplacement.patchLayerId;}for(const page of project.pages)for(const f of page.panels)if(f.localRegion)f.localRegion.sourcePanelId=layerMapping.get(f.localRegion.sourcePanelId)||f.localRegion.sourcePanelId;
@@ -758,8 +762,8 @@ const input=await body(request,16*1024*1024);check(!input.layoutFiles?.length,'�
           frame.layoutIntent.nextShotId=shotMapping.get(frame.layoutIntent.nextShotId)||null;
           if(frame.layoutIntent.overlap)frame.layoutIntent.overlap.withShotId=shotMapping.get(frame.layoutIntent.overlap.withShotId)||frame.layoutIntent.overlap.withShotId;
         }
-        
-        
+
+
         const remapAssets=record=>{if(record?.managedIds)record.managedIds=record.managedIds.map(id=>mapping.get(id)).filter(Boolean);};
         for(const [key,binding] of Object.entries(project.assetBindings||{})){if(mapping.has(binding.assetId))binding.assetId=mapping.get(binding.assetId);else delete project.assetBindings[key];}
         for(const shot of project.shots)remapAssets(shot.assetAutoBinding);for(const page of project.pages)for(const frame of page.panels)remapAssets(frame.assetReferenceBinding);
@@ -790,7 +794,3 @@ if(process.argv[1]&&pathToFileURL(path.resolve(process.argv[1])).href===import.m
   process.on('unhandledRejection',error=>{console.error('后台任务出现未处理的错误（服务继续运行）：',error?.stack||error);});
   process.on('SIGINT',()=>{studio.close();process.exit(0);});process.on('SIGTERM',()=>{studio.close();process.exit(0);});
 }
-
-
-
-

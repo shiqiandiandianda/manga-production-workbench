@@ -16,4 +16,3 @@ test('新中心 UI：方格平铺、选择指定同事、保存接单设置、�
  await page.locator('[data-status="all"]').click();assert.equal(await page.locator('[data-task-id]').count(),9);await page.locator('[data-detail="t6"]').click();assert.match(await page.locator('#task-detail').innerText(),/已保留为候选/);await page.locator('[data-result-action="safe"]').click();await page.waitForTimeout(100);assert.equal(posts[2].path,'/api/collab/tasks/t6/apply-choice');await page.locator('[aria-label="关闭详情"]').click();
  broken=true;await page.locator('#refresh').click();await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('保留'));assert.equal(await page.locator('[data-task-id]').count(),9);assert.deepEqual(errors,[]);assert.equal(await page.getByText('规范来源文件',{exact:true}).count(),0);fs.writeFileSync(path.join(evidence,'new-center-browser.json'),JSON.stringify({ok:true,layouts,errors,posts,disconnectPreservesData:true},null,2));
 });
-

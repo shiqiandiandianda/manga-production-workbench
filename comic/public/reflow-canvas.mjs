@@ -1,5 +1,6 @@
+import {bringEpisodeLetteringToFront} from './reflow-lettering-order.mjs';
 import {clone} from './model.js';
-import {scaleReflowLettering} from './reflow-lettering.mjs';
+import {scaleReflowLettering,ensureReflowLetteringMinimum} from './reflow-lettering.mjs';
 import {productionFrame} from './production-package-model.js';
 
 const fail=message=>{throw Object.assign(Error(message),{status:409});};
@@ -52,7 +53,7 @@ export function returnReflowToCanvas(original,rendered,{episode,items,geometry,s
   const moved={...clone(b),id:old?.id||b.id,parentPanelId:frameIds.get(b.parentPanelId),shotId:shotIds.get(b.shotId),y:b.y-placement.start};
   if(moved.tail?.mode!=='normalized'&&Number.isFinite(moved.tail?.y))moved.tail.y-=placement.start;
   active(moved);if(old){const owner=next.pages.find(p=>p.bubbles.includes(old));owner.bubbles.splice(owner.bubbles.indexOf(old),1);}
-  placement.page.bubbles.push(moved);movedBubbles.add(moved.id);visibleOrder.push(moved.id);
+  ensureReflowLetteringMinimum(moved);placement.page.bubbles.push(moved);movedBubbles.add(moved.id);visibleOrder.push(moved.id);
  }
  // Preserve patch, upscale and other manually attached children alongside their original parent IDs.
  for(const {old,replacement,page} of placements.values())if(old){
@@ -64,7 +65,7 @@ export function returnReflowToCanvas(original,rendered,{episode,items,geometry,s
    Object.assign(f,{x:replacement.x+(before.x-old.x)*ratio,y:replacement.y+(before.y-old.y)*ratio,w:before.w*ratio,h:before.h*ratio,visible:before.visible});
    delete f.productionModeHidden;delete f.productionModeVisible;
    if(f.imageTransform)for(const k of ['x','y','scale'])if(Number.isFinite(f.imageTransform[k]))f.imageTransform[k]*=ratio;
-   if(f.text!==undefined){scaleReflowLettering(f,ratio);if(f.tail?.mode!=='normalized'&&Number.isFinite(f.tail?.x)&&Number.isFinite(f.tail?.y)){f.tail.x=replacement.x+(before.tail.x-old.x)*ratio;f.tail.y=replacement.y+(before.tail.y-old.y)*ratio;}}
+   if(f.text!==undefined){scaleReflowLettering(f,ratio);if(f.tail?.mode!=='normalized'&&Number.isFinite(f.tail?.x)&&Number.isFinite(f.tail?.y)){f.tail.x=replacement.x+(before.tail.x-old.x)*ratio;f.tail.y=replacement.y+(before.tail.y-old.y)*ratio;}ensureReflowLetteringMinimum(f);}
   }
  }
  const oldBackgrounds=(next.gradients||[]).filter(g=>g.assistantLayoutAnchor?.episode===episode||g.designEpisode===episode||original.autoLayoutSource?.mode==='screen-crop-reflow'&&!g.assistantLayoutAnchor&&!g.designEpisode);
@@ -75,5 +76,5 @@ export function returnReflowToCanvas(original,rendered,{episode,items,geometry,s
  next.productionEpisodeViews||={};next.productionEpisodeViews[episode]={...(next.productionEpisodeViews[episode]||{}),unit:'panel',segments:Object.fromEntries(ep.segments.map(s=>[s.id,'panel']))};
  next.episodeReflows||={};next.episodeReflows[episode]={...clone(rendered.autoLayoutSource),sourceProjectId:original.id,geometry:clone(geometry),appliedToCurrentProject:true};
  next.layoutRuleBindings||={};next.layoutRuleBindings[episode]={...(next.layoutRuleBindings[episode]||{}),contract:clone(script.layoutRuleContract),scriptId:script.id,geometry:clone(geometry),targetPanels:clone(geometry.panels),appliedToCurrentProject:true};
- return next;
+ return bringEpisodeLetteringToFront(next,episode);
 }

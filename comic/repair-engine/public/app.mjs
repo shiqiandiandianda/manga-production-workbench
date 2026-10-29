@@ -1,6 +1,6 @@
 import {registerLibraryFont} from './text-fonts.mjs';
 let embeddedAutoFit=true;
-let embeddedSession=null;const embeddedApplies=new Map();let embeddedUpscaleModel="";
+let embeddedSession=null,embeddedPatchLayersReady=false;const embeddedApplies=new Map();let embeddedUpscaleModel="";
 import {reflowOutputObjects,recoverUntrackedTaskLayout} from './layout-followers.mjs';
 import {selectionHandles,selectionHandleAt,selectionResizeCursor,resizeSelectionFrame} from './selection-resize.mjs';
 import {displayRegionFrame,regionSpaceHeight} from './region-coordinates.mjs';
@@ -1478,7 +1478,7 @@ $('reference-area').addEventListener('pointerdown',()=>{state.resultPasteFocus=f
 async function pasteReference(target=$('reference-area')){target.focus();state.referencePasteFocus=true;state.resultPasteFocus=false;try{const items=await navigator.clipboard.read();let found=false;for(const item of items){const type=item.types.find(type=>type.startsWith('image/'));if(type){await uploadReference(await item.getType(type));found=true;}}if(!found)toast('剪贴板里没有图片。复制图片后在此处按 Ctrl+V。');}catch{toast('在参考图区按 Ctrl+V，即可粘贴图片。');}}
 $('paste-reference').addEventListener('click',()=>pasteReference());
 let referenceLibraryCache=[],libraryDeletedMode=false,libraryManagementMode=false,libraryDeleteChecked=new Set(),libraryMutating=false,librarySignature='';
-async function openReferenceLibrary(){parent.postMessage({type:'comic:open-library',target:'repair'},location.origin);}
+async function openReferenceLibrary(){if(!canEditRepairInstructions(activeRegion(),state))return toast('当前选区正在处理，完成后可调整参考图',true);saveActiveRegion();parent.postMessage({type:'comic:open-library',target:'repair',sessionId:embeddedSession?.id,sourceId:state.page?.metadata.id,regionId:state.activeRegionId,pageEpoch:state.pageEpoch},location.origin);}
 function toggleLibraryManagementSelection(id){if(libraryDeleteChecked.has(id))libraryDeleteChecked.delete(id);else libraryDeleteChecked.add(id);renderReferenceLibrary();}
 function chooseReference(reference){
   if(!canEditRepairInstructions(activeRegion(),state))return;
@@ -1531,7 +1531,7 @@ $('copy-prompt').addEventListener('click', () => state.job && copyText(state.job
 $('copy-crop').addEventListener('click', copyCrop); $('download-crop').addEventListener('click', () => state.job && download(`/repair/jobs/${state.job.id}/crop.png`, `${state.job.id}-crop.png`));
 $('import-result').addEventListener('click', () => $('result-input').click());
 for(const id of ['offset-x','offset-y','patch-scale','result-scope','result-feather'])$(id).addEventListener('input',renderPreview);
-for(const id of ['offset-x','offset-y','patch-scale','result-scope','result-feather'])$(id).addEventListener('change',()=>finishPropertyEdit('alignment','调整 AI 接回位置')); 
+for(const id of ['offset-x','offset-y','patch-scale','result-scope','result-feather'])$(id).addEventListener('change',()=>finishPropertyEdit('alignment','调整 AI 接回位置'));
 $('reset-alignment').addEventListener('click',()=>{$('offset-x').value='0';$('offset-y').value='0';$('patch-scale').value='100';$('result-feather').value=String(state.job?.feather||0);renderPreview();});
 $('undo').addEventListener('click',undo);$('redo').addEventListener('click',redo);
 function regionEditable(){return canEditRegion(activeRegion(),activeRegion()&&chosenRegionLayer(activeRegion(),layers.layers));}
@@ -1702,7 +1702,7 @@ document.addEventListener('keydown', event => {
   if(event.key===' '&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();if(!event.repeat)cleanCompare();return;}
   if(['Delete','Backspace'].includes(event.key)){event.preventDefault();deleteSelected();return;}
   if((event.ctrlKey||event.metaKey)&&['z','y'].includes(event.key.toLowerCase())){event.preventDefault();if(event.shiftKey||event.key.toLowerCase()==='y')redo();else undo();return;}
-  
+
   if(shortcut){event.preventDefault();setTool(shortcut);}
 });
 document.addEventListener('keyup', event => { if (event.key === ' ') { state.space = false; view.style.cursor=editorCursor(state.tool,{display:state.viewMode==='display'}); } });
@@ -1897,16 +1897,20 @@ document.querySelector('.header').after(embeddedBar);
 window.addEventListener('message',async event=>{
  if(event.origin!==location.origin||event.source!==parent)return;
  if(['comic:repair-applied','comic:repair-history-result','comic:repair-apply-error'].includes(event.data?.type)){const waiting=embeddedApplies.get(event.data.requestId);if(waiting){clearTimeout(waiting.timer);embeddedApplies.delete(event.data.requestId);if(event.data.type==='comic:repair-apply-error')waiting.reject(Error(event.data.message));else{if(event.data.applied&&event.data.session&&event.data.sessionId===embeddedSession?.id){embeddedSession=event.data.session;configureEmbeddedTarget();}if(event.data.applied&&event.data.metadata&&event.data.sessionId===embeddedSession?.id){try{const past=editHistory.past,future=editHistory.future,epoch=state.pageEpoch;await flushProject();if(epoch===state.pageEpoch&&event.data.sessionId===embeddedSession?.id){await loadPage(event.data.metadata);editHistory.past=past;editHistory.future=future;updateHistory();setViewMode('edit');}}catch(error){waiting.reject(error);return;}}waiting.resolve(event.data);}}return;}
- try{if(event.data?.type==='comic:repair-bind-session'){embeddedSession=event.data.session;configureEmbeddedTarget();}if(event.data?.type==='comic:repair-source'){await flushProject();embeddedSession=event.data.session;embeddedUpscaleModel='';configureEmbeddedTarget();await loadPage(event.data.metadata);setViewMode('edit');parent.postMessage({type:'comic:repair-loaded',sessionId:embeddedSession.id},location.origin);}
+ try{if(event.data?.type==='comic:repair-bind-session'){embeddedSession=event.data.session;configureEmbeddedTarget();}if(event.data?.type==='comic:repair-source'){await flushProject();embeddedPatchLayersReady=event.data.patchLayersReady===true;embeddedSession=event.data.session;embeddedUpscaleModel='';configureEmbeddedTarget();await loadPage(event.data.metadata);setViewMode('edit');parent.postMessage({type:'comic:repair-loaded',sessionId:embeddedSession.id},location.origin);}
  if(event.data?.type==='comic:repair-font'){const font=event.data.font;const registeredFont=registerLibraryFont(font);const option=document.createElement('option');option.value=font.family;option.textContent=registeredFont.label;document.querySelector('#text-font').append(option);if(layers.active?.type==='text'){layers.active.fontFamily=font.family;await ensureTextFont(layers.active);scheduleProjectSave();render();}toast('已加入墨库字体');}
- if(event.data?.type==='comic:repair-reference'){const response=await fetch('/repair/api/references',{method:'POST',headers:{'X-Source-Name':encodeURIComponent(event.data.name||'墨库参考')},body:await(await fetch(event.data.url)).blob()}),reference=await response.json();if(!response.ok)throw Error(reference.error);state.references=[...(state.references||[]),reference];showReferences(false);toast('已加入墨库参考素材');}
+ if(event.data?.type==='comic:repair-reference'){
+  const d=event.data,valid=()=>!d.sessionId||d.sessionId===embeddedSession?.id&&d.sourceId===state.page?.metadata.id&&d.pageEpoch===state.pageEpoch&&d.regionId===state.activeRegionId;
+  try{if(!valid())throw Error('选区已切换，请重新选择参考图');if(!canEditRepairInstructions(activeRegion(),state))throw Error('当前选区正在处理，完成后可调整参考图');const response=await fetch(d.url);if(!response.ok)throw Error('参考图读取失败');const blob=await response.blob();if(!valid())throw Error('选区已切换，请重新选择参考图');await uploadReference(Object.assign(blob,{name:d.name||'墨库参考'}));await flushProject();parent.postMessage({type:'comic:repair-reference-saved',requestId:d.requestId},location.origin);}catch(error){toast(error.message,true);parent.postMessage({type:'comic:repair-reference-error',requestId:d.requestId,message:error.message},location.origin);}
+ }
+
  if(event.data?.type==='comic:repair-flush'){await flushProject();parent.postMessage({type:'comic:repair-flushed',requestId:event.data.requestId},location.origin);}
  }catch(error){toast(error.message,true);parent.postMessage({type:'comic:repair-error',message:error.message},location.origin);}
 });
 async function embeddedExport(){const sourceAtStart=state.page?.metadata.id;if(!state.page)throw Error('先从左侧选择有图片的画格');await ensureLayerFonts(layers.layers);await layers.ensureForSerialization();await flushProject();if(state.page?.metadata.id!==sourceAtStart)throw Error('修图来源已切换，请重新回填');const response=await fetch('/repair/api/exports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceId:state.page.metadata.id,sourceRevision:state.page.revision,sectionMode:state.sectionMode,pageSections:editorSections(),pageGaps:state.pageGaps,layers:layers.serialize(),exportMode:'repaired'})}),result=await response.json();if(!response.ok)throw Error(result.error);return result;}
-const applyOptions=document.createElement('div');applyOptions.className='repair-apply-options';applyOptions.innerHTML='<select id="repair-apply-mode" aria-label="图像应用方式"><option value="replace">自动合并到画格</option><option value="layer">原位新增图层</option><option value="upscale">高清子图层（保留原图）</option></select><select id="repair-layer-position" aria-label="子图层叠放位置" hidden><option value="above">原图上方</option><option value="below">原图下方</option></select>';embeddedBar.append(applyOptions);
+const applyOptions=document.createElement('div');applyOptions.className='repair-apply-options';applyOptions.innerHTML='<select id="repair-apply-mode" aria-label="图像应用方式"><option value="patch">独立修图层（保留每次修改）</option><option value="replace">合并到画格</option><option value="layer">原位新增图层</option><option value="upscale">高清子图层（保留原图）</option></select><select id="repair-layer-position" aria-label="子图层叠放位置" hidden><option value="above">原图上方</option><option value="below">原图下方</option></select>';embeddedBar.append(applyOptions);
 document.querySelector('#repair-apply-mode').onchange=()=>document.querySelector('#repair-layer-position').hidden=document.querySelector('#repair-apply-mode').value!=='layer';
-function configureEmbeddedTarget(){const hd=embeddedSession?.targetKind==='upscale',composition=embeddedSession?.targetKind==='composition',select=document.querySelector('#repair-apply-mode');if(!select)return;select.querySelector('[value="replace"]').textContent=hd?'更新当前高清图层':'自动合并到画格';for(const mode of ['layer','upscale'])select.querySelector('[value="'+mode+'"]').disabled=hd;select.value='replace';document.querySelector('#repair-layer-position').hidden=true;document.querySelector('#repair-return').textContent=hd?'应用到高清图层':'应用并合并';}
+function configureEmbeddedTarget(){const hd=embeddedSession?.targetKind==='upscale',composition=embeddedSession?.targetKind==='composition',select=document.querySelector('#repair-apply-mode');if(!select)return;select.querySelector('[value="replace"]').textContent=hd?'更新当前高清图层':'合并到画格';for(const mode of ['layer','upscale'])select.querySelector('[value="'+mode+'"]').disabled=hd;select.querySelector('[value="patch"]').disabled=hd||!embeddedPatchLayersReady;select.querySelector('[value="patch"]').textContent=embeddedPatchLayersReady?'独立修图层（保留每次修改）':'独立修图层（重启工具后启用）';select.value=hd||!embeddedPatchLayersReady?'replace':'patch';document.querySelector('#repair-layer-position').hidden=true;document.querySelector('#repair-return').textContent=hd?'应用到高清图层':'应用修图';}
 function requestEmbedded(message){
  const requestId=crypto.randomUUID();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{embeddedApplies.delete(requestId);reject(Error('左侧操作回执超时，请先核对左侧状态'));},60000);embeddedApplies.set(requestId,{resolve,reject,timer});parent.postMessage({...message,requestId},location.origin);});
 }
@@ -1915,7 +1919,7 @@ async function applyEmbeddedResult(mode,position='above',{sessionId=embeddedSess
  const requestId=crypto.randomUUID();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{embeddedApplies.delete(requestId);reject(Error('左侧应用回执超时，结果已保留，可重试应用'));},60000);embeddedApplies.set(requestId,{resolve,reject,timer});parent.postMessage({type:'comic:repair-result',requestId,sessionId,resultUrl:result.url,mode,position,model,completedJobIds:layers.layers.filter(layer=>layer.jobId&&layer.visible!==false&&!layer.versionHidden).map(layer=>layer.jobId)},location.origin);});
 }
 document.querySelector('#repair-return').onclick=async()=>{const button=document.querySelector('#repair-return');try{button.disabled=true;const result=await applyEmbeddedResult(document.querySelector('#repair-apply-mode').value,document.querySelector('#repair-layer-position').value);toast(result.message);}catch(e){toast(e.message,true);}finally{button.disabled=false;}};
-document.querySelector('#repair-library').onclick=()=>parent.postMessage({type:'comic:open-library',target:'repair'},location.origin);
+document.querySelector('#repair-library').onclick=()=>void openReferenceLibrary();
 async function runLocal(operation){
  const sourceAtStart=state.page?.metadata.id,sessionAtStart=embeddedSession?.id,upscaleScale=Number(document.querySelector('#repair-upscale-scale').value),upscaleModel=document.querySelector('#repair-upscale-model').value,label=document.querySelector('#repair-native-status'),buttons=[document.querySelector('#repair-native-upscale'),document.querySelector('#repair-native-cutout')],key='comic-local-tool-pending';let task,pending;
  const json=async(url,input)=>{const res=await fetch(url,input?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)}:undefined),value=await res.json();if(!res.ok)throw Error(value.error||'本地处理请求失败');return value;};

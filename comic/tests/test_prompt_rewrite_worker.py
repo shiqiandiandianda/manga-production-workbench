@@ -26,6 +26,22 @@ class TextServer:
         self.settled.append(completed)
 
 class PromptRewriteTest(unittest.TestCase):
+    def test_pasted_images_are_real_ordered_turn_attachments(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get("COMIC_TEST_OUTPUT_DIR")) as tmp:
+            directory = Path(tmp)
+            (directory / "request.txt").write_text("参考图1的空间关系", encoding="utf-8")
+            files = [directory / "reference-1.png", directory / "reference-2.png"]
+            for file in files:
+                file.write_bytes(b"fixture")
+            (directory / "references.json").write_text(json.dumps([{"file":str(file)} for file in files]), encoding="utf-8")
+            server = TextServer()
+            with patch.object(worker,"progress"):
+                worker.rewrite_prompt(server,directory)
+            contents = server.calls[1][1]["input"]
+            self.assertEqual([item["type"] for item in contents], ["text", "localImage", "localImage"])
+            self.assertEqual([item["path"] for item in contents[1:]], [str(file.resolve()) for file in files])
+            self.assertFalse(server.calls[0][1]["config"]["features.image_generation"])
+
     def run_text(self, server):
         with tempfile.TemporaryDirectory(dir=os.environ.get("COMIC_TEST_OUTPUT_DIR")) as tmp:
             directory=Path(tmp)

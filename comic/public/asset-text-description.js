@@ -1,7 +1,7 @@
 import {assetProvenance} from './asset-provenance.js';
 import {assetNameKey} from './asset-metadata.js';
 import {unknownState,libraryStatePlaceholder} from './character-states.js';
-import {TEXT_ASSET_MAX_LENGTH} from './asset-text-references.js';
+import {TEXT_ASSET_MAX_LENGTH,textAssetDescriptionContent} from './asset-text-references.js';
 
 const clean=value=>typeof value==='string'?value.trim():'';
 const usefulState=value=>clean(value)&&!unknownState(value)&&!libraryStatePlaceholder(value)?clean(value):'';
@@ -25,7 +25,7 @@ export function automaticTextAssetDescription(project,row){
  const state=usefulState(row.state);if(state)lines.push('当前状态：'+state);
  for(const source of sources){
   if(source.novelQuote)lines.push('原文摘录：'+source.novelQuote);
-  if(source.description)lines.push('本格画面依据：'+source.description);
+  if(source.description)lines.push(textAssetDescriptionContent('本格画面依据：'+source.description));
   if(source.notes)lines.push('分镜备注：'+source.notes);
   if(source.source?.file)origins.push(source.source.file);
   if(lines.join('\n').length>TEXT_ASSET_MAX_LENGTH)break;

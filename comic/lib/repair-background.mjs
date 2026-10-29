@@ -47,13 +47,13 @@ export function createRepairBackground({root,store,ensure,applySession}){
   let task=read(file(id));if(task.status==='applied')return {alreadyApplied:true,task};check(task.status==='ready','修图结果尚未就绪',409);check(!applying.has(task.projectId),'正在接回上一张修图',409);applying.add(task.projectId);
   try{
    const s=session(task.sessionId),project=store.project(task.projectId);check(project.revision===input.expectedRevision,'工程已有修改，请稍后自动接回',409);
-   const base=s.composition?.file||store.assetPath(s.imageAssetId),source=await sourceMetadata(root,task.sourceId),size=s.composition||store.asset(s.imageAssetId);check(source.width===size.width&&source.height===size.height,'原画幅已改变，结果保留，请在修图记录中核对',409);
-   const target=path.join(root,'exports','background-'+id+'.png'),baseKey=s.composition?.stamp||s.imageAssetId;fs.mkdirSync(path.dirname(target),{recursive:true});
-   const wasApplied=task.resultUrl&&fs.existsSync(target)&&s.appliedResults?.['replace:'+createHash('sha256').update(fs.readFileSync(target)).digest('hex')];
+   const base=s.composition?.file||s.patchBaseFile||store.assetPath(s.imageAssetId),source=await sourceMetadata(root,task.sourceId),size=s.composition||store.asset(s.imageAssetId);check(source.width===size.width&&source.height===size.height,'原画幅已改变，结果保留，请在修图记录中核对',409);
+   const target=path.join(root,'exports','background-'+id+'.png'),baseKey=s.composition?.stamp||s.patchBaseHash||s.imageAssetId;fs.mkdirSync(path.dirname(target),{recursive:true});
+   const wasApplied=task.resultUrl&&fs.existsSync(target)&&['patch','replace'].some(mode=>s.appliedResults?.[mode+':'+createHash('sha256').update(fs.readFileSync(target)).digest('hex')]);
    if(!task.resultUrl||!fs.existsSync(target)||task.baseKey!==baseKey&&!wasApplied){await composeLayers(root,base,target,task.tiles,6,[],null,task.sourceId);task={...task,resultUrl:'/repair/exports/'+path.basename(target),baseKey};write(file(id),task);}
    // Persist the prepared image before applying it. A retry after a lost reply
    // reuses that exact image instead of feathering the same patch twice.
-   const result=await applySession(s.id,{expectedRevision:input.expectedRevision,resultUrl:task.resultUrl,mode:'replace'});
+   const result=await applySession(s.id,{expectedRevision:input.expectedRevision,resultUrl:task.resultUrl,mode:s.targetKind==='upscale'?'replace':'patch'});
    check(result.applied,'原画格已调整，修图结果保留为候选，请核对后采用',409);
    task={...task,status:'applied',message:'图片修改已合成',completedAt:new Date().toISOString(),assetId:result.asset?.id,layerId:result.layerId};delete task.tiles;write(file(id),task);return {...result,task,background:true};
   }catch(error){if(error.statusCode!==409||!/工程已有修改|校验期间|载入期间/.test(error.message)){task={...task,status:'attention',message:error.message};write(file(id),task);}throw error;}

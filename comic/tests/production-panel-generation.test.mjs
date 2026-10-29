@@ -19,6 +19,8 @@ import {inspectProductionPackage} from '../lib/production-package.mjs';
 import {mergeProductionProject} from '../lib/production-package-document.mjs';
 import {remapProductionPackage} from '../lib/production-package-portable.mjs';
 import {panel} from '../public/model.js';
+import {panelTextAssets} from '../public/panel-text-assets.js';
+import {Store} from '../lib/store.mjs';
 
 const require=createRequire(import.meta.url),{createCanvas}=require(process.env.COMIC_TEST_CANVAS_MODULE);
 const {chromium}=require('playwright');
@@ -41,10 +43,11 @@ function sourceFiles(){
  pkg['文字']=pkg['文字'].filter(t=>t['渲染']==='工具').map((t,i)=>({...t,'段ID':'段01','说话人':i?'乙':'甲'}));
  return [board,pkg].map((data,i)=>({relativePath:originals[i].relativePath,bytes:Buffer.from(JSON.stringify(data))}));
 }
-async function fixture(t){
- const dir=fs.mkdtempSync(path.join(evidence,'fixture-')),calls=[];
- const studio=createStudio({dataDir:path.join(dir,'data'),seedReference:false,bridge:{close(){},ensurePoolSize(){},status:async()=>({connected:true,sessionReady:true,imageFeature:true,installed:true}),async generate(_d,input){calls.push(structuredClone(input));const canvas=createCanvas(Math.round(input.panel.w),Math.round(input.panel.h));canvas.getContext('2d').fillRect(0,0,canvas.width,canvas.height);return {bytes:canvas.toBuffer('image/png'),imageToolSeen:true};}},jimengBridge:{close(){},status:async()=>({connected:false})}});
- await new Promise(resolve=>studio.server.listen(0,'127.0.0.1',resolve));t.after(()=>{studio.close();studio.server.closeAllConnections();});
+async function fixture(t,{hold=false}={}){
+ const dir=fs.mkdtempSync(path.join(evidence,'fixture-')),calls=[];let release;const gate=new Promise(r=>release=r);
+ process.env.COMIC_PROJECT_SYNC='0';process.env.COMIC_SLOT_DIR=path.join(dir,'slots');process.env.COMIC_LIBRARY_CONFIG=path.join(dir,'no-library.json');process.env.PROJECT_CENTER_URL='';
+ const studio=createStudio({dataDir:path.join(dir,'data'),seedReference:false,bridge:{close(){},ensurePoolSize(){},status:async()=>({connected:true,sessionReady:true,imageFeature:true,installed:true}),async generate(_d,input){calls.push(structuredClone(input));if(hold)await gate;const canvas=createCanvas(Math.round(input.panel.w),Math.round(input.panel.h));canvas.getContext('2d').fillRect(0,0,canvas.width,canvas.height);return {bytes:canvas.toBuffer('image/png'),imageToolSeen:true};}},jimengBridge:{close(){},status:async()=>({connected:false})}});
+ await new Promise(resolve=>studio.server.listen(0,'127.0.0.1',resolve));t.after(()=>{release();studio.close();studio.server.closeAllConnections();});
  const origin='http://127.0.0.1:'+studio.server.address().port;
  const request=async(route,body)=>{const response=await fetch(origin+route,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:undefined);return {status:response.status,body:await response.json()};};
  const api=async(route,body)=>{const result=await request(route,body);assert.ok(result.status<300,JSON.stringify(result.body));return result.body;};
@@ -55,16 +58,57 @@ async function fixture(t){
  }
  const current=studio.store.project(project.id);current.assetLibrary={version:1,assetIds:assets.map(a=>a.id),directories:[],recursive:true};studio.store.save();
  const action=(name,input={})=>api('/api/projects/'+project.id+'/production/'+name,{expectedRevision:studio.store.project(project.id).revision,segmentId:'E011-S001',...input});
- return {dir,origin,studio,calls,assets,api,request,action,get project(){return studio.store.project(project.id);}};
+ return {dir,origin,studio,calls,assets,api,request,action,release,get project(){return studio.store.project(project.id);}};
 }
 async function until(predicate){for(let i=0;i<240;i++){if(predicate())return;await new Promise(resolve=>setTimeout(resolve,25));}throw Error('合成任务未在限时内完成');}
 
+test('无服装的城卫军、舞姬、乐工采用文生：只认可本格已审计的有效描述',()=>{
+ for(const name of ['城卫军','舞姬','乐工']){
+  const record={original:{出现角色:[name],服装:{},当前场景:'庭院',出现道具:[]}},need={role:'character',name,status:'text',state:'未知（待确认）',description:'人物：'+name,blocking:false,selectedIds:[],conflictingIds:[]};
+  assert.deepEqual(productionPanelDataIssues(record,{referenceAudit:{needs:[need]}}),[]);
+  for(const patch of [{description:''},{description:' '},{name:'别人'},{role:'scene'},{blocking:true},{status:'missing'},{conflictingIds:['bad']},{selectedIds:['image']}])assert.equal(productionPanelDataIssues(record,{referenceAudit:{needs:[{...need,...patch}]}}).length,1);
+ }
+});
+
+test('单格文生贯通空服装校验、整屏准备、单格提交、本话缺图批次和保存重载',{timeout:30000},async t=>{
+ const f=await fixture(t),segmentId='E011-S001',records=f.project.productionPackage.episodes[0].panelRecords.filter(r=>r.segmentId===segmentId);
+ for(const r of records){r.original.服装={};delete r.original['角色状态（服装/形态）'];}
+ f.studio.store.save();const prepared=await f.action('panels',{prepareOnly:true});
+ for(const panelId of prepared.panelIds){const frame=f.project.pages.flatMap(p=>p.panels).find(p=>p.id===panelId),need=auditPanelReferences(f.project,frame,f.assets).needs.find(n=>n.role==='character');await f.api('/api/projects/'+f.project.id+'/asset-workspace/text',{expectedRevision:f.project.revision,mode:'text',description:need.name+'：按本格剧情文生，无需服装卡',targets:[{panelId,needId:need.id}]});}
+ await f.action('panels',{mode:'clean'});
+ const frames=()=>prepared.panelIds.map(id=>f.project.pages.flatMap(p=>p.panels).find(p=>p.id===id));
+ for(const frame of frames()){assert.equal(auditPanelReferences(f.project,frame,f.assets).ready,true);assert.equal(panelTextAssets(f.project,frame,f.assets).length,1);}
+ await f.api('/api/jobs',{projectId:f.project.id,panelIds:[prepared.panelIds[0]],provider:'codex',expectedRevision:f.project.revision});await until(()=>f.studio.store.db.jobs.at(-1)?.status==='done');
+ const page=f.project.pages.find(p=>p.panels.some(p=>p.id===prepared.panelIds[1]));
+ await f.api('/api/episode-generation-batches',{projectId:f.project.id,pageId:page.id,episode:11,panelIds:[prepared.panelIds[1]],provider:'codex',expectedRevision:f.project.revision});await until(()=>f.calls.length===2&&f.studio.store.db.jobs.every(j=>j.status==='done'));
+ for(const call of f.calls){assert.equal(call.textAssetReferences.length,1);assert.ok(!call.referenceRoles.some(r=>r.role==='character'));assert.ok(call.referenceRoles.some(r=>r.role==='scene'));for(const prompt of [buildImagePrompt(call),buildJimengPrompt(call)])assert.ok(prompt.includes('无需服装卡'));}
+ const reload=new Store(path.join(f.dir,'data'),{seedReference:false});try{const p=reload.project(f.project.id);for(const id of prepared.panelIds)assert.equal(panelTextAssets(p,p.pages.flatMap(p=>p.panels).find(p=>p.id===id),reload.db.assets).length,1);}finally{reload.close();}
+ // Switching back to images deliberately restores the image requirement.
+ const frame=frames()[0],need=auditPanelReferences(f.project,frame,f.assets).needs.find(n=>n.role==='character');await f.api('/api/projects/'+f.project.id+'/asset-workspace/text',{expectedRevision:f.project.revision,mode:'image',targets:[{panelId:frame.id,needId:need.id}]});
+ const rejected=await f.request('/api/jobs',{projectId:f.project.id,panelIds:[frame.id],provider:'codex',expectedRevision:f.project.revision});assert.equal(rejected.status,400);assert.match(rejected.body.error,/人物服装未对应/);assert.equal(f.calls.length,2);
+});
+
+test('生图运行中可在实际界面统一气泡，保留锁定文字、生成快照和完成回填',{timeout:60000},async t=>{
+ const f=await fixture(t,{hold:true}),prepared=await f.action('panels',{mode:'clean'}),frame=f.project.pages.flatMap(p=>p.panels).find(p=>p.id===prepared.panelIds[0]);
+ const owner=f.project.pages.find(p=>p.panels.includes(frame)),bubble=owner.bubbles.find(b=>b.parentPanelId===frame.id);assert.ok(bubble);const original=structuredClone(bubble),locked=structuredClone(bubble);locked.id='bubble_00000000-0000-0000-0000-000000000055';locked.locked=true;owner.bubbles.push(locked);f.studio.store.save();
+ const browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());const view=await browser.newPage({viewport:{width:1864,height:949}});await view.route('**/*',r=>new URL(r.request().url()).origin===f.origin?r.continue():r.abort());
+ await view.goto(f.origin+'/?project='+f.project.id);await view.waitForFunction(()=>document.querySelector('#save-state')?.textContent.includes('已保存'));await view.locator('#page-marker').click();await view.locator('[data-action=episode-bubble-styles]').click();await view.locator('[data-production-style-scope]').selectOption('episode');
+ const [task]=await f.api('/api/jobs',{projectId:f.project.id,panelIds:[frame.id],provider:'codex'});await until(()=>f.calls.length===1);
+ const snapshots=JSON.stringify(f.project.pages.map(p=>p.panels)),sources=JSON.stringify(f.project.productionPackage),jobInput=JSON.stringify(f.studio.store.db.jobs.find(j=>j.id===task.id).input);
+ await view.locator('[data-production-style-box=builtin-double]').click();await view.waitForFunction(()=>document.querySelector('[data-production-style-status]')?.textContent.includes('已应用'));
+ const edited=()=>f.project.pages.flatMap(p=>p.bubbles).find(b=>b.id===bubble.id);assert.equal(edited().comicStyleId,'builtin-double');assert.deepEqual(f.project.pages.flatMap(p=>p.bubbles).find(b=>b.id===locked.id),locked);
+ for(const key of ['text','x','y','w','h','textBox'])assert.deepEqual(edited()[key],original[key]);
+ assert.equal(JSON.stringify(f.project.pages.map(p=>p.panels)),snapshots);assert.equal(JSON.stringify(f.project.productionPackage),sources);assert.equal(JSON.stringify(f.studio.store.db.jobs.find(j=>j.id===task.id).input),jobInput);
+ await view.screenshot({path:path.join(evidence,'styles-during-generation.png')});f.release();await until(()=>f.studio.store.db.jobs.find(j=>j.id===task.id).status==='done');const done=f.studio.store.db.jobs.find(j=>j.id===task.id);assert.equal(done.applied,true);assert.equal(edited().comicStyleId,'builtin-double');
+ await view.reload();await view.waitForSelector('#canvas-tool-dock');assert.equal(edited().comicStyleId,'builtin-double');
+});
+
 test('源服装为空时采用本格已核对的人物参考；候选、串人物和冲突不能代替已选图',()=>{
- const record={original:{出现角色:['宋茜'],服装:{},当前场景:'林家大院',出现道具:[]}},need={role:'character',name:'宋茜',status:'ready',blocking:false,selectedIds:['asset_chosen'],conflictingIds:[]};
+ const record={original:{出现角色:['角色乙'],服装:{},当前场景:'林家大院',出现道具:[]}},need={role:'character',name:'角色乙',status:'ready',blocking:false,selectedIds:['asset_chosen'],conflictingIds:[]};
  assert.deepEqual(productionPanelDataIssues(record,{referenceAudit:{needs:[need]}}),[]);
- for(const changed of [{status:'available',selectedIds:[]},{name:'角色甲'},{status:'conflict',blocking:true,conflictingIds:['asset_wrong']},{status:'text',selectedIds:[]}])assert.ok(productionPanelDataIssues(record,{referenceAudit:{needs:[{...need,...changed}]}}).includes('人物服装未对应：宋茜'));
+ for(const changed of [{status:'available',selectedIds:[]},{name:'角色甲'},{status:'conflict',blocking:true,conflictingIds:['asset_wrong']},{status:'text',selectedIds:[]}])assert.ok(productionPanelDataIssues(record,{referenceAudit:{needs:[{...need,...changed}]}}).includes('人物服装未对应：角色乙'));
  assert.deepEqual(record.original.服装,{},'不能把参考图衣装倒写为原分镜事实');
- assert.ok(productionPanelDataIssues({original:{...record.original,'角色状态（服装/形态）':'小宋茜:黑衣'}}).includes('人物服装未对应：宋茜'));
+ assert.ok(productionPanelDataIssues({original:{...record.original,'角色状态（服装/形态）':'小角色乙:黑衣'}}).includes('人物服装未对应：角色乙'));
 });
 
 test('已选人物图且原服装为空：页面可重做、单格与整屏逐格均可提交；取消选图仍拦截',{timeout:60000},async t=>{

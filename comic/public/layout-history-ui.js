@@ -19,7 +19,7 @@ export function mountLayoutHistoryUI({getProject,modal,closeModal,download,toast
   function render(){
     const p=getProject();if(!p)return toast('请先打开工程',true);
     const h=p.layoutHistory,records=queryLayoutHistory(p,{...filter,offset,limit:50}),hasNext=queryLayoutHistory(p,{...filter,offset:offset+50,limit:1}).length>0;
-    modal('画板调整记录',`<p>记录已完成操作的前后值。初始基线保留；旧工程从首次启用时的当前布局开始。模板版本缺失时为未知。</p><p>已记录 ${h?.records.length??0} 条；保留上限 ${h?.limits.records??2000} 条 / ${Number(((h?.limits.bytes??HISTORY_LIMITS.bytes)/1024/1024).toFixed(2))} MiB；记录或工程达到保存大小上限时，自动删除最早一半历史记录，保留最新记录，持续循环。当前画面、图片、文字和初始基线保留。</p>`+
+    modal('画板调整记录',`<p>记录修改前后值；初始基线保留。</p><p>已记录 ${h?.records.length??0} 条；保留上限 ${h?.limits.records??2000} 条 / ${Number(((h?.limits.bytes??HISTORY_LIMITS.bytes)/1024/1024).toFixed(2))} MiB；记录或工程达到保存大小上限时，自动删除最早一半历史记录，保留最新记录，持续循环。当前画面、图片、文字和初始基线保留。</p>`+
       '<p>已自动清理最旧 '+(h?.evictedRecords||0)+' 条；初始基线保留。'+(h?.unrecordedOperations?'旧版本暂停期间有 '+h.unrecordedOperations+' 次操作未记录，现已恢复。':'')+'</p>'+
       '<div class="field-grid"><label>对象 / 画板 / 分镜 ID<input id="adjustment-object" value="'+esc(filter.objectId)+'"></label><label>操作关键词<input id="adjustment-operation" placeholder="move / resize / crop / paste / arrangement" value="'+esc(filter.operation)+'"></label><label>来源<select id="adjustment-source"><option value="">全部</option>'+Object.entries(sourceLabels).map(([key,label])=>'<option value="'+key+'" '+(filter.source===key?'selected':'')+'>'+label+'</option>').join('')+'</select></label></div><button id="adjustment-filter">查询</button> '+
       '<button id="adjustment-prev" '+(!offset?'disabled':'')+'>上一页</button> <button id="adjustment-next" '+(!hasNext?'disabled':'')+'>下一页</button><p>第 '+(Math.floor(offset/50)+1)+' 页，每页最多 50 条；展开操作查看前后变化。</p>'+

@@ -2,7 +2,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 export async function openMokuProject({api,flushSave,getProject,onImported,toast}){
  await flushSave();const current=getProject(),identity=current?.id,revision=current?.revision;
  const dlg=document.createElement('dialog');dlg.className='moku-project-open';
- dlg.innerHTML='<h2>从墨库打开工程</h2><p>选择作品和话，按工程保存的固定版本恢复图片、字体和资料。原本机工程保留。</p><label>墨库项目<select data-project><option value="">请选择项目</option></select></label><label>话<select data-episode><option value="all">全部话</option></select></label><label>搜索工程<input data-search type="search" placeholder="工程名称"></label><p data-status role="status">正在读取墨库项目…</p><div data-files></div><button data-more hidden>加载更多</button><button data-close>关闭</button>';
+ dlg.innerHTML='<h2>从墨库打开工程</h2><p>按保存版本打开，本机工程保留。</p><label>墨库项目<select data-project><option value="">请选择项目</option></select></label><label>话<select data-episode><option value="all">全部话</option></select></label><label>搜索工程<input data-search type="search" placeholder="工程名称"></label><p data-status role="status">正在读取墨库项目…</p><div data-files></div><button data-more hidden>加载更多</button><button data-close>关闭</button>';
  document.body.append(dlg);dlg.showModal();dlg.addEventListener('close',()=>{epoch++;dlg.remove();});
  const find=s=>dlg.querySelector(s),projects=find('[data-project]'),episodes=find('[data-episode]'),search=find('[data-search]'),status=find('[data-status]'),files=find('[data-files]'),more=find('[data-more]');
  let epoch=0,offset=0,busy=false,timer;find('[data-close]').onclick=()=>dlg.close();

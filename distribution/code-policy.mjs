@@ -8,7 +8,7 @@ const extensions=new Set(['.mjs','.js','.cjs','.py','.css','.html','.json','.svg
 const roots=new Set(['portable-env.mjs','start-all.mjs','start-comic-local.mjs','start-assets-local.mjs','start-center-local.mjs','AGENTS.md','README.md','安装并接入.cmd','启动全部.cmd','检查并升级.cmd','同事Codex接入指南.md','主版本发布与升级说明.md']);
 export function allowedCodePath(value){
  if(typeof value!=='string'||!value||value.includes('\\')||value.includes(':')||value.startsWith('/')||value.includes('\0'))return false;
- const parts=value.split('/');if(parts.some(p=>!p||p==='.'||p==='..'||skipped.has(p)||/[. ]$/.test(p)))return false;
+ const parts=value.split('/');if(parts.some(p=>!p||p==='.'||p==='..'||skipped.has(p)||/^prompt-rewrite-[A-Za-z0-9]{6}$/.test(p)||/[. ]$/.test(p)))return false;
  const name=parts.at(-1);if(name.startsWith('.')||/\.local\.|\.bak(?:-|$)|\.log$|\.pyc$/i.test(name)||['auth.json','tokens.json','settings.json','assistant-token.txt','moku.json','asset-studio.json','studio.json'].includes(name))return false;
  if(!extensions.has(path.posix.extname(name).toLowerCase()))return false;
  if(parts.length===1)return roots.has(name);

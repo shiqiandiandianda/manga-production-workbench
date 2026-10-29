@@ -32,6 +32,7 @@ def bad_repeat(run,near):
     return (max(ws)-min(ws))/max(ws)<near['widthTolerance'] and max(rs)-min(rs)<near['aspectTolerance'] and max(cs)-min(cs)<1280*near['centerToleranceOfCanvas']
 
 def plan(shots,fs,mains,combos,book):
+    joint=any(s.get('artworkLayout',{}).get('repairPolicyVersion')==2 for s in shots)
     cfg=book['runtime'];near=cfg['supportSelection']['nearRepeat'];sets=[];previous=None;active=None
     bounded=bool(cfg.get('userConstraints',{}).get('maximumHOverW'));support_policy=cfg.get('readingPlanner',{}).get('supportHeightPolicy')
     for i,(s,f) in enumerate(zip(shots,fs)):
@@ -56,7 +57,13 @@ def plan(shots,fs,mains,combos,book):
                 if bounded:f['_mainGeometry'].update(heightPolicy='content-first-supports-resolved-without-main-growth')
                 else:f['_mainGeometry'].update(ratio=ratio,groupAreaMinimumHeight=required)
             ratio=art_ratio or ratio;active={'w':1280,'h':min(round(1280*ratio),1280*16//9) if bounded and not art_ratio else round(1280*ratio)}
-            sets.append([{'role':'main','x':0,**active,'cost':0,'shape':None}]);previous=None;continue
+            main_options=[{'role':'main','x':0,**active,'cost':0,'shape':None}]
+            if joint and not art_ratio and f.get('_mainGeometry'):
+                low,high=f['_mainGeometry']['range']
+                for candidate_ratio in (low,(low+high)/2,high):
+                    h=round(1280*candidate_ratio)
+                    if not any(p['h']==h for p in main_options):main_options.append({'role':'main','x':0,'w':1280,'h':h,'cost':abs(candidate_ratio-ratio),'shape':None})
+            sets.append(main_options);previous=None;continue
         base=source_shape(f,combos.get(i),book,previous,fs[i-1] if i else None);previous=base
         if cfg.get('combinationPlanner'):
             from local_combination_rules import shape_preference
@@ -72,7 +79,7 @@ def plan(shots,fs,mains,combos,book):
         ratio=art_ratio or base['ratio'];preferred=base['width'];variant=base['variant']
         # A focus frame, a normal frame and a breathing frame are meaningful
         # area choices, not tiny pixel nudges. Never change an existing ratio.
-        configs=cfg['sequencePlanning'];options=[]
+        configs=cfg['sequencePlanning'];options=[];width_limits=[]
         candidates=list(configs['candidates'])
         if bounded and not art_ratio:
             if support_policy:lo,hi=base['heightProfile']['range']
@@ -84,10 +91,14 @@ def plan(shots,fs,mains,combos,book):
             # Reconsider content-safe height as well as width; the main never
             # grows to accommodate a failed support candidate.
             candidates.extend([('compact_fit',1,lo-ratio),('compact_focus',.9,lo-ratio)])
+        if art and (s.get('artworkLayout',{}).get('fit')=='frame-to-artwork' or s.get('artworkLayout',{}).get('tighten')):
+            cap=math.floor(math.sqrt(active['w']*active['h']*.94/ratio))
+            candidates.append(('artwork_content_fit',min(preferred,cap)/preferred,0))
         for name,scale,height_extra in candidates:
             r=ratio if art_ratio else min(ratio+height_extra,16/9) if bounded else ratio+height_extra
             if support_policy and not art_ratio:r=max(lo,min(r,hi,16/9))
-            w=min(round(preferred*scale),cfg['maximumSupportWidth'],math.floor(math.sqrt(active['w']*active['h']*.94/r)))
+            w=min(round(preferred*scale),cfg['maximumSupportWidth'],cfg['maximumSupportWidth'] if joint else math.floor(math.sqrt(active['w']*active['h']*.94/r)))
+            width_limits.append(w)
             # Wider relationships/full scenes retain the content-fit floor;
             # focus may reduce excess space but cannot cut necessary subjects.
             fit=cfg['supportGeometry']['contentFit'];signals=base['informationLoad']
@@ -95,6 +106,9 @@ def plan(shots,fs,mains,combos,book):
             if f['base']=='spatial':floor=max(floor,fit['spatialWidth']*1280)
             if signals['spanningSubjects']:floor=max(floor,fit['spanningWidth']*1280)
             if signals['multipleFaces'] and signals['protectedProp']:floor=max(floor,fit['facesWithPropWidth']*1280)
+            if art and (s.get('artworkLayout',{}).get('fit')=='frame-to-artwork' or s.get('artworkLayout',{}).get('tighten')):
+                # Full artwork is retained; no subjects are removed to satisfy a script-derived portrait floor.
+                floor=min(floor,preferred*.7)
             if w<max(480,floor):continue
             g={**copy.deepcopy(base),'width':w,'ratio':r,'candidate':name}
             g['reason']+=' 全话候选“'+name+'”保留原景别及人物/道具关系，仅调整画格承载面积和竖幅余量。'
@@ -103,18 +117,24 @@ def plan(shots,fs,mains,combos,book):
                 from local_combination_rules import candidate_cost
                 p['cost']=candidate_cost(f,p,base,cfg['combinationPlanner'])
             if not any((q['x'],q['w'],q['h'])==(p['x'],p['w'],p['h']) for q in options):options.append(p)
-        if not options:raise ValueError('原图比例与必要承载范围冲突：'+s['key'])
+        if not options:
+            main_index=max(k for k in mains if k<i)
+            raise ValueError('画格承载范围与主副格面积限制冲突：'+s['key']+'；所属主格 '+shots[main_index]['key']+' '+str(active['w'])+'×'+str(active['h'])+'；副格必要宽度至少 '+str(math.ceil(max(480,floor)))+'，候选最大宽度 '+str(max(width_limits,default=0))+'；目标高宽比 '+str(round(ratio,3)))
         sets.append(options)
     # Exact dynamic programming over the preceding two candidates. Entire
     # suffixes can be reconsidered; a later conflict never traps a greedy pick.
-    states={(None,None):(0,[])}
+    states={(None,None,None):(0,[])}
     for i,options in enumerate(sets):
         nxt={}
         for _,(cost,path) in states.items():
             for j,p in enumerate(options):
+                main_index=max(k for k in mains if k<=i)
+                main_choice=j if i in mains else path[main_index]
+                main=options[j] if i in mains else sets[main_index][main_choice]
+                if p['role']=='support' and p['w']*p['h']>main['w']*main['h']*.94:continue
                 run=[sets[k][path[k]] for k in range(max(0,i-2),i)]+[p]
                 if bad_repeat(run,near):continue
-                key=(path[-1] if path else None,j);score=cost+p['cost']
+                key=(path[-1] if path else None,j,main_choice);score=cost+p['cost']
                 if key not in nxt or score<nxt[key][0]:nxt[key]=(score,path+[j])
         if not nxt:raise ValueError('当前源图/构图约束没有可用的安全款式组合：'+shots[i]['key'])
         states=nxt
@@ -122,6 +142,8 @@ def plan(shots,fs,mains,combos,book):
     result={}
     for i,j in enumerate(path):
         p=sets[i][j]
+        if joint and i in mains and not frame_artwork(shots[i]):
+            fs[i]['_mainGeometry'].update(ratio=p['h']/p['w'],heightPolicy='joint-main-support-content-candidates')
         if p['shape']:
             result[i]=p['shape'];result[i]['sequenceSelection']={'version':cfg['supportGeometry']['version'] if support_policy else 'content-sequence-v11' if bounded else VERSION,'candidateCount':len(sets[i]),'selectedCandidate':p['shape']['candidate'],'automaticAdjustment':j!=0,'reason':'在全话兼容候选中最少调整；同尺寸及近似同列重复在写出结果前自动解开，未改原文、景别、人物或图像比例。'}
     return result

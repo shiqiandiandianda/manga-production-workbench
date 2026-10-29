@@ -6,7 +6,7 @@ export async function sprintRequest(url,options={},decode='json',{timeout=6000,f
  finally{clearTimeout(timer);}
 }
 export function mountSprintLibrary(host,{addImage,getProject,configUrl='/sfx-sprints.json'}={}){
- const details=document.createElement('details');details.id='sfx-sprint-library';details.innerHTML='<summary>冲刺线 · 图片图层</summary><p>点击“加入画板”添加独立图片层。仅引用本地路径，不复制原图。</p><div class="sfx-sprint-list"></div><p class="sfx-sprint-status" role="status"></p>';host.append(details);if(host.querySelector('#sfx-custom'))host.insertBefore(details,host.querySelector('#sfx-custom'));
+ const details=document.createElement('details');details.id='sfx-sprint-library';details.innerHTML='<summary>冲刺线 · 图片图层</summary><p>仅引用本地原图。</p><div class="sfx-sprint-list"></div><p class="sfx-sprint-status" role="status"></p>';host.append(details);if(host.querySelector('#sfx-custom'))host.insertBefore(details,host.querySelector('#sfx-custom'));
  const style=document.createElement('style');style.textContent='.sfx-sprint-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sfx-sprint-card{border:1px solid #ccd6e0;padding:6px;border-radius:6px}.sfx-sprint-card img{display:block;object-fit:contain;width:100%;height:96px;background:repeating-conic-gradient(#eee 0% 25%,#fff 0% 50%) 0/16px 16px}.sfx-sprint-card strong{display:block;font-size:12px}.sfx-sprint-card small{display:block;font-size:11px;overflow-wrap:anywhere;color:#56687c}.sfx-sprint-card button{width:100%;margin-top:6px}.sfx-sprint-status{overflow-wrap:anywhere}';host.ownerDocument.head.append(style);
  let started=false,observer,serial=Promise.resolve(),unavailable=false;const states=new Map(),status=details.querySelector('.sfx-sprint-status');
  const prepare=(state,{preview=true,manual=false}={})=>{

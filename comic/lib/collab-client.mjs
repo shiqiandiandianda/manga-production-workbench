@@ -536,7 +536,7 @@ export function createCollabClient({store, dataDir, root, environment = process.
       ...(project.productionPolicy?{projectPolicy:project.productionPolicy}:{}),
       panel: panelProductionSnapshot(panel, project),
       nativeSizing: panel.nativeSizing || null,
-      referenceRoles: referencePackingRoles(refs,{project,assets:store.db.assets}),
+      referenceRoles: referencePackingRoles(refs,{project,assets:store.db.assets,panelId:panel.id}),
       textAssetReferences: panelTextAssets(project,panel,store.db.assets),
       editPrompt: '',
       cropBox: null,

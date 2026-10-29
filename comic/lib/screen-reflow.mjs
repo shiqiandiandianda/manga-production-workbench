@@ -6,7 +6,8 @@ import {productionFrame,productionSourceAsset} from '../public/production-packag
 import {assertNativeAspect} from '../public/unified-layout-rules.js';
 import {prepareEpisodeReflow} from './reflow-preparation.mjs';
 import {availableReflowEpisodes} from '../public/reflow-episode-context.mjs';
-import {sourceAspect} from '../public/artwork-framing.mjs';
+import {tightenedArtworkView} from '../public/artwork-framing.mjs';
+import {inspectImageFile} from './image-files.mjs';
 import {buildReflowProject,mergeReflowIntoOriginal} from '../public/auto-layout-reflow.mjs';
 import {returnReflowToCanvas} from '../public/reflow-canvas.mjs';
 import {sampleArtworkPalette} from './artwork-palette.mjs';
@@ -47,6 +48,7 @@ export function createScreenReflow({store,dataDir,body,json,request,addAsset,val
   for(const f of r.files){
    if(path.basename(f.name)!==f.name||!/^[-\w]+\.png$/.test(f.name)||!Number.isInteger(f.width)||!Number.isInteger(f.height)||f.width<2||f.height<2)fail('裁格文件记录无效');
    const p=path.join(folder,f.name);if(!fs.existsSync(p)||verifyFiles&&sha(fs.readFileSync(p))!==f.sha256)fail('裁格图片已改变或缺失，请重新确认 '+f.panelId);
+   if(verifyFiles){let image;try{image=inspectImageFile(p);}catch{fail('裁格图片无法读取，请重新确认 '+f.panelId);}if(image.mime!=='image/png'||image.width!==f.width||image.height!==f.height)fail('裁格实际像素尺寸与确认记录不一致，请重新确认 '+f.panelId);}
   }
   for(const f of r.files)if(f.existingPanelId){const current=project.pages.flatMap(p=>p.panels).find(p=>p.id===f.existingPanelId);if(!current||current.visible===false||current.imageAssetId!==f.existingAssetId||stamp(current)!==f.existingFrameStamp||verifyFiles&&sha(fs.readFileSync(store.assetPath(f.existingAssetId)))!==f.sha256)fail('已有裁格已修改，请重新读取本话排版清单：'+f.panelId);}
   return r;
@@ -69,9 +71,9 @@ export function createScreenReflow({store,dataDir,body,json,request,addAsset,val
   const ep=context(project,input.episode,input.expectedRevision),binding=project.layoutRuleBindings?.[ep.episode],ruleRequest=episodeRuleRequest(binding,input.learningProjectId);
   if(!Array.isArray(input.records)||input.records.length!==ep.segments.length||new Set(input.records.map(r=>r.segmentId)).size!==ep.segments.length)fail('请先完成本话所有整屏的裁格确认',400);
   const selected=new Map(input.records.map(r=>[r.segmentId,r.recordId])),records=ep.segments.map(s=>{if(!selected.has(s.id))fail('缺少裁格确认：'+s.localId,400);return recordFor(project,ep,s,selected.get(s.id),{verifyFiles:true});});
-  const items=ep.panelRecords.map(record=>{const r=records.find(r=>r.segmentId===record.segmentId),f=r.files.find(f=>f.panelId===record.id);if(!f)fail('裁图与源格号无法一一对应：'+record.id);return {...f,cropKey:f.key,key:record.id,segmentId:record.segmentId,recordId:r.id,filePath:path.join(slices,r.id,f.name),sourceAssetId:r.sourceAssetId,sourceHash:r.sourceHash,sourcePanelId:r.sourcePanelId,rootPanelId:r.rootPanelId,sourceWidth:r.width,sourceHeight:r.height};}).map(item=>{const current=item.existingPanelId&&project.pages.flatMap(p=>p.panels).find(p=>p.id===item.existingPanelId),record=ep.panelRecords.find(r=>r.id===item.key),aspect=sourceAspect(record),intentionalHorizontal=aspect&&aspect.width>aspect.height,cover=!!input.uniformFraming&&!intentionalHorizontal,preserve=!!current&&!cover;
+  const items=ep.panelRecords.map(record=>{const r=records.find(r=>r.segmentId===record.segmentId),f=r.files.find(f=>f.panelId===record.id);if(!f)fail('裁图与源格号无法一一对应：'+record.id);return {...f,cropKey:f.key,key:record.id,segmentId:record.segmentId,recordId:r.id,filePath:path.join(slices,r.id,f.name),sourceAssetId:r.sourceAssetId,sourceHash:r.sourceHash,sourcePanelId:r.sourcePanelId,rootPanelId:r.rootPanelId,sourceWidth:r.width,sourceHeight:r.height};}).map(item=>{const current=item.existingPanelId&&project.pages.flatMap(p=>p.panels).find(p=>p.id===item.existingPanelId),flat=item.width>item.height,cover=!!input.uniformFraming&&!current,preserve=!!current,tighten=!!input.uniformFraming&&current?tightenedArtworkView(current,item):null;
    if(cover&&(current?.imageTransform?.rotation||current?.imageTransform?.flipX||current?.imageTransform?.flipY))fail('带旋转或翻转的画格先保留当前取景，请单独核对后再启用竖格修正：'+item.key);
-   return {...item,preserveCurrentView:preserve,currentFrame:current?structuredClone({w:current.w,h:current.h,imageTransform:current.imageTransform}):undefined,artworkLayout:preserve?{version:1,fit:'preserve',framePolicy:'fixed',width:current.w,height:current.h}:cover?{version:1,fit:'cover',framePolicy:'rules'}:undefined};});
+   return {...item,preserveCurrentView:preserve,tightenCurrentView:tighten,currentFrame:current?structuredClone(tighten?{w:tighten.w,h:tighten.h,imageTransform:tighten.imageTransform}:{w:current.w,h:current.h,imageTransform:current.imageTransform}):undefined,artworkLayout:preserve?{version:1,fit:'preserve',framePolicy:'fixed',width:tighten?.w||current.w,height:tighten?.h||current.h,...(tighten?{tighten:true,repairPolicyVersion:2}:{})}:cover?{version:1,fit:'frame-to-artwork',framePolicy:'rules',actualFlat:flat,repairPolicyVersion:2}:undefined};});
   if(!items.length||items.length>800||new Set(items.map(i=>i.key)).size!==items.length)fail('本话源格ID重复或格数超过800',400);
   for(const item of items){addReflowPaletteExclusions(project,item);item.palette=await samplePalette(item);}
   const contract=await request('/api/integration/rules/resolve',ruleRequest);
@@ -91,6 +93,7 @@ export function createScreenReflow({store,dataDir,body,json,request,addAsset,val
   if(batch.scriptId!==script.id||batch.projectHash!==sha(JSON.stringify(original))||JSON.stringify(batch.shots)!==JSON.stringify(script.shots))fail('原工程或固定分镜快照发生变化，请重新送入裁图');
   const ep=original.productionPackage.episodes.find(e=>e.episode===batch.episode);for(const r of new Map(batch.items.map(i=>[i.segmentId,i.recordId])).entries())recordFor(original,ep,ep.segments.find(s=>s.id===r[0]),r[1],{verifyFiles:true});
   if(batch.contract&&JSON.stringify(batch.contract)!==JSON.stringify(script.layoutRuleContract))fail('排版规则快照已改变');
+  if(batch.items.some(i=>i.artworkLayout?.fit==='contain'))fail('旧版留白取景方案已停用，请重新读取来源并计算铺满预览；当前画布未修改');
   assertNativeAspect(script,packet);
   return batch;
  }
@@ -109,6 +112,7 @@ export function createScreenReflow({store,dataDir,body,json,request,addAsset,val
    verifyBatch(script,packet);
    const original=store.project(batch.projectId),boardSource=restoreLegacyReflowScreenBoards(original).project;
    const {geometry,rendered}=buildReflowWithLocalBackgrounds({original:boardSource,script,packet,items,batchId:batch.id,views});
+   if(script.shots.some(s=>s.artworkLayout?.repairPolicyVersion===2)&&rendered.autoLayoutSource.pendingText?.some(t=>boardSource.pages.some(p=>p.bubbles.some(b=>b.visible!==false&&b.productionTextId===t.textId))))fail('取景中的工具文字尚未完成定位，当前画布已保留：'+rendered.autoLayoutSource.pendingText.map(t=>t.gridId).join('、'));
    const next=returnReflowToCanvas(boardSource,rendered,{episode:batch.episode,items,geometry,script,batchId:batch.id});
    const saved=commitLayoutCanvas({store,dataDir,original,next,validateProject,checkAssets,saveProject,receipt:{batchId:batch.id,digest,episode:batch.episode,scriptId:script.id}});
    batch.canvasResults||={};batch.canvasResults[digest]=saved.id;

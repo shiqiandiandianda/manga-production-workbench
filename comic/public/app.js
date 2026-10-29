@@ -22,7 +22,7 @@ import {mountCodexConnection} from './codex-connection-ui.js';
 import {bindProductionExtraReference,productionExtraNeeds} from './production-extra-references.js';
 import {applyProductionStyle,resolveProductionStyle} from './production-lettering-style.js';
 import {mountCanvasPan} from './canvas-pan.js';
-import {fitDialogueBubble} from './lettering.js';
+import {fitDialogueBubble,fitBubbleToTextFrame} from './lettering.js';
 import {mountLibraryUI} from './library-ui.js';
 import {mountTeamToolbar} from './team-toolbar.js';
 import {mountProjectSyncUI} from './project-sync-ui.js';
@@ -977,7 +977,7 @@ document.addEventListener('click',safely(async event=>{
   if(action==='bubble-add-dialogue'){edit(()=>replaceBubble(addDialogueSegment(item),selectionOwner().id),{operation:'bubble.add-dialogue'});$('#inspector-body textarea[data-section="bubble-segment-1"]')?.focus();return;}
   if(action==='bubble-join-lines')return edit(()=>{item.text=joinDialogueLines(item.text);item.lineBreakMode='auto';item.textFlowVersion=1;delete item.textLayout;},{operation:'bubble.join-lines'});
   if(action==='bubble-reset-textbox')return edit(()=>{dialogueSegments(item).forEach((s,i)=>{s.textBox=defaultDialogueBox(item,i);delete s.independentBox;delete s.textLayout;});delete item.textBox;delete item.textLayout;delete item.textFrameLayout;});
-  if(action==='bubble-fit-text')return edit(()=>{const owner=selectionOwner();replaceBubble(fitDialogueBubble(measurement,item,{maxWidth:owner.width*.55}),owner.id);},{source:'automatic',operation:'bubble.auto-fit'});
+  if(action==='bubble-fit-text')return edit(()=>{const owner=selectionOwner();replaceBubble(fitBubbleToTextFrame(measurement,item),owner.id);},{source:'automatic',operation:'bubble.auto-fit'});
   if(action==='merge-selected-layers'){
    const projectId=project.id,layerIds=[...selectedLayerIds];if(layerIds.length<2)return;
    await flushSave();if(project.id!==projectId)return;

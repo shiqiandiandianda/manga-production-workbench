@@ -24,7 +24,7 @@ export function bubbleInspectorMarkup(bubble,{escape,numberField,nodeIndex=0,lay
  <nav class="bubble-properties-tabs" role="tablist" aria-label="对白属性分类">${[['font','字体'],['frame','气泡框'],['more','更多']].map(([key,label])=>`<button type="button" id="bubble-tab-${key}" role="tab" data-bubble-inspector-tab="${key}" aria-selected="${key==='font'}" aria-controls="bubble-pane-${key}" tabindex="${key==='font'?0:-1}">${label}</button>`).join('')}</nav>
  <section class="bubble-properties-pane" id="bubble-pane-font" role="tabpanel" aria-labelledby="bubble-tab-font" data-bubble-inspector-pane="font">
  ${select('字体','fontFamily',style.fontFamily,fonts)}
- ${layout?.overflow?'<p class="bubble-overflow-note" role="status">文字超出安全区域，可适配气泡。</p>':''}<button type="button" data-action="bubble-fit-text" title="${layout?.autoFitted?'当前已自动适配为 '+Math.round(layout.fontSize*10)/10+' px；点击可扩大气泡，恢复设定字号。':'按当前文字和字号调整气泡大小'}">按文字适配气泡</button>
+ ${layout?.overflow?'<p class="bubble-overflow-note" role="status">文字超出安全区域，可适配气泡。</p>':''}<button type="button" data-action="bubble-fit-text" title="按当前文字框调整气泡外框，保留文字位置、字号和换行">按文字适配气泡</button>
  <div class="field-grid">${n('字号 px','fontSize',style.fontSize,10,2048)}${select('字重','fontWeight',style.fontWeight,[300,400,500,600,700,800,900,...(![300,400,500,600,700,800,900].includes(style.fontWeight)?[style.fontWeight]:[])].map(v=>[v,{300:'细体',400:'常规',500:'中等',600:'半粗',700:'加粗',800:'特粗',900:'重体'}[v]||String(v)]),'bubble',true)}${color('文字颜色','textColor',style.textColor)}${select('对齐','textAlign',style.textAlign,[['left','靠左'],['center','居中'],['right','靠右']])}</div>
  </section>
  <section class="bubble-properties-pane" id="bubble-pane-frame" role="tabpanel" aria-labelledby="bubble-tab-frame" data-bubble-inspector-pane="frame" hidden>

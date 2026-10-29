@@ -214,6 +214,24 @@ AI 局部修图：`integrated-repair.mjs` 建立会话与来源快照 → 内嵌
 
 沿原 job ID 查询任务和保存的输入；核对当前 panel ID、来源签名、参考内容、人工编辑与生成阶段。结果已落盘时保留并允许用户采用。对即梦恢复应读取原提交状态，不能把“没有收到返回”解释为“没有发起任务”。
 
+### 一键单格后提示词空白、参考要求重选、原文不高亮
+
+2026-10-29：先按 `productionGrid/panelSlice.segmentId + panelId` 找 `panelRecords`，不要用图片顺序或整屏提示词替代单格原文。
+
+- **提示词空白**：检查 `production-slice-source.js → hydrateProductionSlices()` 和 `production-panel-prompts.js`。已存在的重排单格不会再次调用创建逻辑，可能已有完整源提示词却漏了 `generation.promptSource`，导致无泡原文被当成空泡读取。只初始化缺失模式；保留明确的模式选择、各模式手改和主动清空。`generationPromptSelection()` 是显示/提交的共同入口。
+- **重复匹配**：在 `inheritedSliceReferenceBinding()` 核对父屏槽位、主体、服装、`used_by`、人工确认、revisionId 和 sha256。同一源需求可继承人物、场景、道具的固定版本；“具体款式待绑定”是准备状态而非服装名称（`character-preparation.js`）。`reference-requirements.js` 必须保留人物数组中“百户、缇骑”这类已登记群像，不能拼接再拆成两个人。单格自己换图、文字替代、移除、明确衣装变化和版本不一致仍优先，不做全局别名。
+- **原文高亮**：`production-display-context.js → sourceLocations()/isSourceParagraph()` 解析原著位置/原文位置中的章节和行号，兼容 `第101—101行`、多行区间及旧“行101/非空段”格式。`novel-source-panel.js` 按所选格定位和高亮；只有章节或摘录不符时不能猜测。
+
+恢复入口是正常的工程规范化/启动迁移，会备份旧工程。不要手改生产 JSON，也不要删除图片或重建排版。回归入口：`comic/tests/single-panel-links.test.mjs`、`slice-reference-inheritance.test.mjs`、`production-panel-generation.test.mjs`、`production-screen-boards.test.mjs`。
+
+### 按文字适配气泡却重新排字
+
+2026-10-29：按钮走 `app.js → fitBubbleToTextFrame()`（`lettering.js`），以已有文字框为基准，只调整气泡外框；冻结文字排版，保持页面上的文字位置、文字框宽高、字号、换行和尾尖指向。局部 textBox 坐标会随外框原点变化，验收需比较页面坐标。双圆气泡分别保留两段的独立文字框。不要在此按钮中删除 textBox/textLayout 或调用按字数重新排版的 `fitDialogueBubble()`；后者仍用于新建默认气泡。操作须进入原有撤销和保存流程。上述 `single-panel-links.test.mjs` 覆盖多种轮廓、竖排、双段、保存重开与撤销。
+
+### 重启时团队版本服务因代码冲突退出
+
+`distribution/publisher.mjs → startup-publication.mjs` 在已有已发布版本、且启动发布明确返回“主版本本机修改与同事已发布代码冲突”时，保留原版本并继续启动团队服务，错误仍显示为待合并。不能重置发布基线、覆盖同事代码或强推。首次启动没有可用版本、语法错误和其他异常仍向启动器报告。回归：`distribution/tests/startup-publication.test.mjs`；验收还应核对旧版本 contentId/归档不变及团队服务健康状态。
+
 ## 7 日志与数据定位
 
 以下以实际 `dataRoot` 为准，通常是 `runtime-data/comic/`。只读取排查所需的记录，不把账号配置、完整提示词资料或生产图作为公开日志附件。

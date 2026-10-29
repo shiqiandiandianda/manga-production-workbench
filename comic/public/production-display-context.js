@@ -15,18 +15,20 @@ export function productionDisplayContext(project,page,item){
 
 export function sourceLocations(record){
  const original=record.original||{},out=[];
- for(const text of [original['原著位置']].flat().filter(v=>typeof v==='string')){
+ for(const text of [original['原著位置'],original['原文位置'],record.production?.['原著位置']].flat().filter(v=>typeof v==='string')){
   for(const match of text.matchAll(/第\s*(\d+)\s*章([^章]*?)(?=第\s*\d+\s*章|$)/gu)){
-   const line=/(?:行\s*(\d+)|第\s*(\d+)\s*行)/u.exec(match[2]);
+   const line=/(?:行\s*(\d+)(?:\s*[-—–~～至]\s*(\d+))?|第\s*(\d+)(?:\s*[-—–~～至]\s*(\d+))?\s*行)/u.exec(match[2]);
    const paragraph=/非空段\s*(\d+)/u.exec(match[2]);
-   out.push({chapter:Number(match[1]),line:line?Number(line[1]||line[2]):null,paragraph:paragraph?Number(paragraph[1]):null});
+   const first=line?Number(line[1]||line[3]):null,last=line?Number(line[2]||line[4]||first):null;
+   if(first!==null&&(first<1||last<first))continue;
+   out.push({chapter:Number(match[1]),line:first,...(last>first?{endLine:last}:{}),paragraph:paragraph?Number(paragraph[1]):null});
   }
  }
  for(const entry of original['台词']||[]){
   const basis=entry['保留依据'];
   if(Number.isInteger(basis?.['章节']))out.push({chapter:basis['章节'],line:Number.isInteger(basis['纯文本行号'])?basis['纯文本行号']:null,quote:basis['原文摘录']||''});
  }
- return out.filter(v=>v.chapter>0);
+ return [...new Map(out.filter(v=>v.chapter>0).map(v=>[JSON.stringify(v),v])).values()];
 }
 
 export function novelEpisodeContext(project,page,item){
@@ -35,5 +37,5 @@ export function novelEpisodeContext(project,page,item){
 }
 
 export function isSourceParagraph(paragraph,index,chapter,locations){
- return locations.some(loc=>loc.chapter===chapter&&(loc.line?loc.line===paragraph.line:loc.paragraph?loc.paragraph===index+1:false)&&(!loc.quote||paragraph.text.includes(loc.quote)));
+ return locations.some(loc=>loc.chapter===chapter&&(loc.line?paragraph.line>=loc.line&&paragraph.line<=(loc.endLine||loc.line):loc.paragraph?loc.paragraph===index+1:false)&&(!loc.quote||paragraph.text.includes(loc.quote)));
 }

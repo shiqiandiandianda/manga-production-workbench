@@ -2,7 +2,7 @@ import {roundBubbleSize,usesRoundBubbleDefault} from './round-bubble-default.js'
 import {dialogueSegments,segmentBubble} from './bubble-dialogue-segments.js';
 import {bubbleTailVisible} from './bubble-tail-compat.js';
 import {sfxFontFamily} from './sfx-fonts.js';
-import {bubbleLineBreakMode,frozenBubbleTextRows,bubbleTextLayoutKey} from './bubble-text-flow.js';
+import {bubbleLineBreakMode,frozenBubbleTextRows,bubbleTextLayoutKey,freezeBubbleTextLayout} from './bubble-text-flow.js';
 import {isLibrarySfx,sfxRotation,sfxTransform} from './sfx-library.js';
 import {comicPreviewUrl,currentVisualStyle,validAssetContour} from './comic-styles.js';
 import {assetUrl} from './asset-url.js';
@@ -252,6 +252,38 @@ function positionRows(context,bubble,style,w,h){
     return {text,x,y,glyphs,width:textWidth,availableWidth:area.width,left,right,overflow:area.unsafe||textWidth>area.width+.01||y-glyphHeight/2<box.y||y+glyphHeight/2>box.y+box.h};
   });
   return {box,outline,lines,overflow:!fits||lines.some(line=>line.overflow),lineHeight:step};
+}
+/** Fit the contour around the existing text frames, keeping page-space text
+ * positions, wrapping and typography. Initial lettering uses fitDialogueBubble. */
+export function fitBubbleToTextFrame(context,bubble){
+ const next=structuredClone(bubble);if(bubble.locked||normalizeBubbleStyle(bubble).shape==='none')return next;
+ const layout=bubbleLayout(context,bubble),parts=dialogueSegments(next),layouts=parts.length?layout.dialogueLayouts:[layout],boxes=layouts.map(l=>l.textBox),style=normalizeBubbleStyle(next);
+ const left=Math.min(...boxes.map(b=>b.x)),top=Math.min(...boxes.map(b=>b.y)),right=Math.max(...boxes.map(b=>b.x+b.w)),bottom=Math.max(...boxes.map(b=>b.y+b.h));
+ const padding=Math.max(style.padding,style.outlineWidth/2+3),insets=bubble.shape==='asset'?bubble.assetInsets:null;
+ const usableX=Math.max(.05,1-(insets?.left||0)-(insets?.right||0)),usableY=Math.max(.05,1-(insets?.top||0)-(insets?.bottom||0)),cx=(insets?.left||0)+usableX/2,cy=(insets?.top||0)+usableY/2;
+ let w=(right-left+padding*2)/usableX,h=(bottom-top+padding*2)/usableY,dx=0,dy=0;
+ for(let attempt=0;attempt<100;attempt++){
+  dx=w*cx-(left+right)/2;dy=h*cy-(top+bottom)/2;
+  const outline=shapeOutline(style,next,w,h),fits=boxes.every(box=>{
+   const moved={x:box.x+dx,y:box.y+dy,w:box.w,h:box.h};
+   // Include polygon vertices so narrow/concave contours cannot cut a frame.
+   const ys=[moved.y,moved.y+moved.h,...Array.from({length:17},(_,i)=>moved.y+moved.h*i/16),...(outline||[]).filter(p=>p.y>moved.y&&p.y<moved.y+moved.h).map(p=>p.y)];
+   return ys.every(y=>{const area=safeInterval(style,outline,moved,w,h,y,.01);return !area.unsafe&&area.left<=moved.x+.01&&area.right>=moved.x+moved.w-.01;});
+  });
+  if(fits)break;
+  if(attempt===99)throw Error('当前气泡轮廓无法容纳文字框，请调整气泡样式');
+  w*=1.04;h*=1.04;
+ }
+ next.x=finite(bubble.x,0)-dx;next.y=finite(bubble.y,0)-dy;next.w=w;next.h=h;
+ for(const [index,l]of layouts.entries()){
+  const holder=parts.length?segmentBubble(bubble,index):next;freezeBubbleTextLayout(holder,l);
+  const box={...holder.textBox,x:holder.textBox.x+dx,y:holder.textBox.y+dy};
+  if(parts.length){parts[index].independentBox=box;parts[index].textLayout=holder.textLayout;}
+  else{next.textBox=box;next.textFrameLayout=true;}
+ }
+ // The speaker target stays fixed while the contour and tail base move.
+ if(layout.tail)next.tail={...next.tail,mode:'absolute',x:finite(bubble.x,0)+layout.tail.tip.x,y:finite(bubble.y,0)+layout.tail.tip.y};
+ return next;
 }
 export function fitDialogueBubble(context,bubble,{maxWidth=640}={}){
  const next=structuredClone(bubble),style=normalizeBubbleStyle(next),round=usesRoundBubbleDefault(next),ratio=round?1:1.45;

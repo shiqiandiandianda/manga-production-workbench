@@ -1,6 +1,7 @@
 import {effectiveOutfitPrompt} from './episode-outfit.js';
 import {bounds} from './model.js';
 import {productionPanelPrompts} from './production-panel-prompts.js';
+import {singlePanelPromptScope} from './single-panel-prompt-scope.js';
 export const PROMPT_SOURCES=Object.freeze([{value:'imported',label:'分镜表提示词'},{value:'post-lettering',label:'生图提示词（后期嵌字）'},{value:'direct',label:'直出提示词'}]);
 export function promptSource(value){if(value===undefined||value===null||value==='current')return 'imported';if(!PROMPT_SOURCES.some(option=>option.value===value))throw Object.assign(Error('提示词来源无效'),{status:400});return value;}
 const header=value=>String(value).normalize('NFKC').replace(/\s+/gu,'');
@@ -30,8 +31,9 @@ export function generationPromptChoices(panel,project){
 export function generationPromptSelection(panel,project){
  const source=promptSource(panel?.generation?.promptSource),original=generationPromptChoices(panel,project).find(option=>option.value===source),overrides=panel?.generation?.promptOverrides;
  const edited=!!overrides&&Object.hasOwn(overrides,source)&&typeof overrides[source]==='string';
- const outfitText=effectiveOutfitPrompt(project,panel,edited?overrides[source]:original.text),text=currentFramePromptRatio(outfitText,panel);
- return {...original,source,originalText:original.text,edited:edited||outfitText!==original.text,text};
+ const scoped=edited?{text:overrides[source]}:singlePanelPromptScope(original.text,panel);
+ const outfitText=effectiveOutfitPrompt(project,panel,scoped.text),text=currentFramePromptRatio(outfitText,panel);
+ return {...original,...scoped,source,originalText:original.text,edited:edited||outfitText!==scoped.text,text,...(scoped.scopeAdapted?{label:original.label.replace('原文','提示词')}:{} )};
 }
 export function setPanelPromptText(panel,text){
  if(typeof text!=='string'||text.length>20000)throw Object.assign(Error('本格提示词最多20000字'),{status:400});

@@ -224,6 +224,14 @@ AI 局部修图：`integrated-repair.mjs` 建立会话与来源快照 → 内嵌
 
 恢复入口是正常的工程规范化/启动迁移，会备份旧工程。不要手改生产 JSON，也不要删除图片或重建排版。回归入口：`comic/tests/single-panel-links.test.mjs`、`slice-reference-inheritance.test.mjs`、`production-panel-generation.test.mjs`、`production-screen-boards.test.mjs`。
 
+### 裁格提示词仍有屏段尺寸、阅读顺序和父屏坐标
+
+2026-10-29：先检查源 `panelRecords.original/production.单格提示词` 的内容，不能仅凭字段叫“单格”或“画格数量：1”就判定正确。第041话的源单格稿自身含屏段编译模板，保留了整屏规格和跨格核对；这与选错 `promptSource` 是两个问题。
+
+`generationPromptSelection() → single-panel-prompt-scope.js` 针对此已识别模板，校验独立单格编号、唯一画面块及参考使用格号，然后按源格ID提取本格画面、画风、前情与文字要求。执行尺寸取当前画格 bounds，移除父屏坐标、整屏阅读顺序与其他格的执行要求。正常单格原文、整屏生成和各模式人工修改保持原样；不能据邻格推测缺失画面。匹配不唯一时返回 scopeError 并由 `panelProductionShot()` 拦截，界面提示核对来源。
+
+此过程只派生显示和提交文本，不改写导入原件、来源摘要、图层、绑定或用户修改。任务 `shot.promptScope.sourcePrompt` 保留适配前原文供追溯；界面标注“已按本格提取”。修改范围必须覆盖前端与服务端，更新后安全重启加载服务端模块，不能只刷新浏览器。回归：`comic/tests/single-panel-prompt-scope.test.mjs`，包含旧裁格、模式独立、保存重开、切换单位、异常来源拦截，以及假通道中 Codex/即梦最终提示词检查；不调用真实生图。
+
 ### 按文字适配气泡却重新排字
 
 2026-10-29：按钮走 `app.js → fitBubbleToTextFrame()`（`lettering.js`），以已有文字框为基准调整气泡外框；冻结文字排版，保持页面上的文字位置、文字框宽高、字号和换行。局部 textBox 坐标会随外框原点变化，验收需比较页面坐标。双圆气泡分别保留两段的独立文字框。不要在此按钮中删除 textBox/textLayout 或调用按字数重新排版的 `fitDialogueBubble()`；后者仍用于新建默认气泡。操作须进入原有撤销和保存流程。

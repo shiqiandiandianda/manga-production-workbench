@@ -110,17 +110,20 @@ export function createMokuProjectLibrary({dataDir,request,reader,getProject=()=>
    const episodes=(await read('/api/projects/'+projectId+'/episodes')).items||[],matches=episodes.filter(e=>!e.deletedAt&&(episodeNumber(e.episodeNumber)||episodeNumber(e.name))===number);check(matches.length<=1,'墨库有多个第'+number+'话，请先核对所属话');const target=matches[0]||await post('/api/projects/'+projectId+'/episodes',{number:String(number)},['episode',projectId,number]);check(uuid(target.id),'墨库未返回有效话编号');return {projectId,scopeId:target.id,assetKind:'image',assetType:kind==='cover'?'header':'footer'};
   }
   const groups_=groups(project),matches=groups_.flatMap(([n,frames])=>frames.filter(({panel})=>assetIds(panel).has(assetId)).map(f=>({number:n,...f}))),requested=episodeNumber(episode);
-  let selected;
+  let selected,sharedOwners=[];
   if(assetId){
    const direct=matches.filter(m=>m.panel.imageAssetId===assetId),candidates=matches.filter(m=>(m.panel.candidates||[]).includes(assetId)),owners=direct.length?direct:candidates;
    check(matches.length,'工程图片缺少对应格子，请明确关联后重试');
    check(owners.length,'本地图仅作为参考使用，无法确定资产类别；请先在墨库归档并选择对应固定版本');
-   const eligible=owners.filter(m=>!requested||m.number===requested);check(eligible.length===1,'本地图同时属于多个格子或与所选话不一致，无法确定归属；请先在墨库明确所属格子并选择固定版本');selected=eligible[0];
+   const eligible=owners.filter(m=>!requested||m.number===requested);check(eligible.length,'本地图与所选话不一致，请核对所属话');
+   // One original may be displayed by many panels. Store it once under a
+   // deterministic anchor; snapshot references retain every consuming panel.
+   sharedOwners=eligible;selected=eligible[0];
   }
   const number=requested||selected?.number||(groups_.length===1?groups_[0][0]:null);check(number,'工程附图或原件缺少明确话归属，未猜测分类');
   const {saved,grouped}=await prepare(project,projectId);check(saved.episodes[number],'工程附图或原件缺少明确话归属，未猜测分类');const entry=saved.episodes[number],frame=selected||grouped.find(([n])=>n===number)[1][0];
   if(['storyboard','novel','production_table'].includes(role))return {projectId,scopeId:entry.episodeId,assetKind:'file',assetType:role};check(frame&&matches.length,'工程图片缺少对应格子，请明确关联后重试');
-  const characterIds=new Set(),sceneIds=new Set();for(const id of assetIds(frame.panel)){const asset=getAssets().find(a=>a.id===id);if(!asset?.library?.assetId||!['character','scene'].includes(asset.library.assetType||asset.library.category))continue;const response=await reader.handle('/api/assets/'+asset.library.assetId),detail=response&&await response.json();if(detail?.projectId!==projectId)continue;const target=detail.assetType==='character'?characterIds:sceneIds;for(const ref of [detail.objectId,...detail.characterIds||[],...detail.sceneIds||[]])if(uuid(ref))target.add(ref);}
+  const characterIds=new Set(),sceneIds=new Set();for(const id of new Set((sharedOwners.length?sharedOwners:[frame]).flatMap(owner=>[...assetIds(owner.panel)]))){const asset=getAssets().find(a=>a.id===id);if(!asset?.library?.assetId||!['character','scene'].includes(asset.library.assetType||asset.library.category))continue;const response=await reader.handle('/api/assets/'+asset.library.assetId),detail=response&&await response.json();if(detail?.projectId!==projectId)continue;const target=detail.assetType==='character'?characterIds:sceneIds;for(const ref of [detail.objectId,...detail.characterIds||[],...detail.sceneIds||[]])if(uuid(ref))target.add(ref);}
   check(characterIds.size||sceneIds.size,'本格尚未关联本项目的人物或场景，请先绑定明确的参考资产');return {projectId,scopeId:entry.episodeId,assetKind:'image',assetType:'comic_panel',engineeringId:entry.engineeringId,panelId:entry.panels[frame.panel.id],characterIds:[...characterIds],sceneIds:[...sceneIds]};
  }
  function projectTarget(content,input,alias){

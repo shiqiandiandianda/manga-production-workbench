@@ -30,9 +30,17 @@ export function createProjectMediaFiles({store,library,dataDir,receipts,persist,
  }
  async function pack(project,projectId){
   const folders=collaborationStorage(project),view=projectSnapshotBody(project),values=strings(view),assets=[];let metadataChanged=false;
+  // Only comic originals may share content identity; other asset categories
+  // keep their explicit ownership and upload semantics.
+  const panelImages=new Set((project.pages||[]).flatMap(p=>(p.panels||[]).flatMap(f=>[f.imageAssetId,...f.candidates||[]]))),sharedImages=new Map();
+  const remember=ref=>{if(ref?.projectId===projectId&&ref.assetType==='comic_panel'&&uuid(ref.assetId)&&uuid(ref.revisionId)&&/^[a-f0-9]{64}$/i.test(ref.sha256||''))sharedImages.set(ref.sha256,ref);};
+  for(const receipt of Object.values(receipts))remember(receipt);
+  for(const asset of store.db.assets)if(values.has(asset.id)&&panelImages.has(asset.id))remember(asset.library);
   for(const id of values){if(!assetId(id))continue;const asset=store.db.assets.find(a=>a.id===id);check(asset,'工程引用的图片未登记：'+id,409);const file=store.assetPath(id);check(fs.existsSync(file),'图片原件缺失：'+asset.name,409);check(fs.statSync(file).size<=256*1024*1024,'图片超过256MB：'+asset.name,413);const bytes=fs.readFileSync(file);const sha=hashBytes(bytes);
    let reference=uuid(asset.library?.assetId)&&uuid(asset.library?.revisionId)&&asset.library.sha256===sha&&(!asset.library.projectId||asset.library.projectId===projectId)?{...asset.library}:null;
-   if(!reference)reference=await upload(bytes,asset.name||id+'.png',projectId,'image:'+id,asset.mime||'image/png',asset.libraryRole||'reference',folders.asset(id),await library.projectUploadContext?.(project,projectId,{assetId:id})||{});
+   if(!reference&&panelImages.has(id))reference=sharedImages.get(sha);
+   if(!reference){const context=await library.projectUploadContext?.(project,projectId,{assetId:id})||{};reference=await upload(bytes,asset.name||id+'.png',projectId,context.assetType==='comic_panel'?'image-content:'+sha:'image:'+id,asset.mime||'image/png',asset.libraryRole||'reference',folders.asset(id),context);}
+   if(panelImages.has(id))remember(reference);
    library.assertSession?.();reference={...reference,baseUrl:library.baseUrl,sha256:sha};if(JSON.stringify(asset.library)!==JSON.stringify(reference)){asset.library=reference;metadataChanged=true;}
    assets.push({id,name:asset.name,width:asset.width,height:asset.height,mime:asset.mime||'image/png',sha256:sha,library:reference,...Object.fromEntries(metadata.filter(k=>asset[k]!==undefined).map(k=>[k,asset[k]]))});
   }

@@ -197,7 +197,7 @@ export function createStudio({dataDir=process.env.COMIC_DATA_DIR||path.join(root
   // 气泡样式库放在墨库独立文件夹，编辑器从墨库读取；本地文件只用于首次发布。
   const bubbleStyleLibrary=createBubbleStyleLibrary({dataDir,library,store,json,body});
   const localRegions=createLocalRegionAPI({store,dataDir,localTools,body,json,saveProject,addAsset});
-  const assetWorkspace=createAssetWorkspaceAPI({store,body,json,saveProject});
+  const assetWorkspace=createAssetWorkspaceAPI({store,body,json,saveProject,library});
   const assetUpload=createAssetWorkspaceUpload({store,library,body,json});
   const layerMerge=createLayerMergeAPI({store,dataDir,body,json,saveProject,addAsset});
   const integratedRepair=createIntegratedRepair({dataDir,store,body,json,saveProject,addAsset,apiOrigin:()=>`http://127.0.0.1:${server.address().port}`,localTools});

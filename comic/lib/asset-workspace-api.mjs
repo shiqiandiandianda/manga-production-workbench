@@ -1,3 +1,4 @@
+import {exportEpisodeSelections,previewEpisodeSelections,importEpisodeSelections} from './episode-asset-reuse.mjs';
 import {removeWorkspaceReference,restoreWorkspaceReference} from './asset-workspace-removal.mjs';
 import {auditPanelReferences} from '../public/panel-reference-audit.js';
 import {assetRequirementKey} from '../public/asset-workspace-model.js';
@@ -28,8 +29,11 @@ export function prepareWorkspaceBinding(store,old,input,asset,expectedNeed){
  if(input.userSelected===true){validateProject(next);return next;}
  for(const c of contexts)rememberWorkspaceChoice(next,c.panel,c.need,asset);const reused=reuseWorkspaceChoices(store,next);validateProject(reused.project);return reused.project;
 }
-export function createAssetWorkspaceAPI({store,body,json,saveProject}){
- return async(req,res,{pathname,method})=>{const m=/^\/api\/projects\/([a-z]+_[a-f0-9-]{36})\/asset-workspace\/(bind|settings|text|outfit|remove|restore|reuse|correction-preview|correction)$/.exec(pathname);if(!m)return false;check(method==='POST','资产操作不存在',404);const input=await body(req),old=store.project(m[1]);check(old.revision===input.expectedRevision,'工程已改变，请刷新资产后重试',409);
+export function createAssetWorkspaceAPI({store,body,json,saveProject,library}){
+ return async(req,res,{pathname,method})=>{const m=/^\/api\/projects\/([a-z]+_[a-f0-9-]{36})\/asset-workspace\/(bind|settings|text|outfit|remove|restore|reuse|reuse-export|reuse-preview|reuse-import|correction-preview|correction)$/.exec(pathname);if(!m)return false;check(method==='POST','资产操作不存在',404);const input=await body(req),old=store.project(m[1]);check(old.revision===input.expectedRevision,'工程已改变，请刷新资产后重试',409);
+  if(m[2]==='reuse-export'){json(res,200,exportEpisodeSelections(old,store.db.assets,input.pageId));return true;}
+  if(m[2]==='reuse-preview'){json(res,200,previewEpisodeSelections(store,old,input));return true;}
+  if(m[2]==='reuse-import'){const result=await importEpisodeSelections(store,old,input,library);store.db.projects[store.db.projects.indexOf(old)]=result.project;json(res,200,{...result,project:saveProject(result.project,{editor:true})});return true;}
   if(m[2]==='reuse'){const result=reuseWorkspaceChoices(store,old);if(!result.changed){json(res,200,{summary:result.summary,changed:false});return true;}store.db.projects[store.db.projects.indexOf(old)]=result.project;json(res,200,{project:saveProject(result.project,{editor:true}),summary:result.summary,changed:true});return true;}
   if(m[2]==='correction-preview'){json(res,200,correctionPreview(store,old,input));return true;}
   if(m[2]==='correction'){const result=prepareAssetCorrection(store,old,input);store.db.projects[store.db.projects.indexOf(old)]=result.project;json(res,200,{project:saveProject(result.project,{editor:true}),episodes:result.episodes});return true;}

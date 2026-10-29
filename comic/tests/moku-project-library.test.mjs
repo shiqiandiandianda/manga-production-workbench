@@ -10,14 +10,15 @@ test('头尾底图按实际话和用途归类并登记独立固定引用，不�
 });
 function fixture(t){const dataDir=fs.mkdtempSync(path.join(import.meta.dirname,'fixture-')),m=mockMoku(),build=()=>createMokuProjectLibrary({dataDir,request:m.request,reader:m.reader}),library=build();t.after(()=>{assert.equal(path.dirname(dataDir),import.meta.dirname);fs.rmSync(dataDir,{force:true,recursive:true});});return {m,library,build,dataDir};}
 function content(episodes=[51,52]){const project={id:'project_'+randomUUID(),title:'合成作品',revision:1,pages:episodes.map(episode=>({id:'page_'+randomUUID(),name:'话板',storyboard:{episode},panels:[{id:'panel_'+randomUUID(),name:'源格原文',prompt:'提示词原文不能改写'}]}))};return {format:'comic-strip-project-snapshot',version:1,projectId:project.id,title:project.title,project,assets:[],stableHash:hash(project)};}
-test('本地图被多个格子引用时不猜归属，唯一原图格子优先于其他格子的参考',async t=>{
+test('本地图多格共用同一上传锚点，原图格子优先于其他格子的参考',async t=>{
  const {m,dataDir}=fixture(t),c=content([51]),page=c.project.pages[0],image='asset_'+randomUUID(),character='asset_'+randomUUID(),characterId=randomUUID(),subjectId=randomUUID();
  page.panels.push({id:'panel_'+randomUUID(),referenceIds:[image]});page.panels[0].imageAssetId=image;page.panels[0].referenceIds=[character];
  const reader={...m.reader,handle:async route=>route==='/api/assets/'+characterId?new Response(JSON.stringify({projectId:m.projectId,assetType:'character',objectId:subjectId,characterIds:[subjectId]})):m.reader.handle(route)};
  const library=createMokuProjectLibrary({dataDir,request:m.request,reader,getAssets:()=>[{id:character,library:{assetId:characterId,assetType:'character'}}]});
  const selected=await library.uploadContext(c.project,m.projectId,{assetId:image});assert.equal(selected.panelId,m.engineers[0].panels.find(p=>p.externalId===page.panels[0].id).id);
- const ambiguous=content([52]);ambiguous.project.pages[0].panels[0].imageAssetId=image;ambiguous.project.pages[0].panels.push({id:'panel_'+randomUUID(),imageAssetId:image});const before=m.engineers.length;
- await assert.rejects(library.uploadContext(ambiguous.project,m.projectId,{assetId:image}),/无法确定归属/);assert.equal(m.engineers.length,before,'归属不清时不建立墨库工程或格子');
+ const ambiguous=content([52]);ambiguous.project.pages[0].panels[0].imageAssetId=image;ambiguous.project.pages[0].panels.push({id:'panel_'+randomUUID(),imageAssetId:image});ambiguous.project.pages[0].panels[1].referenceIds=[character];
+ const shared=await library.uploadContext(ambiguous.project,m.projectId,{assetId:image});assert.equal(shared.assetType,'comic_panel');assert.deepEqual(shared.characterIds,[subjectId]);assert.equal(m.engineers.at(-1).panels.length,2);
+ const before=m.engineers.length;await assert.rejects(library.uploadContext(ambiguous.project,m.projectId,{assetId:image,episode:99}),/与所选话不一致/);assert.equal(m.engineers.length,before);
  const referenceOnly=content([53]);referenceOnly.project.pages[0].panels[0].referenceIds=[image];await assert.rejects(library.uploadContext(referenceOnly.project,m.projectId,{assetId:image}),/仅作为参考使用/);assert.equal(m.engineers.length,before);
 });
 test('多话工程的整本小说按项目级归档，不猜测话号或建立工程',async t=>{

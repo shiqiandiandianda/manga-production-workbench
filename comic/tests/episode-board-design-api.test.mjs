@@ -70,10 +70,11 @@ test('兄弟话修改共用模板后，旧候选与整体撤销都拒绝回滚�
 
 test('封面专用底图与单话底图工程跨独立数据目录往返，映射新 ID 并形成独立作品',async t=>{
  const original=inventedProject(),source=await fixture(t,{projects:[original]}),target=await fixture(t,{projects:[]}),common=await source.asset('cover-background'),own=await source.asset('tail-override');
- let p=await source.get(original.id);p.episodeBoards.templates.cover.backgroundAssetId=common.id;p.episodeBoards.episodes[1]={episodeTitle:'工程手改名',tail:{useOwnBackground:true,backgroundAssetId:own.id}};await source.put(p);
+ const transform={x:72,y:-15,scale:1.4,rotation:90,flipX:true,flipY:false};
+ let p=await source.get(original.id);p.episodeBoards.templates.cover.backgroundAssetId=common.id;p.episodeBoards.episodes[1]={episodeTitle:'工程手改名',tail:{useOwnBackground:true,backgroundAssetId:own.id,frameHeight:1800,imageFit:'cover',imageTransform:transform}};await source.put(p);
  const exported=await source.request('/api/projects/'+original.id+'/export');assert.deepEqual(new Set(exported.assets.map(a=>a.id)),new Set([common.id,own.id]));assert.ok(exported.assets.every(a=>!a.filePath&&a.dataBase64&&a.sha256));
  const imported=await target.request('/api/projects/import','POST',exported,201);assert.equal(imported.episodeBoards.sharedKey,imported.id);assert.equal(boardContext(imported,1).episodeTitle,'工程手改名');assert.equal(boardAssetIds(imported).length,2);assert.ok(boardAssetIds(imported).every(id=>![common.id,own.id].includes(id)));
- const roundtrip=await target.request('/api/projects/'+imported.id+'/export');assert.equal(roundtrip.assets.length,2);assert.equal(resolveBoard(imported,'tail',1).backgroundAssetId,imported.episodeBoards.episodes[1].tail.backgroundAssetId);
+ const roundtrip=await target.request('/api/projects/'+imported.id+'/export');assert.equal(roundtrip.assets.length,2);assert.equal(resolveBoard(imported,'tail',1).backgroundAssetId,imported.episodeBoards.episodes[1].tail.backgroundAssetId);assert.equal(resolveBoard(imported,'tail',1).height,1800);assert.deepEqual(resolveBoard(imported,'tail',1).imageTransform,transform);
  let isolated=await target.get(imported.id);isolated.episodeBoards.templates.cover.background='#abcdef';await target.put(isolated);assert.notEqual((await source.get(original.id)).episodeBoards.templates.cover.background,'#abcdef');
 });
 

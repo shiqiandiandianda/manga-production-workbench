@@ -41,15 +41,20 @@ export function hasEpisodeBoard(project,kind,number){
 }
 export function resolveBoard(project,kind,number,assets=project.assets||[]){
  const templates=project.episodeBoards?.templates||defaultBoardTemplates(),template=copy(templates[kind]),context=boardContext(project,number),override=context.overrides[kind];
- if(override?.useOwnBackground&&override.backgroundAssetId)template.backgroundAssetId=override.backgroundAssetId;
+ if(override?.useOwnBackground)template.backgroundAssetId=override.backgroundAssetId;
  template.width=1280;
  const image=assets instanceof Map?assets.get(template.backgroundAssetId):assets.find(a=>a.id===template.backgroundAssetId);
  const imageHeight=image?.width>0&&image?.height>0?Math.max(1,Math.round(1280*image.height/image.width)):null;
- if(Number.isSafeInteger(imageHeight)){template.height=imageHeight;template.imageFit='contain';template.heightMode='image';template.sourceImageSize={width:image.width,height:image.height};}
-
- const texts={workTitle:context.workTitle,episodeLabel:`第 ${context.displayNumber} 话`,episodeTitle:context.episodeTitle||'本话话名待填',completed:`第 ${context.displayNumber} 话 完`,nextLabel:`下一话 · 第 ${context.nextNumber} 话`,nextEpisodeTitle:context.nextEpisodeTitle||'下一话名待填'};
- template.layers=template.layers.map(item=>({...item,text:context.overrides.texts?.[kind+'.'+item.key]??(item.key==='fixedText'?item.text:texts[item.key]),pending:item.key==='nextEpisodeTitle'&&context.nextMissing||item.key==='episodeTitle'&&!context.episodeTitle.trim()}));
- return {...template,kind,episode:number,context};
+ // Preserve an old board's visible dimensions until its first image edit freezes them.
+ template.height=override?.frameHeight??(Number.isSafeInteger(imageHeight)?imageHeight:template.height);
+ template.imageFit=override?.imageFit||'contain';
+ template.layers=[];
+ return {...template,kind,episode:number,context,fixedImageFrame:true,imageTransform:boardImageTransform(override?.imageTransform),sourceImageSize:image?.width>0&&image?.height>0?{width:image.width,height:image.height}:null};
+}
+export function boardImageTransform(value={}){return {x:0,y:0,scale:1,rotation:0,flipX:false,flipY:false,...value};}
+export function boardImageGeometry(board,width=board.sourceImageSize?.width||1280,height=board.sourceImageSize?.height||board.height){
+ const t=boardImageTransform(board.imageTransform),fit=(board.imageFit==='contain'?Math.min:Math.max)(1280/width,board.height/height);
+ return {x:640+t.x,y:board.height/2+t.y,width:width*fit,height:height*fit,rotation:t.rotation,scaleX:t.scale*(t.flipX?-1:1),scaleY:t.scale*(t.flipY?-1:1)};
 }
 export function boardAssetIds(project){const ids=new Set();for(const kind of BOARD_KINDS){const id=project.episodeBoards?.templates?.[kind]?.backgroundAssetId;if(id)ids.add(id);}for(const episode of Object.values(project.episodeBoards?.episodes||{}))for(const kind of BOARD_KINDS)if(episode[kind]?.backgroundAssetId)ids.add(episode[kind].backgroundAssetId);return [...ids];}
 export function remapBoardAssets(project,mapping){if(!project.episodeBoards)return;delete project.episodeBoards.sharedKey;project.episodeBoards.templateRevision=0;for(const kind of BOARD_KINDS){const board=project.episodeBoards.templates[kind];if(board.backgroundAssetId)board.backgroundAssetId=mapping.get(board.backgroundAssetId);}for(const episode of Object.values(project.episodeBoards.episodes))for(const kind of BOARD_KINDS)if(episode[kind]?.backgroundAssetId)episode[kind].backgroundAssetId=mapping.get(episode[kind].backgroundAssetId);}
@@ -64,6 +69,11 @@ export function validateEpisodeBoards(project){
   for(const l of board.layers)assert(number(l.x,-1280,2560)&&number(l.y,-8192,16384)&&number(l.w,20,2560)&&number(l.h,20,16384)&&Object.hasOwn(FONT_FAMILIES,l.fontFamily)&&number(l.fontSize,10,1024)&&number(l.minFontSize,10,l.fontSize)&&color(l.color)&&color(l.strokeColor)&&number(l.strokeWidth,0,64)&&[400,500,600,700,800,900].includes(l.fontWeight)&&['horizontal','vertical'].includes(l.writingMode)&&['shrink','wrap'].includes(l.fit)&&['left','center','right'].includes(l.align)&&number(l.lineHeight,1,3)&&typeof l.visible==='boolean'&&(l.key!=='fixedText'||text(l.text)),'封面 / 尾图文字外观参数无效');
  }
  for(const [key,entry] of Object.entries(state.episodes)){assert(episodeNumber(key)&&plain(entry),'单话模板数据无效');for(const field of ['episodeTitle','nextEpisodeTitle'])assert(entry[field]===undefined||text(entry[field]),'单话话名过长');assert(entry.episodeNumber===undefined||episodeNumber(entry.episodeNumber)===entry.episodeNumber,'单话话数无效');assert(entry.texts===undefined||plain(entry.texts)&&Object.keys(entry.texts).length<=7&&Object.entries(entry.texts).every(([key,v])=>/^(cover|tail)\.[a-zA-Z]+$/.test(key)&&text(v)),'单话文字无效');for(const kind of BOARD_KINDS)if(entry[kind]!==undefined)assert(plain(entry[kind])&&typeof entry[kind].useOwnBackground==='boolean'&&asset(entry[kind].backgroundAssetId)&&(entry[kind].enabled===undefined||typeof entry[kind].enabled==='boolean')&&(entry[kind].present===undefined||typeof entry[kind].present==='boolean'),'单话独立底图无效');}
+ for(const entry of Object.values(state.episodes))for(const kind of BOARD_KINDS){const frame=entry[kind];if(!frame)continue;
+  assert(frame.frameHeight===undefined||Number.isSafeInteger(frame.frameHeight)&&number(frame.frameHeight,1,65536),'固定格子高度无效');
+  assert(frame.imageFit===undefined||['contain','cover'].includes(frame.imageFit),'固定格子图片适配无效');
+  if(frame.imageTransform!==undefined){const t=frame.imageTransform;assert(plain(t)&&number(t.x,-65536,65536)&&number(t.y,-65536,65536)&&number(t.scale,.05,20)&&number(t.rotation,-360,360)&&typeof t.flipX==='boolean'&&typeof t.flipY==='boolean','固定格子图片取景参数无效');}
+ }
 }
 
 /** One measurement layout is used by both SVG preview and PNG export. */
@@ -80,7 +90,7 @@ export function boardTextLayout(context,layer){
 }
 export function boardSvg(board,measurement,{assetUrl,selectedKey='',controls=true,transition=null,idPrefix=''}={}){
  let background=`<rect width="1280" height="${board.height}" fill="${board.background}"/>`;
- if(board.backgroundAssetId)background+=`<image href="${escape(assetUrl(board.backgroundAssetId))}" width="1280" height="${board.height}" preserveAspectRatio="xMidYMid ${board.imageFit==='contain'?'meet':'slice'}"/>`;
+ if(board.backgroundAssetId){const g=boardImageGeometry(board);background+=`<image data-board-image="true" href="${escape(assetUrl(board.backgroundAssetId))}" x="${-g.width/2}" y="${-g.height/2}" width="${g.width}" height="${g.height}" preserveAspectRatio="none" transform="translate(${g.x} ${g.y}) rotate(${g.rotation}) scale(${g.scaleX} ${g.scaleY})"/>`;}
  let content=background;
  if(transition){const id=idPrefix+'board_transition_'+board.kind+'_'+board.episode,cover=board.kind==='cover';const stops=storyFadeSteps.map(v=>{const n=Math.round((cover?1-v.amount:v.amount)*255);return `<stop offset="${v.offset}" stop-color="rgb(${n},${n},${n})"/>`;}).join('');content=`<defs><linearGradient id="${id}_fade" gradientUnits="userSpaceOnUse" x1="0" y1="${transition.y}" x2="0" y2="${transition.y+transition.height}">${stops}</linearGradient><mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="1280" height="${board.height}" style="mask-type:luminance"><rect width="1280" height="${board.height}" fill="url(#${id}_fade)"/></mask></defs><rect width="1280" height="${board.height}" fill="${transition.color}" pointer-events="none"/><g data-board-transition="${board.kind}" mask="url(#${id})">${background}</g>`;}
  for(const layer of board.layers){if(!layer.visible)continue;const layout=boardTextLayout(measurement,layer),selected=layer.key===selectedKey;
@@ -88,11 +98,12 @@ export function boardSvg(board,measurement,{assetUrl,selectedKey='',controls=tru
   for(const glyph of layout.glyphs)content+=`<text x="${glyph.x}" y="${glyph.y}" font-family="${escape(FONT_FAMILIES[layer.fontFamily])}" font-size="${layout.fontSize}" font-weight="${layer.fontWeight}" text-anchor="${layout.textAnchor}" dominant-baseline="central" fill="${layer.pending?'#ffad42':layer.color}" stroke="${layer.strokeColor}" stroke-width="${layer.strokeWidth*2}" stroke-linejoin="round" paint-order="stroke fill" pointer-events="none">${escape(glyph.text)}</text>`;
   content+='</g>';
  }
- return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 ${board.height}" role="img" aria-label="第${board.context.displayNumber}话${BOARD_LABELS[board.kind]}预览">${content}</svg>`;
+ if(controls)content+=`<rect data-board-layer="image" width="1280" height="${board.height}" fill="transparent" stroke="#92c7ff" stroke-width="4" vector-effect="non-scaling-stroke" style="cursor:move"/>`;
+ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 ${board.height}" overflow="hidden" role="img" aria-label="第${board.context.displayNumber}话${BOARD_LABELS[board.kind]}预览">${content}</svg>`;
 }
 export async function paintEpisodeBoard(context,board,{imageLoader,transition=null}={}){
  context.save();try{context.beginPath();context.rect(0,0,1280,board.height);context.clip();context.fillStyle=board.background;context.fillRect(0,0,1280,board.height);
- if(board.backgroundAssetId){const image=await imageLoader(board.backgroundAssetId),w=image.naturalWidth||image.width,h=image.naturalHeight||image.height,scale=(board.imageFit==='contain'?Math.min:Math.max)(1280/w,board.height/h);context.drawImage(image,(1280-w*scale)/2,(board.height-h*scale)/2,w*scale,h*scale);}
+ if(board.backgroundAssetId){const image=await imageLoader(board.backgroundAssetId),g=boardImageGeometry(board,image.naturalWidth||image.width,image.naturalHeight||image.height);context.save();try{context.translate(g.x,g.y);context.rotate(g.rotation*Math.PI/180);context.scale(g.scaleX,g.scaleY);context.drawImage(image,-g.width/2,-g.height/2,g.width,g.height);}finally{context.restore();}}
  if(transition){const rgb=[1,3,5].map(i=>parseInt(transition.color.slice(i,i+2),16)),gradient=context.createLinearGradient(0,transition.y,0,transition.y+transition.height),cover=board.kind==='cover';for(const v of storyFadeSteps)gradient.addColorStop(v.offset,`rgba(${rgb.join(',')},${cover?v.amount:1-v.amount})`);context.fillStyle=gradient;context.fillRect(0,transition.y,1280,transition.height);}
  for(const layer of board.layers){if(!layer.visible)continue;const layout=boardTextLayout(context,layer);context.font=layout.font;context.textAlign=({start:'left',middle:'center',end:'right'})[layout.textAnchor];context.textBaseline='middle';context.fillStyle=layer.pending?'#ffad42':layer.color;context.strokeStyle=layer.strokeColor;context.lineWidth=layer.strokeWidth*2;context.lineJoin='round';for(const glyph of layout.glyphs){if(layer.strokeWidth)context.strokeText(glyph.text,glyph.x,glyph.y);context.fillText(glyph.text,glyph.x,glyph.y);}}
  }finally{context.restore();}

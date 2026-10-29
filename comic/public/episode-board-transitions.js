@@ -72,7 +72,7 @@ export function episodeEdgeBackground(project,layout,episode,kind,{hiddenLayerId
 /** A separate joining area continues the two adjacent backgrounds without changing their source boards. */
 export const BOARD_BRIDGE_HEIGHT=480;
 export function planEpisodeBoardTransition(project,layout,board,measurement,options={}){
- if(!project||!board||!['cover','tail'].includes(board.kind)||!hasEpisodeBoard(project,board.kind,board.episode))return null;
+ if(!project||!board||board.fixedImageFrame||!['cover','tail'].includes(board.kind)||!hasEpisodeBoard(project,board.kind,board.episode))return null;
  const color=episodeEdgeBackground(project,layout,board.episode,board.kind,options);if(!COLOR.test(color||''))return null;
  // Image edges with markings cannot safely be extended without repeating text/art.
  if(board.backgroundAssetId&&(boardTransitionImageSafety(board)??0)<24)return null;
@@ -82,7 +82,7 @@ export function planEpisodeBoardTransition(project,layout,board,measurement,opti
 /** Only inspect images for boards that actually participate in this export. */
 export function imageBoardsForTransition(project,{assets=project?.assets||[],episode=null}={}){
  if(!project?.episodeBoards)return [];const numbers=new Set((project.pages||[]).map(page=>pageEpisode(project,page)||currentBoardEpisode(project,page)).filter(n=>episode===null||n===episode)),boards=[];
- for(const n of numbers)for(const kind of ['cover','tail'])if(hasEpisodeBoard(project,kind,n)){const board=resolveBoard(project,kind,n,assets);if(board.backgroundAssetId)boards.push(board);}
+ for(const n of numbers)for(const kind of ['cover','tail'])if(hasEpisodeBoard(project,kind,n)){const board=resolveBoard(project,kind,n,assets);if(board.backgroundAssetId&&!board.fixedImageFrame)boards.push(board);}
  return boards;
 }
 /** Preflight the same image safety in browser and server before calculating the strip height. */

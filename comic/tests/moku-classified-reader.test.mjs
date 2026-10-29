@@ -70,7 +70,9 @@ test('account switching rejects a late catalogue response instead of caching the
 function tagFixture(projectId=randomUUID()){
  const item=card(projectId,{assetType:projectId===null?'bubble':'prop',tags:['原有标签'],objectVersion:1}),calls=[];let row={...item},conflict=false,release,started;
  const reader=createMokuClassifiedReader({request:async(route,options={})=>{
-  calls.push({route,options});if(route==='/api/project-library/taxonomy')return json({routeVersion:1});
+   calls.push({route,options});if(route==='/api/project-library/taxonomy')return json({routeVersion:1});
+   if(route==='/api/projects')return json({items:[{id:projectId,name:'合成作品'}]});
+   if(route.endsWith('/subjects'))return json({items:[{id:item.objectId,kind:item.assetType,name:'角色甲'}]});
   if(route.endsWith('/assets/'+item.id)){
    if(options.method==='PATCH'){
     if(started){started();await new Promise(r=>release=r);}

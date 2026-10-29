@@ -22,7 +22,8 @@ export function productionAssetMatch(project,ref,asset,referenceContext){
   return {identity,exact,stateConflict:identity&&!unknownState(outfit)&&!!meta.stateLabels?.length&&!exact};
  }
  const expected=referenceContext?referenceContext.expectedFile(ref):String(ref['说明']||'').match(/[^\s（）()]+\.(?:png|jpe?g|webp)/i)?.[0];
- return {identity:!!expected&&key(asset.name)===key(expected),exact:!!expected&&key(asset.name)===key(expected)};
+ const filenameMatch=!!expected&&[asset.name,asset.sourceName,asset.library?.sourceName].filter(Boolean).some(name=>key(name)===key(expected));
+ return {identity:filenameMatch,exact:filenameMatch};
 }
 export function productionBindingDraft(project,panel,referenceContext){
  const s=referenceContext?referenceContext.segments.get(panel.productionSegment):productionSegment(project,panel.productionSegment);return s?s.references.map(r=>({slot:r.slot,assetId:r.binding?.assetId||null,skip:r.skipped===true})):[];

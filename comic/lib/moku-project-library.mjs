@@ -1,4 +1,5 @@
 import fs from 'node:fs';import path from 'node:path';import {createHash,randomUUID} from 'node:crypto';
+import {canonicalAssetNaming,canonicalAssetFileName,canonicalSubjectName,ASSET_NAMING_VERSION} from '../public/asset-naming.js';
 import {check} from './store.mjs';import {writeFileAtomicSync} from './durable-files.mjs';
 import {decodeProjectSnapshot,encodeProjectSnapshot,SNAPSHOT_REQUEST_BUDGET} from './project-snapshot-codec.mjs';
 import {fixedResourceReferences} from './project-portability.mjs';
@@ -61,7 +62,19 @@ export function createMokuProjectLibrary({dataDir,request,reader,getProject=()=>
   check(assetType&&assetKind,'上传缺少明确分类，请提供文件或图片类型，未使用旧上传接口');if(['font','bubble','nameplate','sfx_text'].includes(assetType))projectId=null;
   scopeId=projectId===null?'global':scopeId||episodeId||'project';check(projectId===null||uuid(projectId),'墨库项目编号无效');check(projectId===null||scopeId==='project'||uuid(scopeId),'墨库话编号无效');check(Buffer.isBuffer(bytes)&&bytes.length,'上传内容为空');
   const route=rootRoute(projectId,scopeId,assetKind,assetType),sha256=hash(bytes);
-  if(['character','scene','prop','pet'].includes(assetType)&&!objectId&&objectName){const found=(await read('/api/project-library/'+projectId+'/subjects')).items?.filter(o=>o.kind===assetType&&o.name===objectName)||[];check(found.length<=1,'同名资产对象不唯一，请先选择对象');objectId=found[0]?.id||(await post(route+'/objects',{name:objectName.slice(0,100)},['object',projectId,assetType,objectName])).id;}
+  const priorUpload=state.uploads[receiptKey],normalizeNames=!priorUpload||priorUpload.namingVersion===ASSET_NAMING_VERSION;
+  let subjectRows,workName='';
+  if(['character','scene','prop','pet'].includes(assetType)){
+   subjectRows=(await read('/api/project-library/'+projectId+'/subjects')).items||[];
+   if(normalizeNames){
+    const work=(await read('/api/projects')).items?.find(p=>p.id===projectId),subject=objectId&&subjectRows.find(o=>o.id===objectId&&o.kind===assetType);workName=work?.name||'';
+    const named=canonicalAssetNaming({role:assetType,workName,objectName:subject?.name||objectName,variantName,name});
+    check(named.subjectName,'上传缺少明确的所属人物、场景或道具');
+    objectName=named.subjectName;variantName=named.variantName;
+    name=canonicalAssetFileName({role:assetType,objectName,variantName},path.extname(String(name||''))||'.png');
+   }
+   if(!objectId&&objectName){const found=subjectRows.filter(o=>o.kind===assetType&&(normalizeNames?canonicalSubjectName(o.name,{workName}):o.name)===objectName);check(found.length<=1,'同名资产对象不唯一，请先选择对象');objectId=found[0]?.id||(await post(route+'/objects',{name:objectName.slice(0,100)},['object',projectId,assetType,objectName])).id;}
+  }
   if(['character','scene'].includes(assetType))check(uuid(objectId),'上传人物或场景前必须明确所属对象');
   // Classified image uploads require the subject association as well as objectId.
   // Derive missing associations only from the resolved subject; preserve explicit choices.
@@ -73,7 +86,7 @@ export function createMokuProjectLibrary({dataDir,request,reader,getProject=()=>
   const fingerprint=hash(JSON.stringify([route,inputBody]));
   const perform=async()=>{
    let receipt=state.uploads[receiptKey];if(receipt)check(receipt.fingerprint===fingerprint,'上传操作编号对应的分类或内容已变化，请新建操作',409);
-   if(!receipt){const created=await post(route+'/uploads',inputBody,['upload',receiptKey]);check(uuid(created.id)&&Number(created.chunkSize)>0,'墨库未返回上传会话');receipt={id:created.id,chunkSize:Number(created.chunkSize),fingerprint,intentFingerprint};state.uploads[receiptKey]=receipt;persist();}
+   if(!receipt){const created=await post(route+'/uploads',inputBody,['upload',receiptKey]);check(uuid(created.id)&&Number(created.chunkSize)>0,'墨库未返回上传会话');receipt={id:created.id,chunkSize:Number(created.chunkSize),fingerprint,intentFingerprint,namingVersion:normalizeNames?ASSET_NAMING_VERSION:undefined};state.uploads[receiptKey]=receipt;persist();}
    const uploadRoute=route+'/uploads/'+receipt.id;let status=await read(uploadRoute);
    if(status.state==='uploading'){
     const existing=new Map((status.chunks||[]).map(c=>[c.index,c]));let advanced=false;

@@ -1,8 +1,9 @@
 /** Each outfit remains its own immutable asset/version; a group is identity metadata. */
 export function mokuCharacterMetadata(detail,assetId=detail?.id){
- const group=detail?.characterGroup;if(!group?.id||group.dissolvedAt)return detail?.assetType==='character'?Object.fromEntries(['characterGroupId','characterName','outfitName'].filter(key=>detail[key]).map(key=>[key,detail[key]])):{};
+ const naming=Object.fromEntries(['sourceName','projectName','subjectName','canonicalName','canonicalVariantName','namingVersion','sceneName','propName'].filter(key=>detail?.[key]!==undefined).map(key=>[key,detail[key]]));
+ const group=detail?.characterGroup;if(!group?.id||group.dissolvedAt)return {...naming,...(detail?.assetType==='character'?Object.fromEntries(['characterGroupId','characterName','outfitName'].filter(key=>detail[key]!==undefined).map(key=>[key,detail[key]])): {})};
  const outfit=group.outfits?.find(item=>item.id===assetId||item.id===detail.id);
- return {characterGroupId:group.id,characterName:group.name,characterGroupVersion:group.objectVersion,...(outfit?.outfitName?{outfitName:outfit.outfitName}:{})};
+ return {...naming,characterGroupId:group.id,characterName:group.name,characterGroupVersion:group.objectVersion,...(outfit?.outfitName?{outfitName:outfit.outfitName}:{})};
 }
 export function expandMokuAssets(items=[]){
  const result=new Map();for(const item of items){const group=item.characterGroup;

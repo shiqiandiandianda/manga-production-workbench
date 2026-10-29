@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {canonicalAssetNaming} from '../public/asset-naming.js';
 const uuid=value=>typeof value==='string'&&/^[a-f0-9-]{36}$/i.test(value);
 const projectTypes=new Set(['storyboard','production_table','novel','comic_project','character','scene','prop','pet','comic_panel','episode_strip','header','footer']);
 const globalTypes=[['image','bubble'],['image','nameplate'],['image','sfx_text'],['file','font']];
@@ -36,13 +37,15 @@ export function createMokuClassifiedReader({request,getAssets=()=>[]}){
  }
  async function normalize(items){
   const ticket=accountEpoch;
-  const ids=[...new Set(items.filter(i=>i.assetType==='character'&&uuid(i.projectId)).map(i=>i.projectId))],subjects=new Map();
-  await Promise.all(ids.map(async id=>{const value=await cached('/api/project-library/'+id+'/subjects');subjects.set(id,new Map((value.items||[]).filter(i=>i.kind==='character').map(i=>[i.id,i.name])));}));
-  unchanged(ticket);return items.map(item=>remember({...item,category:item.category||item.assetType,...(item.assetType==='character'?{
-   characterName:subjects.get(item.projectId)?.get(item.objectId||item.characterIds?.[0])||item.characterName,
-   characterGroupId:item.objectId||item.characterIds?.[0]||item.characterGroupId,
-   outfitName:item.variantName||item.outfitName
-  }:{}),scopeId:item.projectId===null?'global':item.episodeId||'project'}));
+  const managed=new Set(['character','scene','prop','pet']),ids=[...new Set(items.filter(i=>managed.has(i.assetType)&&uuid(i.projectId)).map(i=>i.projectId))],subjects=new Map();
+  const projects=ids.length?(await cached('/api/projects')).items||[]:[],projectNames=new Map(projects.map(p=>[p.id,p.name]));
+  await Promise.all(ids.map(async id=>{const value=await cached('/api/project-library/'+id+'/subjects');subjects.set(id,new Map((value.items||[]).map(i=>[i.id,i])));}));
+  unchanged(ticket);return items.map(item=>{
+   const objectId=item.objectId||item.characterIds?.[0]||item.sceneIds?.[0],subject=subjects.get(item.projectId)?.get(objectId),objectName=subject?.kind===item.assetType?subject.name:item.objectName||(item.assetType==='character'?item.characterName:'');
+   const named=managed.has(item.assetType)&&objectName?canonicalAssetNaming({role:item.assetType,workName:projectNames.get(item.projectId),objectName,variantName:item.variantName||item.outfitName,name:item.name}):null;
+   const extension=String(item.name||'').match(/\.(png|jpe?g|webp|avif)$/i)?.[0]||'';
+   return remember({...item,category:item.category||item.assetType,...(named?{name:named.displayName+extension,sourceName:item.name,projectName:projectNames.get(item.projectId)||'',subjectName:named.subjectName,canonicalName:named.identityName,canonicalVariantName:named.variantName,namingVersion:named.namingVersion,namingIssues:named.issues,...(item.assetType==='scene'?{sceneName:named.identityName}:{}),...(item.assetType==='prop'?{propName:named.subjectName}:{}),...(item.assetType==='character'?{characterName:named.subjectName,outfitName:named.variantName}:{} )}:{}),...(item.assetType==='character'?{characterName:named?.subjectName||objectName,characterGroupId:objectId||item.characterGroupId,...(!named?{outfitName:item.variantName||item.outfitName}:{})}:{}),scopeId:item.projectId===null?'global':item.episodeId||'project'});
+  });
  }
  async function page(route,params,offset,limit){
   const rows=[];let total;
@@ -105,7 +108,7 @@ export function createMokuClassifiedReader({request,getAssets=()=>[]}){
    if(tags.length>50)throw failure('追加后超过墨库每个文件50个标签的上限',400);
    try{
     const value=await request(context(item)+'/assets/'+assetId,{method:'PATCH',body:JSON.stringify({objectVersion:item.objectVersion,tags,tagDecision:'provided'}),headers:{'Idempotency-Key':randomUUID()}}).then(r=>r.json());
-    unchanged(ticket);if(value.id!==assetId)throw failure('标签更新返回了其他资产',502);pending.clear();return remember({...item,...value});
+    unchanged(ticket);if(value.id!==assetId)throw failure('标签更新返回了其他资产',502);pending.clear();return (await normalize([{...item,...value}]))[0];
    }catch(error){unchanged(ticket);if(error.status!==409||error.code&&error.code!=='VERSION_CONFLICT'||attempt===2)throw error;}
   }
  }

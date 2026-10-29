@@ -1,4 +1,4 @@
-import {fuzzyAssetCandidates} from './asset-fuzzy-search.js';
+import {fuzzyAssetCandidates,relevantAssetCandidates} from './asset-fuzzy-search.js';
 import {assetUnavailable} from './asset-availability.js';
 import {isCollaborationFile} from './collaboration-files.js';
 import {libraryProjectScopes} from './library-project-scope.js';
@@ -7,7 +7,7 @@ import {filterAssetCandidateTypes,candidateAssetRole} from './asset-candidate-ty
 const uuid=value=>/^[a-f0-9-]{36}$/i.test(value||'');
 export const mokuRevision=item=>item.displayRevisionId||item.recommendedRevisionId;
 export const usableMokuImage=item=>!isCollaborationFile(item)&&!item.deletedAt&&!assetUnavailable(item)&&uuid(item.id)&&uuid(mokuRevision(item));
-export function mokuCandidate(item){return {...item,id:'remote_'+item.id,filePath:'remote:'+item.id,libraryRole:candidateAssetRole(item),library:{assetId:item.id,revisionId:mokuRevision(item),projectId:item.projectId,category:item.category,assetType:item.assetType,tags:item.tags||[],characterGroupId:item.characterGroupId,characterName:item.characterName,outfitName:item.outfitName}};}
+export function mokuCandidate(item){return {...item,id:'remote_'+item.id,filePath:'remote:'+item.id,libraryRole:candidateAssetRole(item),library:{assetId:item.id,revisionId:mokuRevision(item),projectId:item.projectId,category:item.category,assetType:item.assetType,tags:item.tags||[],characterGroupId:item.characterGroupId,characterName:item.characterName,outfitName:item.outfitName,...Object.fromEntries(['sourceName','projectName','subjectName','canonicalName','canonicalVariantName','namingVersion','sceneName','propName'].filter(k=>item[k]!==undefined).map(k=>[k,item[k]]))}};}
 
 /** One catalogue for the drive. New selections always come from an immutable Moku revision. */
 export function createMokuReferenceSearch({api,project,assets=[],verify=()=>{}}){
@@ -34,6 +34,7 @@ export function createMokuReferenceSearch({api,project,assets=[],verify=()=>{}})
   }catch(error){check();complete=false;notes.push((names.get(projectId)||'项目库')+'：'+error.message);}pages[index]=items;}}
   await Promise.all(Array.from({length:Math.min(4,scopes.length)},worker));check();
   const items=[...new Map(pages.flat().filter(Boolean).map(item=>[item.id+'@'+mokuRevision(item),item])).values()];
-  return {items:fuzzyAssetCandidates(filterAssetCandidateTypes(items,role,{allTypes}),query),complete,notes,searched:scopes.length};
+   const typed=filterAssetCandidateTypes(items,role,{allTypes});
+   return {items:allTypes?fuzzyAssetCandidates(typed,query):relevantAssetCandidates(typed,query,{role}),complete,notes,searched:scopes.length};
  }};
 }

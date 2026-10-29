@@ -4,7 +4,7 @@ export const ASSET_NAMING_VERSION=1;
 export const cleanAssetText=value=>String(value??'').normalize('NFKC').replace(/[\x00-\x1f\x7f]/g,' ').replace(/\s+/g,' ').trim();
 const key=value=>cleanAssetText(value).toLowerCase().replace(/[\s_｜|·（）()\-]+/gu,'');
 const withoutExtension=value=>cleanAssetText(value).replace(/\.(?:png|jpe?g|webp|avif)$/i,'');
-const placeholder=value=>!value||/未知|待确认|待核实|待设计|未指定|不明确|待与(?:项目)?主库对应|具体款式待绑定/u.test(value);
+const placeholder=value=>!value||/未知|待确认|待绑定|待核实|待设计|未指定|不明确|待与(?:项目)?主库对应/u.test(value);
 const separator=/^[\s_\-|｜·:：]+/u;
 function removePrefix(value,prefix){
  if(!prefix)return value;
@@ -25,7 +25,7 @@ export function canonicalVariantName(value,{workName='',subjectName='',sourceNam
  for(let i=0;i<12;i++){const before=text;text=removePrefix(removePrefix(removePrefix(text,work),cleanAssetText(subjectName)),subject);if(text===before)break;}
  text=text.replace(/(?:^|[\s_·-]+)生成(?:版)?[\s_·-]*\([a-f0-9-]{6,}(?:[·_\s]+[a-f0-9-]{6,})*\)(?=$|[\s_·-])/igu,' ');
  text=text.replace(/(?:^|[\s_·-]+)(?:生成(?:版)?[\s_·-]*[（(]?[a-f0-9-]{6,}[)）]?|[vr]\d+)(?=$|[\s_·-])/igu,' ').trim();
- const tokens=text.split(/(?:__|[|｜]|\s*·\s*|_)/u).map(s=>s.trim()).filter(s=>s&&!/^(?:设定|设定图|设定卡|标准卡|角色卡|完整角色卡|整张角色卡|普通人物角色卡|[vr]\d+)$/iu.test(s));
+ const tokens=text.split(/(?:__|[|｜]|\s*·\s*|_)/u).map(s=>s.trim()).filter(s=>s&&!/^(?:设定|设定图|设定卡|标准卡|角色卡|完整角色卡|整张角色卡|普通人物角色卡|主景|原始生成图|[vr]\d+|20\d{6}(?:[- ]?\d{6})?)$/iu.test(s));
  text=tokens.join('·').replace(/^[\s_·-]+|[\s_·-]+$/gu,'');
  return placeholder(text)?'':text;
 }

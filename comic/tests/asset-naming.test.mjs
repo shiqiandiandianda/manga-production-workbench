@@ -13,8 +13,9 @@ test('canonical names are idempotent and preserve different identities, states a
  assert.equal(canonicalVariantName('他人-官服',{subjectName:'花满楼',workName:'大周玄衣卫'}),'他人-官服');
 });
 test('pending text and technical labels never become a named costume',()=>{
- for(const variantName of ['未知（待确认）','大周玄衣卫-薛冰-未知（待确认）','具体款式待绑定'])assert.equal(canonicalVariantName(variantName,{workName:'大周玄衣卫',subjectName:'薛冰'}),'');
+ for(const variantName of ['未知（待确认）','大周玄衣卫-薛冰-未知（待确认）','具体款式待绑定','待绑定'])assert.equal(canonicalVariantName(variantName,{workName:'大周玄衣卫',subjectName:'薛冰'}),'');
  assert.equal(canonicalVariantName('玄衣卫袍服_标准卡_v2'),'玄衣卫袍服');
+ assert.equal(canonicalVariantName('玄衣卫袍服_原始生成图_20261030'),'玄衣卫袍服');
  assert.equal(canonicalVariantName('生成版（75d3a2b6）'),'');
  assert.equal(canonicalVariantName('生成版（75d3a2b6·a491b7c2）'),'');
  assert.equal(canonicalVariantName('夜景_生成版（75d3a2b6·a491b7c2）'),'夜景');

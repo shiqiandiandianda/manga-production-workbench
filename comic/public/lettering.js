@@ -281,8 +281,15 @@ export function fitBubbleToTextFrame(context,bubble){
   if(parts.length){parts[index].independentBox=box;parts[index].textLayout=holder.textLayout;}
   else{next.textBox=box;next.textFrameLayout=true;}
  }
- // The speaker target stays fixed while the contour and tail base move.
- if(layout.tail)next.tail={...next.tail,mode:'absolute',x:finite(bubble.x,0)+layout.tail.tip.x,y:finite(bubble.y,0)+layout.tail.tip.y};
+ if(layout.tail){
+  const fitted=bubbleTailGeometry(next),anchor=tail=>tail.anchor||{x:(tail.anchors[0].x+tail.anchors[1].x)/2,y:(tail.anchors[0].y+tail.anchors[1].y)/2};
+  const before=anchor(layout.tail),after=anchor(fitted),vx=layout.tail.tip.x-before.x,vy=layout.tail.tip.y-before.y;
+  // Fit the whole bubble, including its tail. Keep the direction relative to the
+  // tail root; a page-space tip would stay behind when the outline moves.
+  // Bound the fitted length so clicking again also repairs old stretched tails.
+  const length=Math.hypot(vx,vy),shortSide=Math.min(w,h),maxLength=Math.min(Math.max(style.fontSize*1.5,shortSide*.35),shortSide*2),scale=Math.min(w/layout.w,h/layout.h,maxLength/Math.max(length,1e-9));
+  next.tail={...next.tail,mode:'normalized',x:(after.x+vx*scale)/w,y:(after.y+vy*scale)/h};
+ }
  return next;
 }
 export function fitDialogueBubble(context,bubble,{maxWidth=640}={}){

@@ -15,6 +15,7 @@ import {generationPromptSelection} from '../public/prompt-source.js';
 import {sourceLocations,isSourceParagraph,novelEpisodeContext} from '../public/production-display-context.js';
 import {bubbleLayout,fitBubbleToTextFrame,bubbleTailGeometry} from '../public/lettering.js';
 import {freezeBubbleTextLayout} from '../public/bubble-text-flow.js';
+import {applyBubbleEdit} from '../public/bubble-editor.js';
 import {applyBubbleMaterial} from '../public/bubble-material.js';
 import {addDialogueSegment} from '../public/bubble-dialogue-segments.js';
 import {normalizeLayerOrder} from '../public/layers.js';
@@ -78,9 +79,40 @@ test('原文行号区间、单行、非空段兼容；只标选中格，不猜�
 });
 const absoluteText=(b,l)=>({font:l.fontSize,lines:l.lines.map(row=>({text:row.text,x:row.x+b.x,y:row.y+b.y,glyphs:row.glyphs?.map(g=>({...g,x:g.x+b.x,y:g.y+b.y}))})),box:{x:b.x+l.textBox.x,y:b.y+l.textBox.y,w:l.textBox.w,h:l.textBox.h}});
 const close=(actual,expected)=>{if(typeof actual==='number'&&typeof expected==='number')assert.ok(Math.abs(actual-expected)<1e-7,actual+' != '+expected);else if(actual&&typeof actual==='object')for(const k of new Set([...Object.keys(actual),...Object.keys(expected)]))close(actual[k],expected[k]);else assert.deepEqual(actual,expected);};
-for(const shape of ['oval','rounded-rect','cloud','burst','custom','asset'])test('气泡外框适配独立文字框，原字号/换行/位置及尾尖不变：'+shape,()=>{
+const tailVector=b=>{const g=bubbleTailGeometry(b),a=g.anchor||{x:(g.anchors[0].x+g.anchors[1].x)/2,y:(g.anchors[0].y+g.anchors[1].y)/2};return {x:g.tip.x-a.x,y:g.tip.y-a.y};};
+const tailLength=b=>{const v=tailVector(b);return Math.hypot(v.x,v.y);};
+const fittedTail=(before,after)=>{
+ const a=tailVector(before),b=tailVector(after);assert.equal(after.tail.mode,'normalized');
+ close(a.x*b.y-a.y*b.x,0);assert.ok(a.x*b.x+a.y*b.y>=0,'保留尾巴指向');
+ const scale=Math.min(after.w/before.w,after.h/before.h),shortSide=Math.min(after.w,after.h),limit=Math.min(Math.max(after.fontSize*1.5,shortSide*.35),shortSide*2);
+ close(tailLength(after),Math.min(tailLength(before)*scale,limit));
+};
+for(const shape of ['oval','rounded-rect','cloud','burst','custom','asset'])test('气泡外框适配独立文字框，文字不变且尾尖跟随外框：'+shape,()=>{
  let b=bubble();if(shape==='asset')b=applyBubbleMaterial(b,'builtin-oval');else b.shape=shape;
- const before=bubbleLayout(ctx,b);freezeBubbleTextLayout(b,before);const next=fitBubbleToTextFrame(ctx,b),after=bubbleLayout(ctx,next);close(absoluteText(next,after),absoluteText(b,before));assert.notDeepEqual([next.w,next.h],[b.w,b.h]);close(bubbleTailGeometry(next).tip.x+next.x,bubbleTailGeometry(b).tip.x+b.x);close(bubbleTailGeometry(next).tip.y+next.y,bubbleTailGeometry(b).tip.y+b.y);assert.equal(next.text,b.text);assert.equal(next.fontSize,b.fontSize);close(absoluteText(next,bubbleLayout(ctx,JSON.parse(JSON.stringify(next)))),absoluteText(b,before));close(fitBubbleToTextFrame(ctx,next),next);
+ const before=bubbleLayout(ctx,b);freezeBubbleTextLayout(b,before);const next=fitBubbleToTextFrame(ctx,b),after=bubbleLayout(ctx,next);close(absoluteText(next,after),absoluteText(b,before));assert.notDeepEqual([next.w,next.h],[b.w,b.h]);fittedTail(b,next);assert.equal(next.text,b.text);assert.equal(next.fontSize,b.fontSize);close(absoluteText(next,bubbleLayout(ctx,JSON.parse(JSON.stringify(next)))),absoluteText(b,before));close(fitBubbleToTextFrame(ctx,next),next);
+});
+test('适配后移动、缩放及重复适配不会留下尾尖或累积拉长，旧绝对长尾可再次适配修复',()=>{
+ for(const side of ['bottom','top','left','right'])for(const absolute of [false,true]){
+  const b=bubble(),tips={bottom:[.58,1.8],top:[.58,-.8],left:[-.8,.58],right:[1.8,.58]},[tx,ty]=tips[side];
+  b.tail={side,base:.5,width:.12,mode:absolute?'absolute':'normalized',x:absolute?b.x+tx*b.w:tx,y:absolute?b.y+ty*b.h:ty,visible:true};
+  if(absolute){b.textFrameLayout=true;freezeBubbleTextLayout(b,bubbleLayout(ctx,b));}
+  const original=structuredClone(b),fit=fitBubbleToTextFrame(ctx,b);fittedTail(b,fit);assert.deepEqual(b,original);
+  assert.ok(tailLength(fit)<tailLength(b)*.7,'收回异常长尾');close(absoluteText(fit,bubbleLayout(ctx,fit)),absoluteText(b,bubbleLayout(ctx,b)));
+  let stable=fit;for(let i=0;i<10;i++)stable=fitBubbleToTextFrame(ctx,stable);close(stable,fit);
+  const moved=applyBubbleEdit(fit,{type:'move',dx:230,dy:-75}),a=bubbleTailGeometry(fit),m=bubbleTailGeometry(moved);
+  close({x:m.tip.x+moved.x,y:m.tip.y+moved.y},{x:a.tip.x+fit.x+230,y:a.tip.y+fit.y-75});close(tailLength(moved),tailLength(fit));
+  const resized=applyBubbleEdit(moved,{type:'resize',dx:moved.w*.4,dy:moved.h*.4}),r=bubbleTailGeometry(resized);
+  close(r.tip.x,m.tip.x*1.4);close(r.tip.y,m.tip.y*1.4);
+  const saved=JSON.parse(JSON.stringify(resized));close(bubbleTailGeometry(saved),r);close(fitBubbleToTextFrame(ctx,saved),moved);
+ }
+});
+test('无尾、锁定和无框气泡不新增尾巴，手动尾根及宽度在适配时保留',()=>{
+ for(const extra of [{tail:{visible:false}},{locked:true},{shape:'none'}]){const b={...bubble(),...extra},fit=fitBubbleToTextFrame(ctx,b);if(b.locked||b.shape==='none')assert.deepEqual(fit,b);else{assert.deepEqual(fit.tail,b.tail);assert.equal(bubbleTailGeometry(fit),null);}}
+ const b=bubble();b.tail={...b.tail,anchorT:.3,width:.2};const next=fitBubbleToTextFrame(ctx,b);assert.equal(next.tail.anchorT,.3);assert.equal(next.tail.width,.2);fittedTail(b,next);
+});
+test('极小文字框与超大字号、远距离绝对尾尖适配后仍可保存',()=>{
+ const b={...bubble(),fontSize:2048,padding:0,textBox:{x:0,y:0,w:1,h:1},tail:{mode:'absolute',x:100000,y:-100000,visible:true}},next=fitBubbleToTextFrame(ctx,b);
+ assert.equal(next.tail.mode,'normalized');for(const axis of ['x','y'])assert.ok(next.tail[axis]>=-2&&next.tail[axis]<=3,'尾尖在可保存的坐标范围内');
 });
 test('竖排、显式换行和双圆两段台词保留各自文字框',()=>{
  for(const mode of ['vertical','explicit','double']){let b=bubble();if(mode==='vertical'){b.writingMode='vertical';b.textBox={x:20,y:40,w:260,h:240};}if(mode==='explicit'){b.text='第一行\n第二行';b.lineBreakMode='explicit';}if(mode==='double')b=addDialogueSegment(applyBubbleMaterial(b,'builtin-double'),'第二段保持文字');
@@ -106,6 +138,16 @@ test('浏览器：切换单位、选格高亮、手改保存重开、适配气�
  await select(f.frames[0].id);await page.locator('[data-panel-inspector-tab=generation]').click();await prompt.fill('手改只属于当前单格');await prompt.blur();await page.keyboard.press('Control+s');await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');assert.equal(frame().generation.promptOverrides['post-lettering'],'手改只属于当前单格');
  for(const unit of ['screen','panel']){const r=await fetch(origin+'/api/projects/'+f.p.id+'/production/episode-unit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expectedRevision:current().revision,episode:11,unit})});assert.equal(r.status,200,await r.text());}
  await page.reload();await page.waitForSelector('#canvas-tool-dock');await select(f.frames[0].id);await page.locator('[data-panel-inspector-tab=generation]').click();assert.equal(await prompt.inputValue(),'手改只属于当前单格');assert.equal(auditPanelReferences(current(),frame(),f.assets).ready,true);
- const bid=f.p.pages[0].bubbles[0].id,getBubble=()=>current().pages.flatMap(p=>p.bubbles).find(b=>b.id===bid);await select(bid);const before=structuredClone(getBubble());await page.locator('[data-action=bubble-fit-text]').click();await page.keyboard.press('Control+s');await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');const next=structuredClone(getBubble());assert.notDeepEqual([next.w,next.h],[before.w,before.h]);close(absoluteText(next,bubbleLayout(ctx,next)),absoluteText(before,bubbleLayout(ctx,before)));await page.screenshot({path:path.join(dir,'bubble-fits-text-frame.png')});
- await page.locator('#undo').click();await page.keyboard.press('Control+s');await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');assert.deepEqual(getBubble(),before);await page.reload();await page.waitForSelector('#canvas-tool-dock');assert.deepEqual(getBubble(),before);assert.deepEqual(errors,[]);assert.equal(studio.store.db.jobs.length,0);
+ const save=async()=>{await page.keyboard.press('Control+s');await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');};
+ const bid=f.p.pages[0].bubbles[0].id,getBubble=()=>current().pages.flatMap(p=>p.bubbles).find(b=>b.id===bid);await select(bid);const before=structuredClone(getBubble());await page.locator('[data-action=bubble-fit-text]').click();await save();const next=structuredClone(getBubble());assert.notDeepEqual([next.w,next.h],[before.w,before.h]);close(absoluteText(next,bubbleLayout(ctx,next)),absoluteText(before,bubbleLayout(ctx,before)));fittedTail(before,next);await page.screenshot({path:path.join(dir,'bubble-fits-text-frame.png')});
+ await page.locator('#undo').click();await save();assert.deepEqual(getBubble(),before);
+ await page.locator('[data-action=bubble-fit-text]').click();await save();close(getBubble(),next);
+ await page.reload();await page.waitForSelector('#canvas-tool-dock');await select(bid);close(getBubble(),next);
+ const drag=async(selector,dx,dy)=>{const box=await page.locator(selector).first().boundingBox();assert.ok(box);const x=box.x+box.width/2,y=box.y+box.height/2;await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+dx,y+dy,{steps:8});await page.mouse.up();await save();};
+ await drag('#stage [data-bubble="'+bid+'"]:has(text) > polygon',45,25);const moved=structuredClone(getBubble()),delta={x:moved.x-next.x,y:moved.y-next.y};assert.ok(Math.hypot(delta.x,delta.y)>20);
+ const tail=b=>{const g=bubbleTailGeometry(b);return {x:b.x+g.tip.x,y:b.y+g.tip.y};};close(tail(moved),{x:tail(next).x+delta.x,y:tail(next).y+delta.y});close(tailLength(moved),tailLength(next));
+ await drag('[data-bubble="'+bid+'"] [data-bubble-handle="resize"]',50,25);const resized=structuredClone(getBubble());assert.ok(resized.w>moved.w);assert.ok(resized.h>moved.h);close(bubbleTailGeometry(resized).tip.x,bubbleTailGeometry(moved).tip.x*resized.w/moved.w);close(bubbleTailGeometry(resized).tip.y,bubbleTailGeometry(moved).tip.y*resized.h/moved.h);
+ await page.locator('[data-action=bubble-fit-text]').click();await save();const refit=structuredClone(getBubble());close(absoluteText(refit,bubbleLayout(ctx,refit)),absoluteText(resized,bubbleLayout(ctx,resized)));fittedTail(resized,refit);
+ await page.locator('[data-action=bubble-fit-text]').click();await save();close(getBubble(),refit);await page.screenshot({path:path.join(dir,'bubble-tail-after-drag-and-refit.png')});
+ await page.reload();await page.waitForSelector('#canvas-tool-dock');close(getBubble(),refit);assert.deepEqual(errors,[]);assert.equal(studio.store.db.jobs.length,0);
 });

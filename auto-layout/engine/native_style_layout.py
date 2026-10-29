@@ -87,8 +87,14 @@ def facts(shot, config):
 
 def paragraph_groups(shots, fs, source_anchor_policy=None):
     groups=[];start=None;last_topic='';boundaries=set()
+    # The local combination planner can reveal information without dialogue.
+    # Keep the preceding setup and its recognition in one declared paragraph,
+    # including a silent opening/detail. Never bridge a real scene change.
+    reveal_context={j for i,f in enumerate(fs)
+        if i and f.get('_combinationSignals',{}).get('reveal')
+        and not scene_change(shots[i-1],shots[i]) for j in (i-1,i)}
     for i,f in enumerate(fs):
-        speaking=bool(f['speech'])
+        speaking=bool(f['speech']) or i in reveal_context
         transition=i and scene_change(shots[i-1],shots[i])
         if start is not None and (not speaking or transition):
             groups.append((start,i-1));start=None;last_topic=''

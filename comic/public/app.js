@@ -23,6 +23,8 @@ import {bindProductionExtraReference,productionExtraNeeds} from './production-ex
 import {applyProductionStyle,resolveProductionStyle} from './production-lettering-style.js';
 import {mountCanvasPan} from './canvas-pan.js';
 import {fitDialogueBubble,fitBubbleToTextFrame} from './lettering.js';
+import {episodeBubbleFitPlan,episodeBubbleFitMessage} from './episode-bubble-fit.js';
+import {fitBubbleToCurrentLayout} from './bubble-fit-layout.js';
 import {mountLibraryUI} from './library-ui.js';
 import {mountTeamToolbar} from './team-toolbar.js';
 import {mountProjectSyncUI} from './project-sync-ui.js';
@@ -305,6 +307,36 @@ function commit(before,{inspector=true,source='manual',operation,copiedFrom}={})
 
 
 function edit(fn,options){if(!project)return;const before=layoutEditSnapshot(project);fn();commit(before,options);window.dispatchEvent(new CustomEvent('production-activity',{detail:{projectId:project.id,episode:page()?pageEpisode(project,page()):null,stage:'layout'}}));}
+let episodeBubbleFitBusy=false;
+async function fitCurrentEpisodeBubbles(){
+ if(!project||!page()||episodeBubbleFitBusy)return;
+ const projectId=project.id,episode=currentBoardEpisode(project,page());episodeBubbleFitBusy=true;
+ try{
+  await document.fonts.ready;
+  if(project?.id!==projectId||!page()||currentBoardEpisode(project,page())!==episode)return;
+  finishInspectorDrafts();
+  const result=episodeBubbleFitPlan(measurement,project,page());
+  if(result.changes.length)edit(()=>{for(const change of result.changes)replaceBubble(change.bubble,change.pageId);},{source:'automatic',operation:'bubble.episode-auto-fit'});
+  toast(episodeBubbleFitMessage(result));
+ }finally{episodeBubbleFitBusy=false;}
+}
+async function fitSelectedBubbleToLayout(){
+ if(!project||selection?.type!=='bubble')return;
+ const projectId=project.id,bubbleId=selected()?.id;
+ await document.fonts.ready;
+ if(project?.id!==projectId||selection?.type!=='bubble'||selected()?.id!==bubbleId)return;
+ finishInspectorDrafts();
+ const entry=findLayer(project,bubbleId),target=entry?.item,owner=project.pages.find(p=>p.id===entry?.pageId);
+ if(!target||!owner)return;
+ if(owner.locked||target.locked||panelForBubble(project,bubbleId)?.item?.locked)throw Error('请先解锁气泡及所属画格');
+ const result=fitBubbleToCurrentLayout(measurement,target,{maxWidth:owner.width*2});
+ if(result.status==='contour-space'){toast('当前轮廓无法在固定留白内容纳文字，已保留原样；请调整文字框或选择更宽松的气泡样式。');return;}
+ if(result.status==='segments'){toast('双段气泡请分别调整两段文字框；本次未改动。');return;}
+ if(result.status==='too-large'){toast('按当前排版适配会超出允许尺寸，已保留原样，请手动调整文字框。');return;}
+ if(result.status==='skipped'){toast('请选择可见、有文字的有框气泡。');return;}
+ if(JSON.stringify(target)!==JSON.stringify(result.bubble))edit(()=>replaceBubble(result.bubble,owner.id),{source:'automatic',operation:'bubble.fit-current-layout'});
+ toast('已按当前排版适配气泡：字号、分行和文字位置不变；上下各留白72 px，左右各48 px。');
+}
 function quickTarget(){if(!project||selection?.type!=='panel'||selectedLayerIds.size>1||tool==='insert-space')return null;const item=selected();if(!item)return null;return {item,tool,asset:assetMap().get(item.imageAssetId),code:projectFrameName(project,item),generationState:currentPanelGenerationState(),promptSourceState:promptSourceUI?.currentState(),cutoutPosition:isCutoutLayer(item)?cutoutPosition(project,item):null,gaps:frameGaps(project,item.id,{bubbleSizes:spacingBubbleSizes([selectionOwner()])})};}
 function previewQuickField(field,value){
  try{const target=quickTarget();if(!target||target.item.locked)throw Error('请先选中并解锁画格');
@@ -978,6 +1010,8 @@ document.addEventListener('click',safely(async event=>{
   if(action==='bubble-join-lines')return edit(()=>{item.text=joinDialogueLines(item.text);item.lineBreakMode='auto';item.textFlowVersion=1;delete item.textLayout;},{operation:'bubble.join-lines'});
   if(action==='bubble-reset-textbox')return edit(()=>{dialogueSegments(item).forEach((s,i)=>{s.textBox=defaultDialogueBox(item,i);delete s.independentBox;delete s.textLayout;});delete item.textBox;delete item.textLayout;delete item.textFrameLayout;});
   if(action==='bubble-fit-text')return edit(()=>{const owner=selectionOwner();replaceBubble(fitBubbleToTextFrame(measurement,item),owner.id);},{source:'automatic',operation:'bubble.auto-fit'});
+  if(action==='episode-bubble-fit-text')return fitCurrentEpisodeBubbles();
+  if(action==='bubble-fit-current-layout')return fitSelectedBubbleToLayout();
   if(action==='merge-selected-layers'){
    const projectId=project.id,layerIds=[...selectedLayerIds];if(layerIds.length<2)return;
    await flushSave();if(project.id!==projectId)return;

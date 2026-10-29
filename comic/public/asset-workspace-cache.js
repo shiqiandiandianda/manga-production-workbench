@@ -23,6 +23,14 @@ export function groupWorkspaceRows(rows){
  return [...groups.values()];
 }
 
+// Combine display cards only when the selected immutable image and location agree.
+export function groupSameSceneImages(groups,assets){
+ const byId=new Map(assets.map(a=>[a.id,a])),normal=s=>String(s||'').normalize('NFKC').replace(/[\s·・_\-（）()]/gu,'');
+ const signature=row=>{if(row.role!=='scene'||row.status!=='ready'||row.assetIds.length!==1)return '';const a=byId.get(row.assetIds[0]);return a?.library?.revisionId&&a.library.sha256?a.library.revisionId+':'+a.library.sha256:'';};
+ const place=(general,specific)=>{const a=normal(general.name),b=normal(specific.name),state=normal(general.state).split(/[；;，,]/u)[0];return a&&b.startsWith(a)&&b.length>a.length&&state&&(state===b||b.endsWith(state));};
+ const out=[];for(const group of groups){if(group.role!=='scene'||group.rows.length!==1){out.push(group);continue;}const row=group.rows[0],sig=signature(row);let match=sig&&out.find(g=>g.role==='scene'&&g.rows.length===1&&signature(g.rows[0])===sig&&(place(g.rows[0],row)||place(row,g.rows[0])));if(match){match.sameSceneRows||=[];match.sameSceneRows.push(row);}else out.push({...group});}return out;
+}
+
 // Keep the image nodes and scroll position of cards whose content did not change.
 export function reconcileWorkspaceCards(target,entries){
  const old=new Map([...target.children].map(n=>[n.dataset.galleryRenderKey,n]));let cursor=target.firstElementChild;

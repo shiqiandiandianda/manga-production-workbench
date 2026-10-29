@@ -1,3 +1,5 @@
+import {appendAdoptedProductionReferences} from './production-reference-append.mjs';
+import {assetUnavailable} from '../public/asset-availability.js';
 import {ensureEpisodeLettering} from '../public/production-episode-lettering.js';
 import {ensureProductionScreenLettering} from '../public/production-screen-lettering.js';
 import {PRODUCTION_PACKAGE_LIMITS as limits} from '../public/production-package-limits.js';
@@ -59,7 +61,7 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
    complete(project);
    if(old){const backup=path.join(dataDir,'backups',old.id+'_before_package_'+old.revision+'.json');fs.mkdirSync(path.dirname(backup),{recursive:true});fs.writeFileSync(backup,JSON.stringify(old));store.db.projects[store.db.projects.indexOf(old)]=project;}else store.db.projects.push(project);scans.delete(input.scanId);json(res,old?200:201,saveProject(project,{editor:!!old}));return true;
   }
-  const match=pathname.match(/^\/api\/projects\/([a-z]+_[0-9a-f-]{36})\/production\/(source|bind|references|layout|detect|compose|background|resolve|issues|mode|styles|unit|episode-unit|relayout-panels|episode-layout|episode-preview|panels|panel|panel-lettering|screen-lettering|episode-lettering)$/);if(!match)return false;
+  const match=pathname.match(/^\/api\/projects\/([a-z]+_[0-9a-f-]{36})\/production\/(source|bind|references|reference-options|layout|detect|compose|background|resolve|issues|mode|styles|unit|episode-unit|relayout-panels|episode-layout|episode-preview|panels|panel|panel-lettering|screen-lettering|episode-lettering)$/);if(!match)return false;
   const project=store.project(match[1]),pkg=project.productionPackage;check(pkg,'当前工程不是制作资料包工程',404);
   if(method==='GET'&&match[2]==='episode-preview'){
    const number=Number(url.searchParams.get('episode'));check(Number.isInteger(number),'请选择当前话');const source=resolveAssistantEpisode(project,number,{scriptId:url.searchParams.get('scriptId')||undefined});
@@ -85,11 +87,18 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
    json(res,200,{project:commit(),count,skipped,segments:segments.size});return true;
   }
   if(match[2]==='issues'){check(Array.isArray(input.reviewed)&&input.reviewed.every(v=>Number.isInteger(v)&&v>=0&&v<pkg.issues.length),'核对项编号无效');next.productionPackage.reviewedIssues=input.reviewed;json(res,200,commit());return true;}
+  if(match[2]==='reference-options'){
+   check(Array.isArray(input.segmentIds)&&input.segmentIds.length>0&&input.segmentIds.length<=100&&new Set(input.segmentIds).size===input.segmentIds.length,'请选择不同的屏段');
+   check(typeof input.omitCharacterOutfitLabels==='boolean','请选择人物参考标签方式');
+   check(input.supplements===undefined||Array.isArray(input.supplements)&&input.supplements.length===0,'请先安装明确补充场景道具参考补丁');
+   for(const id of input.segmentIds){const segment=productionSegment(next,id),target=productionFrame(next,id),owner=next.pages.find(p=>p.panels.some(f=>f.id===target?.id));check(segment&&target&&owner&&!target.locked&&!owner.locked,'屏段不存在或已锁定',409);if(input.requireEmpty===true)check(!target.imageAssetId&&!target.candidates?.length,'屏段已有成图或候选，请先核对',409);check(target.generation?.version===1,'屏段生成数据不完整',409);target.generation.omitCharacterOutfitLabels=input.omitCharacterOutfitLabels;}
+   validateProject(next);store.db.projects[store.db.projects.indexOf(project)]=next;json(res,200,{project:saveProject(next,{editor:true}),segmentIds:input.segmentIds,supplementCount:0});return true;
+  }
   if(match[2]==='references'){
    const referenceSegments=new Set();
    const editable=seg=>{const target=productionFrame(next,seg.id),owner=next.pages.find(p=>p.panels.some(v=>v.id===target?.id));check(target&&!target.locked&&!owner?.locked,'画格或画板已锁定',409);check(!store.db.jobs.some(j=>j.projectId===project.id&&[seg.panelId,seg.backgroundPanelId].includes(j.panelId)&&active.includes(j.status)),'待修改的屏段正在生成，请等本段完成或取消同时绑定',409);};
    const changes=input.changes||[{segmentId:input.segmentId,bindings:input.bindings}];check(Array.isArray(changes)&&changes.length>0&&changes.length<=100&&new Set(changes.map(c=>c.segmentId)).size===changes.length,'屏段参考修改范围无效');
-   for(const change of changes){const seg=productionSegment(next,change.segmentId),f=productionFrame(next,change.segmentId);check(seg&&f,'屏段不存在');editable(seg);referenceSegments.add(seg.id);check(Array.isArray(change.bindings)&&new Set(change.bindings.map(v=>v.slot)).size===change.bindings.length,'附图槽位重复或无效');
+   for(const change of changes){const seg=productionSegment(next,change.segmentId),f=productionFrame(next,change.segmentId);check(seg&&f,'屏段不存在');editable(seg);referenceSegments.add(seg.id);if(change.append){check(input.applyMatching!==true,'追加槽位不能同时跨话套用');appendAdoptedProductionReferences(next,seg,change.append,{episode:input.episode,assets:store.db.assets,makeBinding:id=>productionAssetBinding(store,id),isUnavailable:assetUnavailable});}check(Array.isArray(change.bindings)&&new Set(change.bindings.map(v=>v.slot)).size===change.bindings.length,'附图槽位重复或无效');
     for(const choice of change.bindings){const r=seg.references.find(v=>v.slot===choice.slot);check(r,'附图槽位不存在');check(!choice.skip||!r['必须'],'必需参考不能跳过');check(!choice.assetId||!choice.skip,'参考不能同时绑定和跳过');if(r['类型']==='上一段成图'){check(!choice.assetId,'接续参考由前段成图提供');r.skipped=choice.skip===true;continue;}r.binding=choice.assetId?productionAssetBinding(store,choice.assetId):null;r.skipped=choice.skip===true;}
     if(input.applyMatching===true)for(const choice of change.bindings){const source=seg.references.find(v=>v.slot===choice.slot);if(!source.binding||source['类型']==='上一段成图')continue;for(const e of next.productionPackage.episodes)for(const other of e.segments)for(const r of other.references)if(productionRequirementKey(r)===productionRequirementKey(source)){if(JSON.stringify(r.binding)!==JSON.stringify(source.binding)||r.skipped){editable(other);referenceSegments.add(other.id);r.binding=structuredClone(source.binding);r.skipped=false;}}}
     const assigned=seg.references.filter(r=>!r.skipped&&r.binding).map(r=>r.binding.assetId);check(new Set(assigned).size===assigned.length,'不同附图槽位不能指向同一图片');

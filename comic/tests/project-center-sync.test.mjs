@@ -22,7 +22,7 @@ test('中心缓存校验恢复和满载委派只处理等待画格，提交失�
   if(req.url==='/api/v1/projects/central/comic-snapshots'||req.url==='/api/v1/projects/central/progress')return res.end('{"ok":true}');
   res.statusCode=404;res.end('{"error":"unexpected route"}');
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));
- const previous=process.env.PROJECT_CENTER_URL;process.env.PROJECT_CENTER_URL='http://127.0.0.1:'+server.address().port;
+ const previousTeamHelp=process.env.COMIC_TEAM_HELP;process.env.COMIC_TEAM_HELP='1';const previous=process.env.PROJECT_CENTER_URL;process.env.PROJECT_CENTER_URL='http://127.0.0.1:'+server.address().port;
  const store={db:{assets:[asset],projects:[project],jobs:[job],repairLinks:[]},save(){},assetPath(){return asset.filePath;},project(){return project;}};
  const sync=createProjectCenterSync({store,dataDir:dir,generationSlots:{mainLimit:()=>1,snapshot:()=>({running:1})},collabClient:{status:async()=>({hubReachable:true}),distribute:async()=>{dispatches++;assert.equal(job.status,'delegated');throw Error('模拟提交回包失联');}},apiOrigin:()=> 'http://127.0.0.1:1'});
  try{
@@ -30,7 +30,7 @@ test('中心缓存校验恢复和满载委派只处理等待画格，提交失�
   fs.writeFileSync(asset.filePath,Buffer.from('corrupt cache'));await sync.ensureAssets([asset.id]);assert.equal(downloads,1);assert.deepEqual(fs.readFileSync(asset.filePath),bytes);assert.deepEqual(fs.readFileSync(source),bytes);
   await sync.ensureAssets([asset.id]);assert.equal(downloads,1,'有效缓存不会重复下载');
   await sync.tick();assert.equal(dispatches,1);assert.equal(job.status,'delegated');assert.equal(job.phase,'uncertain');await sync.tick();assert.equal(dispatches,1,'提交结果未知不能重派');
- }finally{sync.close();if(previous===undefined)delete process.env.PROJECT_CENTER_URL;else process.env.PROJECT_CENTER_URL=previous;server.closeAllConnections();await new Promise(r=>server.close(r));}
+ }finally{sync.close();if(previousTeamHelp===undefined)delete process.env.COMIC_TEAM_HELP;else process.env.COMIC_TEAM_HELP=previousTeamHelp;if(previous===undefined)delete process.env.PROJECT_CENTER_URL;else process.env.PROJECT_CENTER_URL=previous;server.closeAllConnections();await new Promise(r=>server.close(r));}
 });
 test('分镜直导保留项目中心归档，不上传旧修图、不执行旧字号版式规则、不推送无话数进度',async()=>{
  const dir=fs.mkdtempSync(path.join(audit,'direct-')),oldFile=path.join(dir,'old.psd');fs.writeFileSync(oldFile,'retired');

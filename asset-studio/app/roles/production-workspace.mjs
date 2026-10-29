@@ -1,3 +1,4 @@
+import {createAssetEditorRevisionClient} from './asset-editor-revisions.mjs';
 import {createProductionTrash} from './production-trash.mjs';
 import {createCharacterComponentPipeline,CHARACTER_COMPONENT_ORDER} from './character-component-pipeline.mjs';
 import {productionReferenceInputs} from './production-reference-inputs.mjs';
@@ -20,6 +21,7 @@ export const sceneComponents=record=>record.sceneOutputMode==='front'?['scene-fr
 export function sceneReverseSettings(input){const result={};for(const [key,max] of [['reverseCamera',600],['reverseDescription',6000],['reverseDetails',6000]])if(input[key]!==undefined){if(typeof input[key]!=='string'||input[key].length>max)throw Error('反打描述格式无效或过长');result[key]=input[key].trim();}return result;}
 const copy=structuredClone,hash=b=>createHash('sha256').update(b).digest('hex');
 export function createProductionWorkspace({root,dataDir=path.join(root,'data'),origin=()=> 'http://127.0.0.1:8796',editorJson,readBody,sendJson,studioFile,generationClient}){
+ editorJson=createAssetEditorRevisionClient(editorJson);
  const workspaceProject=createWorkspaceProject({studioFile,editorJson});
  const folder=path.join(dataDir,'production-records'),index=path.join(folder,'index.json');fs.mkdirSync(folder,{recursive:true});let records=[];try{records=JSON.parse(fs.readFileSync(index,'utf8'));}catch{}
  const native=createRequire(import.meta.url)(process.env.ASSET_CANVAS_MODULE||path.resolve(root,'../../runtime/node/node_modules/@napi-rs/canvas'));
@@ -284,4 +286,5 @@ export function createProductionWorkspace({root,dataDir=path.join(root,'data'),o
   throw Error('生成记录操作无效');
  },async importLegacy({id,name,outfit,prompt,referenceIds,source,bytes}){if(records.some(r=>r.source?.taskId===source.taskId))return;const r={id:'production_'+randomUUID(),requestId:'legacy-'+id,name,outfit,prompt,referenceIds,type:'character',status:'legacy',legacy:true,source,createdAt:new Date().toISOString(),jobs:{},phases:{},finished:[],slots:{}};image(r,'free',bytes);records.push(r);save();return view(r);}};
 }
+
 

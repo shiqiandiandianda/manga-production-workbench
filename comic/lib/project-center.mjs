@@ -1,3 +1,4 @@
+import {createLocalAssetServiceClient} from './local-asset-service-client.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {hostname} from 'node:os';
@@ -21,7 +22,7 @@ export function createProjectCenterSync({store,dataDir,saveProject,collabClient,
  }
  const save=()=>writeFileAtomicSync(file,JSON.stringify(mapping,null,2));
  const referenceWork=project=>{let links={};try{links=JSON.parse(fs.readFileSync(path.join(dataDir,'teamwork/local.json'),'utf8')).links||{};}catch{}return {projectId:project.id,title:project.title,mokuProjectId:links[project.id]?.remoteProjectId||''};};
- const referenceResults=createReferenceGenerationResults({store,library,assetStudioUrl,mapping,save,saveProject});
+ const studioClient=createLocalAssetServiceClient({origin:assetStudioUrl,diagnosticFile:path.join(dataDir,'asset-service-connection-events.jsonl')}),referenceResults=createReferenceGenerationResults({store,library,assetStudioUrl,mapping,save,saveProject,serviceClient:studioClient});
  const materialize=(asset,record,bytes)=>{const folder=path.join(dataDir,'project-center-cache',record.projectId);fs.mkdirSync(folder,{recursive:true});const target=path.join(folder,record.sha256+(asset.extension||path.extname(record.name)||'.png'));if(!fs.existsSync(target)||hash(fs.readFileSync(target))!==record.sha256)writeFileAtomicSync(target,bytes);asset.originalFilePath||=asset.filePath;Object.assign(asset,inspectImageFile(target));asset.projectCenterFile={projectId:record.projectId,fileId:record.id,sha256:record.sha256};};
  async function ensureAssets(ids){
   if(!url)return;
@@ -117,8 +118,8 @@ export function createProjectCenterSync({store,dataDir,saveProject,collabClient,
      send(200,{items:entries});return true;
     }
     const stored=Object.entries(mapping).find(([k,v])=>k.startsWith('reference-generation:'+project.id+':')&&v.task?.id===local.searchParams.get('taskId'))?.[1];
-    if(stored&&!stored.productionRecordId){try{const result=await(await fetch(assetStudioUrl+'/api/production-records')).json(),record=result.items?.find(r=>r.source?.taskId===stored.task.id);if(record){stored.productionRecordId=record.id;stored.url=record.url;save();}}catch{}}
-    if(stored?.productionRecordId){const response=await fetch(assetStudioUrl+'/api/production-records/'+stored.productionRecordId);const record=await response.json();if(!response.ok)throw Error(record.error||'资产工作室暂不可读');const task={...stored.task,status:({completed:'review',legacy:'review'})[record.status]||record.status,message:record.error||Object.values(record.phases||{}).map(p=>p.message).join('；')};send(200,{task,record,imageUrl:record.imageUrl?assetStudioUrl+record.imageUrl:null,url:record.url});return true;}
+    if(stored&&!stored.productionRecordId){try{const result=await studioClient.json('/api/production-records'),record=result.items?.find(r=>r.source?.taskId===stored.task.id);if(record){stored.productionRecordId=record.id;stored.url=record.url;save();}}catch{}}
+    if(stored?.productionRecordId){const record=await studioClient.json('/api/production-records/'+stored.productionRecordId);const task={...stored.task,status:({completed:'review',legacy:'review'})[record.status]||record.status,message:record.error||Object.values(record.phases||{}).map(p=>p.message).join('；')};send(200,{task,record,imageUrl:record.imageUrl?assetStudioUrl+record.imageUrl:null,url:record.url});return true;}
     if(!info?.projectId)throw Error('当前工程尚未连接生产项目');
     const d=await api('/api/v1/projects/'+info.projectId),task=d.tasks.find(t=>t.id===local.searchParams.get('taskId'));
     if(!task)throw Error('此生成任务不属于当前工程');
@@ -135,7 +136,7 @@ export function createProjectCenterSync({store,dataDir,saveProject,collabClient,
      const receiptKey='reference-generation:'+project.id+':'+input.requestId,previous=mapping[receiptKey];
      if(previous){if(previous.panelId&&previous.panelId!==input.panelId||previous.needId&&previous.needId!==input.needId)throw Error('请求编号已用于其他参考需求');send(200,{...previous,duplicate:true});return true;}
      const studioUrl=assetStudioUrl,sceneMeta=request.sceneMeta||{},sceneMetaText=[sceneMeta.camera,sceneMeta.time,sceneMeta.weather].filter(Boolean).join(' · ');
-     const response=await fetch(studioUrl+'/api/production-records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:input.requestId,name:request.payload.name,type:request.payload.role,outfit:request.payload.role==='scene'?(sceneMetaText||request.payload.state):request.payload.state,prompt:request.payload.prompt,referenceIds:request.referenceIds,...request.payload.settings,sceneMeta:request.payload.role==='scene'?sceneMeta:undefined,source:{projectId:project.id,projectTitle:project.title,work:referenceWork(project),panelId:input.panelId,needId:input.needId,episode:request.payload.episode,scene:request.scene||null,provenance:request.payload.provenance,originalPrompt:request.payload.originalPrompt,originalAssetPrompt:request.payload.originalAssetPrompt,assetPromptSource:request.payload.assetPromptSource,assetPromptSha256:request.payload.assetPromptSha256,promptFrameworkVersion:request.payload.promptFrameworkVersion,identityReference:request.payload.identityReference}}),signal:AbortSignal.timeout(60000)}),record=await response.json();if(!response.ok)throw Error(record.error||'资产工作室提交失败');
+     const record=await studioClient.json('/api/production-records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:input.requestId,name:request.payload.name,type:request.payload.role,outfit:request.payload.role==='scene'?(sceneMetaText||request.payload.state):request.payload.state,prompt:request.payload.prompt,referenceIds:request.referenceIds,...request.payload.settings,sceneMeta:request.payload.role==='scene'?sceneMeta:undefined,source:{projectId:project.id,projectTitle:project.title,work:referenceWork(project),panelId:input.panelId,needId:input.needId,episode:request.payload.episode,scene:request.scene||null,provenance:request.payload.provenance,originalPrompt:request.payload.originalPrompt,originalAssetPrompt:request.payload.originalAssetPrompt,assetPromptSource:request.payload.assetPromptSource,assetPromptSha256:request.payload.assetPromptSha256,promptFrameworkVersion:request.payload.promptFrameworkVersion,identityReference:request.payload.identityReference}}),timeoutMs:60000});
      const task={id:record.id,productionRecordId:record.id,name:record.name,role:record.type,status:record.status,usages:request.payload.usages,message:'已提交资产生成；完成后在当前页选择接回'};
      const receipt={task,productionRecordId:record.id,panelId:input.panelId,needId:input.needId,referenceIds:request.referenceIds,url:record.url};
      mapping[receiptKey]=receipt;save();send(202,receipt);
@@ -146,7 +147,7 @@ export function createProjectCenterSync({store,dataDir,saveProject,collabClient,
    const project=store.project(input.projectId),p=await sync(structuredClone(project));
    if(pathname.endsWith('/progress')){await api('/api/v1/projects/'+p.id+'/progress',{...input,person});mapping[project.id]['manualProgress:'+input.episode]=Date.now();save();}
    send(200,{ok:true,project:p});return true;
-  }catch(e){send(409,{error:e.message});return true;}
+  }catch(e){const network=/^(fetch failed|Failed to fetch)$/i.test(e.message||'');send(e.status||409,{error:network?'资产生成准备时连接失败，请检查墨库与资产工作室连接；本次提交前请先核对生成记录。':e.message,...(e.code?{code:e.code}:{}),...(e.submissionUncertain?{submissionUncertain:true}:{})});return true;}
  };
  return {handle,sync,ensureAssets,preflight,isPolicyCurrent,mark(project){if(url)dirty.add(project.id);},markAsset(asset){delete asset.projectCenterFile;for(const p of store.db.projects)dirty.add(p.id);},status:()=>({url,lastError}),close(){closed=true;clearInterval(timer);},tick,running:()=>busy,forget(id){dirty.delete(id);for(const key of Object.keys(mapping))if(key===id||key.startsWith('reference-generation:'+id+':'))delete mapping[key];save();}};
 }

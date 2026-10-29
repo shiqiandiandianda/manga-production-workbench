@@ -1,0 +1,50 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import {episodeBubbleFitPlan,episodeBubbleFitMessage} from '../public/episode-bubble-fit.js';
+import {bubbleLayout,fitDialogueBubble} from '../public/lettering.js';
+import {createProject,id} from '../public/model.js';
+import {createStudio} from '../server.mjs';
+const require=createRequire(import.meta.url),root=path.resolve(import.meta.dirname,'../..');
+import {applyBubbleMaterial} from '../public/bubble-material.js';
+const {createCanvas}=require(process.env.COMIC_TEST_CANVAS_MODULE||root+'/runtime/node/node_modules/@napi-rs/canvas');
+const ctx=createCanvas(1280,1000).getContext('2d'),proof=root+'/verification/bubble-fit-layout-20261029';fs.mkdirSync(proof,{recursive:true});
+function fixture(){
+ const p=createProject('本话气泡适配 · 合成验收',true),original=p.pages[0],base=original.bubbles[0];
+ const bubble=(text,extra={})=>({...structuredClone(base),id:id('bubble'),parentPanelId:undefined,shotId:'',x:140,y:120,w:90,h:45,text,type:'speech',shape:'oval',fontSize:32,visible:true,locked:false,tail:{visible:true,side:'bottom',base:.54},textBox:{x:4,y:4,w:40,h:30},...extra});
+ const page=(episode,bubbles)=>({...structuredClone(original),id:id('page'),name:'第'+episode+'话',storyboard:{episode,projection:'manual'},panels:[],bubbles,height:1500});
+ p.pages=[page(41,[bubble('招供说他只是拿钱办事，不知道幕后主使。'),bubble('这是已经锁定的气泡。',{locked:true,y:400}),bubble('隐藏气泡',{visible:false,y:600}),bubble('无框文字',{shape:'none',y:700}),bubble('   ',{y:800})]),page(41,[bubble('另一屏也要按自己的字号和文字适配。',{fontSize:40}),bubble('短句。',{y:500,shape:'rounded-rect',type:'caption'})]),page(42,[bubble('第42话保持原样。')])];
+ Object.assign(p.pages[0].bubbles[0],{type:'thought',w:220,h:260,x:200,y:180,text:'下面人做的事，也算我管理有方。',textBox:{x:40,y:80,w:140,h:140}});p.pages[0].bubbles[0]=applyBubbleMaterial(p.pages[0].bubbles[0],'builtin-oval');Object.assign(p.pages[0].bubbles[0],JSON.parse(fs.readFileSync(new URL('./fixtures/bubble-inset-body.json',import.meta.url))));
+ p.layerOrder=p.pages.flatMap(pg=>pg.bubbles.map(b=>b.id));return p;
+}
+test('浏览器拖文字框后适配主体，原字号与分行保留，撤销重做及保存刷新',{timeout:90000},async t=>{
+ const dir=fs.mkdtempSync(proof+'/browser-');Object.assign(process.env,{COMIC_PROJECT_SYNC:'0',COMIC_TEAM_AUTO_SYNC:'0',COMIC_LIBRARY_CONFIG:dir+'/offline.json',COMIC_SLOT_DIR:dir+'/slots'});fs.writeFileSync(process.env.COMIC_LIBRARY_CONFIG,'{"base":"http://127.0.0.1:9"}');
+ const fake={close(){},status:async()=>({connected:false}),generate(){assert.fail('不得生图');}},studio=createStudio({dataDir:dir,seedReference:false,bridge:fake,jimengBridge:fake});await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));let browser;t.after(async()=>{await browser?.close();studio.close();studio.server.closeAllConnections();});
+ const p=fixture();studio.store.db.projects.push(p);studio.store.save();const current=()=>studio.store.project(p.id),first=()=>current().pages[0].bubbles[0];
+ const {chromium}=require(process.env.COMIC_TEST_PLAYWRIGHT_MODULE||path.join(process.env.USERPROFILE,'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));
+ browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1864,height:949}}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/api/library/**',r=>r.fulfill({json:{connected:false,items:[]}}));
+ await page.goto('http://127.0.0.1:'+studio.server.address().port+'/?project='+p.id);await page.locator('#canvas-tool-dock').waitFor();await page.locator('[data-rail-tab="layers"]').click();
+ await page.locator('#layer-list [data-layer="'+p.pages[0].bubbles[0].id+'"]').evaluate(n=>n.click());
+ const button=page.locator('[data-action="bubble-fit-current-layout"]');await button.waitFor();await page.waitForFunction(()=>document.querySelector('#save-state')?.textContent==='已保存到本机');
+ const until=async fn=>{for(let n=0;n<160;n++){if(fn())return;await new Promise(r=>setTimeout(r,50));}assert.fail('保存结果等待超时');};
+ const oldWidth=first().textBox.w;
+ const handle=page.locator('[data-bubble-handle="text-resize"]');const box=await handle.boundingBox();assert.ok(box);
+ await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+90,box.y+box.height/2,{steps:12});await page.mouse.up();
+ await until(()=>first().textBox.w>oldWidth+30);
+ const before=structuredClone(current().pages);
+ const capture=()=>page.evaluate(async b=>{const m=await import('/lettering.js');await document.fonts.ready;const c=document.createElement('canvas').getContext('2d'),l=m.bubbleLayout(c,b),helper=await import('/bubble-fit-layout.js'),bounds=helper.renderedTextBounds(c,l),outline=m.bubbleOutlinePoints(b);return {margins:[bounds.x-Math.min(...outline.map(p=>p.x)),Math.max(...outline.map(p=>p.x))-bounds.x-bounds.w,bounds.y-Math.min(...outline.map(p=>p.y)),Math.max(...outline.map(p=>p.y))-bounds.y-bounds.h],fontSize:l.fontSize,lines:l.lines.map(x=>({text:x.text,x:x.x+l.x,y:x.y+l.y})),w:l.w,h:l.h};},first());
+ const beforeLayout=await capture();assert.equal(beforeLayout.lines.length,2);
+ await page.screenshot({path:proof+'/before.png'});
+ await button.click();await until(()=>first().w!==before[0].bubbles[0].w);const after=structuredClone(current().pages),afterLayout=await capture();
+ for(const [i,value]of [48,48,72,72].entries())assert.ok(Math.abs(afterLayout.margins[i]-value)<1e-6);assert.equal(afterLayout.fontSize,beforeLayout.fontSize);assert.deepEqual(afterLayout.lines.map(x=>x.text),beforeLayout.lines.map(x=>x.text));for(let i=0;i<beforeLayout.lines.length;i++){assert.ok(Math.abs(afterLayout.lines[i].x-beforeLayout.lines[i].x)<1e-6);assert.ok(Math.abs(afterLayout.lines[i].y-beforeLayout.lines[i].y)<1e-6);}
+ assert.ok(afterLayout.w>afterLayout.h);assert.deepEqual(after[0].bubbles.slice(1),before[0].bubbles.slice(1));assert.deepEqual(after.slice(1),before.slice(1));
+ await page.locator('#undo').click();await until(()=>first().w===before[0].bubbles[0].w);assert.deepEqual(current().pages,before);
+ await page.locator('#redo').click();await until(()=>first().w===after[0].bubbles[0].w);assert.deepEqual(current().pages,after);
+ await button.click();await page.waitForTimeout(650);await page.locator('#undo').click();await until(()=>first().w===before[0].bubbles[0].w);assert.deepEqual(current().pages,before,'重复适配不增加无效撤销步骤');
+ await page.locator('#redo').click();await until(()=>first().w===after[0].bubbles[0].w);await page.reload();await page.locator('#canvas-tool-dock').waitFor();assert.deepEqual(current().pages,after);
+ await page.locator('[data-rail-tab="layers"]').click();await page.locator('#layer-list [data-layer="'+p.pages[0].bubbles[0].id+'"]').evaluate(n=>n.click());await button.waitFor();
+ await page.screenshot({path:proof+'/after.png'});assert.equal(studio.store.db.jobs.length,0);assert.deepEqual(errors,[]);
+ fs.writeFileSync(proof+'/browser-result.json',JSON.stringify({ok:true,episode:41,otherBubblesPreserved:true,fontSizePreserved:true,lineBreaksPreserved:true,actualTextFrameDrag:true,oneUndo:true,redo:true,reload:true,idempotent:true,realGeneration:false,errors},null,2));
+});

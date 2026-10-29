@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {existsSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import {mkdtemp, rm, writeFile, readFile} from 'node:fs/promises';
 import path from 'node:path';
@@ -9,7 +10,9 @@ import {fileURLToPath} from 'node:url';
 import {GenerationSlots, GenerationSlotsClient} from '../lib/generation-slots.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const python = process.env.CODEX_PRIMARY_RUNTIME_PYTHON || process.env.COMIC_PYTHON_BIN || 'python3';
+const portablePython = path.resolve(root,'../runtime/python/python.exe');
+const python = process.env.CODEX_PRIMARY_RUNTIME_PYTHON || process.env.COMIC_PYTHON_BIN || (existsSync(portablePython)?portablePython:'python3');
+const repairWorker = [path.join(root,'repair/python/generation_worker.py'),path.join(root,'repair-engine/python/generation_worker.py')].find(existsSync);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function fixture(t, live = null) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'comic-slots-'));

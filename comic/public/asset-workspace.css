@@ -22,7 +22,12 @@ body.asset-workspace-open .canvas-work-area{grid-template-columns:minmax(0,1fr)}
 #asset-gallery-workspace .asset-gallery-title>select{width:clamp(180px,22vw,320px);font-size:13px;min-height:34px}
 .asset-gallery-title>span{font-size:13px;color:#96acc0;white-space:nowrap}
 .asset-gallery-title>.asset-gallery-missing{color:#f0bd7a;background:#3c3123;padding:4px 9px;border-radius:20px}
+.asset-gallery-scope-buttons{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+#asset-gallery-workspace .asset-gallery-scope-buttons button{min-height:34px;padding:6px 12px;font-size:13px;white-space:nowrap}
+#asset-gallery-workspace .asset-gallery-scope-buttons button[aria-pressed=true]{background:#2d4d66;border-color:#8bbaf0;color:#eef7ff}
 .asset-gallery-toolbar button{min-height:36px;white-space:nowrap}
+.asset-gallery-toolbar [data-project-assets-return]{border-color:#8bbaf0;background:#294b69}
+.asset-gallery-toolbar [data-asset-auto-match]{border-color:#6a94b5;background:#243d53}
 .asset-gallery-primary-actions,.asset-gallery-secondary-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
 .asset-gallery-toolbar{gap:18px}
 .asset-gallery-secondary-actions{border-left:1px solid #344858;padding-left:18px}

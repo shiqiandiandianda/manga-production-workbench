@@ -281,6 +281,12 @@ export function fitBubbleToTextFrame(context,bubble){
   if(parts.length){parts[index].independentBox=box;parts[index].textLayout=holder.textLayout;}
   else{next.textBox=box;next.textFrameLayout=true;}
  }
+ fitBubbleTailToBody(bubble,next,layout);
+ return next;
+}
+
+export function fitBubbleTailToBody(bubble,next,layout){
+ const w=next.w,h=next.h,style=normalizeBubbleStyle(next);
  if(layout.tail){
   const fitted=bubbleTailGeometry(next),anchor=tail=>tail.anchor||{x:(tail.anchors[0].x+tail.anchors[1].x)/2,y:(tail.anchors[0].y+tail.anchors[1].y)/2};
   const before=anchor(layout.tail),after=anchor(fitted),vx=layout.tail.tip.x-before.x,vy=layout.tail.tip.y-before.y;

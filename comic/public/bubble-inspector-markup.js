@@ -25,6 +25,9 @@ export function bubbleInspectorMarkup(bubble,{escape,numberField,nodeIndex=0,lay
  <section class="bubble-properties-pane" id="bubble-pane-font" role="tabpanel" aria-labelledby="bubble-tab-font" data-bubble-inspector-pane="font">
  ${select('字体','fontFamily',style.fontFamily,fonts)}
  ${layout?.overflow?'<p class="bubble-overflow-note" role="status">文字超出安全区域，可适配气泡。</p>':''}<button type="button" data-action="bubble-fit-text" title="按当前文字框调整气泡外框，保留文字位置、字号和换行">按文字适配气泡</button>
+ <button type="button" data-action="bubble-fit-current-layout" class="wide" title="先拖文字框排好字，再点击；保持当前分行、字号和文字位置，只调整气泡主体，上下各留白72 px、左右各48 px（画板像素，不含尾巴）">按当前文字排版适配气泡</button>
+ <p class="sub-note">固定留白：上下各 72 px，左右各 48 px；字号、分行不变。</p>
+ <button type="button" data-action="episode-bubble-fit-text" class="wide" title="仅适配当前话的对白气泡，保留各自文字和字号；旁白、心声等其他文字不处理，锁定、隐藏、空白和无框气泡跳过，整次可撤销">本话全部对白按文字适配</button>
  <div class="field-grid">${n('字号 px','fontSize',style.fontSize,10,2048)}${select('字重','fontWeight',style.fontWeight,[300,400,500,600,700,800,900,...(![300,400,500,600,700,800,900].includes(style.fontWeight)?[style.fontWeight]:[])].map(v=>[v,{300:'细体',400:'常规',500:'中等',600:'半粗',700:'加粗',800:'特粗',900:'重体'}[v]||String(v)]),'bubble',true)}${color('文字颜色','textColor',style.textColor)}${select('对齐','textAlign',style.textAlign,[['left','靠左'],['center','居中'],['right','靠右']])}</div>
  </section>
  <section class="bubble-properties-pane" id="bubble-pane-frame" role="tabpanel" aria-labelledby="bubble-tab-frame" data-bubble-inspector-pane="frame" hidden>

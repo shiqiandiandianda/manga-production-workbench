@@ -14,7 +14,7 @@ import {characterRole} from './character-role.js';
 import {assetUrl} from './asset-url.js';
 import {automaticGalleryMatch,exactGalleryAsset,galleryGenerationState,galleryReturnDecision,galleryRecordAssignments} from './asset-gallery-batch.js';
 import {libraryProjectScopes} from './library-project-scope.js';
-import {createWorkspaceInventoryCache,workspaceAssetStamp,groupWorkspaceRows,reconcileWorkspaceCards} from './asset-workspace-cache.js';
+import {createWorkspaceInventoryCache,workspaceAssetStamp,groupWorkspaceRows,groupSameSceneImages,reconcileWorkspaceCards} from './asset-workspace-cache.js';
 import {assetVariantMarkup,assetSourceMarkup,createAssetSourceReader,assetPreparationMarkup} from './asset-source-evidence.js';
 import {BoundedCache} from './bounded-cache.js';
 import {quickCharacterMarkup,quickCharacterSearchFeedback,sameCharacterCandidate,shortAssetState,createQuickEvidenceLoader,matchesAssetCategory} from './asset-quick-view.js';
@@ -64,7 +64,7 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
    const note=rowNote&&!matchingNote?rowNote:running?'任务处理中':!id&&result?'结果已生成，点击候选图采用':'';
    return `<article class="asset-gallery-card ${r.status}${candidateView?' has-candidates':''}" data-gallery-card="${key}"><div class="asset-gallery-caption"><strong title="${esc(r.name)}">${esc(r.name)}</strong><span class="asset-state ${running?'running':r.status}">${running?(statuses[running.status]||'生成中'):!id&&result?'待选图':candidateView?'待选图':statuses[r.status]}</span><small title="${esc(r.state)}">${esc(labels[r.role]+' · '+(r.role==='character'?shortAssetState(r.state):r.state||'分镜需求'))} · ${r.uses.length}处</small></div><div class="asset-gallery-media">${media}</div>${generatedMarkup}${assetPreparationMarkup(r)}${note?`<p class="asset-card-message">${esc(note)}</p>`:''}<footer class="asset-gallery-actions"><button type="button" data-gallery-choose="${key}" ${off}>${id?'换图':'选图'}</button><button type="button" data-gallery-generate="${key}" ${off}>${state==='active'?'查看进度':state==='result'?'查看结果':id?'重新生成':'生成'}</button><button type="button" data-gallery-text="${key}" ${off}>文生</button><button type="button" data-gallery-preview="${key}" ${off}>详情</button><button type="button" data-gallery-settings="${key}" title="设置、使用范围与原文出处" ${off}>设置</button></footer></article>`;
   };
-  const groups=groupWorkspaceRows(filteredRows),entries=groups.map(group=>({key:group.key,html:group.rows.length>1?identityMarkup(group):rowMarkup(group.rows[0])}));
+  const groups=groupSameSceneImages(groupWorkspaceRows(filteredRows),getAssets()),entries=groups.map(group=>{let html=group.rows.length>1?identityMarkup(group):rowMarkup(group.rows[0]);if(group.sameSceneRows?.length){const links=group.sameSceneRows.map(row=>`<button type="button" data-gallery-preview="${esc(row.key)}">${esc(row.name)} · ${row.uses.length}处 · 详情</button><button type="button" data-gallery-choose="${esc(row.key)}">换图</button>`).join('');html=html.replace('</article>',`<details class="asset-card-sources"><summary>同图关联需求 · ${group.sameSceneRows.length}项</summary><p>原使用位置保留，分别查看或换图。</p>${links}</details></article>`);}return {key:group.key,html};});
   reconcileWorkspaceCards(target.querySelector('.asset-gallery-columns'),entries.length?entries:[{key:'empty',html:'<p class="asset-gallery-empty">当前筛选没有资产需求。</p>'}]);
   target.scrollTop=scrollTop;
   const summary=host.querySelector('[data-asset-visible-count]');if(summary)summary.textContent=groups.length+' 项'+(groups.length!==filteredRows.length?' · '+filteredRows.length+' 个状态':'');
@@ -84,7 +84,8 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
  }
  function paintShelf(){
   const scrollTop=host.querySelector('[data-asset-list]')?.scrollTop||0,p=getProject(),missing=rows.filter(r=>r.uses.some(u=>u.missing)).length;
-  const markup=`<header class="asset-gallery-heading"><div class="asset-gallery-title"><strong>${scope==='work'?'项目资产':'本话资产'}</strong><select data-asset-episode aria-label="当前话">${(p?.productionPackage?.episodes||[...new Map((p?.pages||[]).map(pg=>[pageEpisode(p,pg),{episode:pageEpisode(p,pg)}])).values()]).map(e=>`<option value="${e.episode}" ${e.episode===pageEpisode(p,getPage())?'selected':''}>第${e.episode}话${e.title?' · '+esc(e.title):''}</option>`).join('')}</select><span data-asset-visible-count>${rows.length} 项</span><span class="asset-gallery-missing">缺图 ${missing}</span></div><div class="asset-gallery-toolbar"><div class="asset-gallery-primary-actions"><button data-asset-auto-match class="primary" title="匹配当前筛选范围；自动采用同作品唯一匹配的图片">一键匹配资产</button><button data-asset-return-results title="接回当前筛选范围内唯一匹配的完整结果；部分结果和多版本需核对">接回结果</button></div><div class="asset-gallery-secondary-actions"><button data-asset-generate-missing title="仅生成当前话缺失的参考资产；确认清单后才提交">生成本话缺失资产…</button><button data-asset-all-records>生成记录</button><button data-gallery-close>返回画布</button></div></div></header><div class="asset-gallery-filters"><nav aria-label="资产类型">${[['all','全部'],...Object.entries(labels)].map(([key,label])=>`<button data-asset-category="${key}" aria-pressed="${category===key}">${label}</button>`).join('')}</nav><input data-asset-query type="search" value="${esc(query)}" placeholder="搜索人物、场景、道具" aria-label="搜索资产"><select data-asset-state aria-label="资产状态"><option value="all">全部状态</option>${['missing','available','ready','text','mixed'].map(s=>`<option value="${s}" ${stateFilter===s?'selected':''}>${statuses[s]}</option>`).join('')}</select><select data-gallery-scope aria-label="资产范围">${[['panel','当前格'],['episode','本话'],['work','全作品']].map(([key,label])=>`<option value="${key}" ${scope===key?'selected':''}>${label}</option>`).join('')}</select></div><div class="asset-batch-feedback"><p data-asset-search-status class="asset-batch-status" role="status" aria-live="polite">${esc(batchMessage)}</p><button data-asset-stop-generation hidden>停止继续提交</button></div><div data-asset-list class="asset-list"><div class="asset-gallery-columns"></div></div>`;
+  workspace.setAttribute('aria-label',scope==='work'?'项目资产工作区':'本话资产工作区');
+  const markup=`<header class="asset-gallery-heading"><div class="asset-gallery-title"><strong>${scope==='work'?'项目资产':'本话资产'}</strong><div class="asset-gallery-scope-buttons" role="group" aria-label="浏览资产范围"><button type="button" data-asset-browse-episode aria-pressed="${scope==='episode'}">本话</button><button type="button" data-project-assets-browse aria-pressed="${scope==='work'}">浏览整个项目</button></div><select data-asset-episode aria-label="当前话">${(p?.productionPackage?.episodes||[...new Map((p?.pages||[]).map(pg=>[pageEpisode(p,pg),{episode:pageEpisode(p,pg)}])).values()]).map(e=>`<option value="${e.episode}" ${e.episode===pageEpisode(p,getPage())?'selected':''}>第${e.episode}话${e.title?' · '+esc(e.title):''}</option>`).join('')}</select><span data-asset-visible-count>${rows.length} 项</span><span class="asset-gallery-missing">缺图 ${missing}</span></div><div class="asset-gallery-toolbar"><div class="asset-gallery-primary-actions"><button data-project-assets-return title="接回当前作品所有话的完整结果">全项目接回结果</button><button data-asset-auto-match class="primary" title="匹配当前筛选范围；自动采用同作品唯一匹配的图片">一键匹配资产</button><button data-asset-return-results title="接回当前筛选范围内唯一匹配的完整结果；部分结果和多版本需核对">接回结果</button></div><div class="asset-gallery-secondary-actions"><button data-asset-generate-missing title="仅生成当前话缺失的参考资产；确认清单后才提交">生成本话缺失资产…</button><button data-asset-all-records>生成记录</button><button data-gallery-close>返回画布</button></div></div></header><div class="asset-gallery-filters"><nav aria-label="资产类型">${[['all','全部'],...Object.entries(labels)].map(([key,label])=>`<button data-asset-category="${key}" aria-pressed="${category===key}">${label}</button>`).join('')}</nav><input data-asset-query type="search" value="${esc(query)}" placeholder="搜索人物、场景、道具" aria-label="搜索资产"><select data-asset-state aria-label="资产状态"><option value="all">全部状态</option>${['missing','available','ready','text','mixed'].map(s=>`<option value="${s}" ${stateFilter===s?'selected':''}>${statuses[s]}</option>`).join('')}</select><select data-gallery-scope aria-label="资产范围">${[['panel','当前格'],['episode','本话'],['work','全作品']].map(([key,label])=>`<option value="${key}" ${scope===key?'selected':''}>${label}</option>`).join('')}</select></div><div class="asset-batch-feedback"><p data-asset-search-status class="asset-batch-status" role="status" aria-live="polite">${esc(batchMessage)}</p><button data-asset-stop-generation hidden>停止继续提交</button></div><div data-asset-list class="asset-list"><div class="asset-gallery-columns"></div></div>`;
   if(host.__shelfMarkup!==markup){const previousList=host.querySelector('[data-asset-list]');host.innerHTML=markup;if(previousList)host.querySelector('[data-asset-list]').replaceWith(previousList);host.__shelfMarkup=markup;}
   paintList();host.querySelector('[data-asset-list]').scrollTop=scrollTop;
  }
@@ -108,6 +109,14 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
   if(reusePromise)return reusePromise;if(!getProject()||workspace.hidden)return Promise.resolve();const projectId=getProject().id,ticket=batchTicket;
   reusePromise=(async()=>{await flushSave();galleryCheck(projectId,ticket);const result=await api('/api/projects/'+projectId+'/asset-workspace/reuse','POST',{expectedRevision:getProject().revision});galleryCheck(projectId,ticket);if(result.changed)await accept(result.project,{message:''});galleryCheck(projectId,ticket);if(result.summary?.reused){batchMessage='已自动沿用本项目已确认的用图，补齐 '+result.summary.reused+' 处。';refresh(true);}return result;})().finally(()=>{reusePromise=null;paintList();});paintBatchState();return reusePromise;
  }
+ function browseAssets(nextScope){
+  closeDetail();scope=nextScope;category='all';query='';stateFilter='all';
+  batchMessage=scope==='work'?'正在浏览当前作品所有话的资产。':'正在浏览当前话的资产。';refresh(true);
+ }
+ async function returnProjectResults(){
+  if(busy||batchBusy||reusePromise)return;
+  browseAssets('work');await returnGalleryResults({wholeProject:true});
+ }
  async function matchGallery(){
   if(batchBusy||busy)return;const projectId=getProject().id,ticket=batchTicket,selection=filtered().filter(r=>r.uses.some(u=>u.missing));batchBusy=true;batchMessage='正在匹配 '+selection.length+' 项资产…';paintList();
   let matched=0,review=0,failed=0,done=0;const search=createMokuReferenceSearch({api,project:getProject(),assets:getAssets(),verify:()=>galleryCheck(projectId,ticket)});
@@ -123,8 +132,8 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
    batchMessage='匹配完成：已采用 '+matched+' 项，待选 '+review+' 项'+(failed?'，失败 '+failed+' 项（见卡片）':'')+'。';
   }finally{batchBusy=false;paintList();}
  }
- async function returnGalleryResults(){
-  if(batchBusy||busy)return;const projectId=getProject().id,ticket=batchTicket,selection=filtered();batchBusy=true;
+ async function returnGalleryResults({wholeProject=false}={}){
+  if(batchBusy||busy)return;const projectId=getProject().id,ticket=batchTicket,selection=wholeProject?allRows():filtered();batchBusy=true;
   let adopted=0,review=0,skipped=0,failed=0,done=0;
   const summary=()=>`已接回 ${adopted} · 待确认 ${review} · 跳过 ${skipped} · 失败 ${failed}`;
   batchMessage='正在检查 '+selection.length+' 项资产的生成结果…';paintList();
@@ -150,7 +159,7 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
     }
     done++;batchMessage='接回中 '+done+' / '+selection.length+' · '+summary();paintList();
    }
-   batchMessage='接回完成：'+summary()+'。'+(review?'待确认项请点卡片“接回结果”选择。':'');
+   batchMessage=(wholeProject?'全项目接回完成：':'接回完成：')+summary()+'。'+(review?'待确认项请点卡片“接回结果”选择。':'');
   }finally{batchBusy=false;paintList();}
  }
 
@@ -387,6 +396,9 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
   }finally{if(epoch===ticket){adoptionBusy=false;busy=false;refresh(true);paintDetail();}}
  }
  host.addEventListener('click',safe(async event=>{const b=event.target.closest('button');if(!b)return;if(b.hasAttribute('data-gallery-close')){close();return;}if(b.hasAttribute('data-asset-stop-generation')){if(generationBatch){generationBatch.stopped=true;paintBatchState();}return;}if(busy||batchBusy||reusePromise)return;
+  if(b.hasAttribute('data-project-assets-browse')){browseAssets('work');return;}
+  if(b.hasAttribute('data-asset-browse-episode')){browseAssets('episode');return;}
+  if(b.hasAttribute('data-project-assets-return')){await returnProjectResults();return;}
   const row=rows.find(r=>r.key===(b.dataset.assetKey||b.dataset.galleryChoose||b.dataset.galleryGenerate||b.dataset.gallerySettings||b.dataset.galleryPreview||b.dataset.galleryText||b.dataset.galleryOwner||b.dataset.galleryVariants||b.dataset.galleryEvidence));
   if(b.dataset.galleryVariants){await openRow(row,{tab:'variants'});return;}
   if(b.dataset.galleryEvidence){await openRow(row,{tab:'source'});return;}

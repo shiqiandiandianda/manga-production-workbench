@@ -1,3 +1,4 @@
+import {generationReferenceMarkup} from './generation-reference-picker.js';
 import {fuzzyAssetCandidates} from './asset-fuzzy-search.js';
 import {assetPreparationMarkup} from './asset-source-evidence.js';
 import {assetUnavailable} from './asset-availability.js';

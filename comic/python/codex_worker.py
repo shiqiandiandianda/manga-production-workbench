@@ -15,6 +15,7 @@ import time
 from datetime import datetime, timezone
 import webbrowser
 import urllib.parse
+import urllib.error
 import urllib.request
 from image_pipeline import open_image, crop_page, align_patch, paste_patch
 from reference_pack import pack_references
@@ -387,11 +388,23 @@ def register_generation_slot(server, task):
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         for pid in (os.getpid(), server.process.pid):
             request = urllib.request.Request(origin.rstrip('/') + '/api/generation-slots/track', data=json.dumps({'pid':pid}).encode('utf-8'), method='POST', headers={'Content-Type':'application/json', 'Authorization':'Bearer ' + token})
-            with opener.open(request, timeout=5) as response:
-                if response.status != 200:
-                    raise RuntimeError('slot rejected')
-    except Exception:
-        raise BridgeError('统一生图队列未确认当前进程，未开始生图；请保持漫画服务运行', 'generation_slot_unavailable', 'generation/slot', False, False) from None
+            # A busy local editor may be saving other completed images. Only
+            # repeat the idempotent PID registration, never turn/start or imagegen.
+            for attempt in range(2):
+                try:
+                    with opener.open(request, timeout=20) as response:
+                        if response.status != 200:
+                            raise RuntimeError('slot rejected')
+                    break
+                except urllib.error.HTTPError:
+                    raise
+                except (urllib.error.URLError, TimeoutError, ConnectionError):
+                    if attempt:
+                        raise
+                    time.sleep(0.2)
+    except Exception as error:
+        reason = ('HTTP ' + str(error.code)) if isinstance(error, urllib.error.HTTPError) else type(error).__name__
+        raise BridgeError('统一生图队列未确认当前进程，未开始生图；请保持漫画服务运行（' + reason + '）', 'generation_slot_unavailable', 'generation/slot', False, False) from None
 
 
 def path_turn_inputs(prompt, references, skill_path=None):

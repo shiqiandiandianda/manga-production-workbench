@@ -134,6 +134,7 @@ import {projectLibraryAssets} from './project-asset-library.js';
 import {assetUrl} from './asset-url.js';
 
 import {comparableProject,revisionDecision,syncEpisodeBoardRevision,preserveEditRevision} from './revision-sync.js';
+import {mergeProjectRevision} from './project-revision-merge.js';
 import {exportWithLocalDraft} from './project-export-draft.js';
 import {createBubbleSizeCache} from './bubble-size-cache.js';
 import {rectangleDragY,nodeDragY} from './panel-size-limits.js';
@@ -260,15 +261,42 @@ function setServerBase(value){serverBase=value?comparableProject(value):'';}
 // Another window may have saved different content. Never take its revision number without its content.
 function adoptServerProject(server){project=clone(server);ensureLayoutHistory(project);setServerBase(server);history=[];future=[];invalidatedHistoryIds.clear();undoRevision++;historyLocateBox=null;selectedLayerIds.clear();if(!project.pages.some(p=>p.id===pageId))pageId=project.pages[0]?.id||null;if(!selected())selection=null;dirty=false;conflictNotice=null;render();$('#save-state').textContent='已载入工程的最新修改';toast('工程在后台或其他窗口发生修改，已载入最新内容；本窗口的撤回记录已清空。');}
 function hasLocalEditing(){return !!(episodeBoardUI?.editing||episodeBoardUI?.active&&document.activeElement?.matches('[data-board-meta],[data-board-text],[data-board-style]')||drag||bubbleGesture||paintBefore||multiGesture||quickGesture||numericDrafts.size||(document.activeElement?.closest('#inspector-body')&&document.activeElement.matches('input[data-field],textarea[data-field],select[data-field]')));}
+function rebaseLocalSnapshots(base,server){
+ const rebase=value=>{const result=mergeProjectRevision({baseComparable:base,local:value,server});if(!result.ok)return value;const next=result.project;delete next.layoutHistory;undoOperationIds.set(next,undoOperationIds.get(value)||null);return next;};
+ history=history.map(rebase);future=future.map(rebase);for(const [input,before]of numericDrafts)numericDrafts.set(input,rebase(before));
+}
+function updateConflictControl(){
+ let button=$('#resolve-save-conflict');if(!button){button=document.createElement('button');button.id='resolve-save-conflict';button.textContent='处理保存冲突';button.addEventListener('click',safely(openSaveConflict));$('#save-state').after(button);}button.hidden=conflictNotice===null;
+}
 function applyServerRevision(server){
+ if(drag||bubbleGesture||paintBefore||multiGesture||quickGesture||episodeBoardUI?.editing)return 'defer';
   const decision=revisionDecision({localRevision:project.revision,server,baseComparable:serverBase,dirty:dirty||hasLocalEditing(),saving});
-  if(decision==='adopt-revision'){project.revision=server.revision;project.updated=server.updated;syncEpisodeBoardRevision(server,project);}
+  if(decision==='conflict'){
+   const merged=mergeProjectRevision({baseComparable:serverBase,local:project,server});
+   if(merged.ok){
+    const prior=serverBase,focused=document.activeElement;rebaseLocalSnapshots(prior,server);project=merged.project;setServerBase(server);conflictNotice=null;updateConflictControl();
+    if(focused?.matches('textarea[data-section="panel-prompt"]')&&selected()){const text=generationPromptSelection(selected(),project).text;if(focused.value!==text)focused.value=text;}
+    dirty=comparableProject(project)!==serverBase;clearTimeout(saveTimer);if(dirty)scheduleSave();else $('#save-state').textContent='已同步生成结果 · 可继续编辑';
+    if(!hasLocalEditing())renderInspector();renderSidebar();refreshHistoryButtons();return 'merged';
+   }
+  }
+  if(decision==='adopt-revision'){project.revision=server.revision;project.updated=server.updated;syncEpisodeBoardRevision(server,project);setServerBase(server);}
   else if(decision==='adopt-content')adoptServerProject(server);
-  else if(decision==='conflict'&&conflictNotice!==server.revision){conflictNotice=server.revision;clearTimeout(saveTimer);$('#save-state').textContent='工程已有新内容 · 请先导出工程备份';toast('工程在其他窗口或后台发生修改。本窗口的修改已保留，保存已暂停；请先导出工程备份，再刷新页面载入最新版本。',true);}
+  else if(decision==='conflict'&&conflictNotice!==server.revision){conflictNotice=server.revision;clearTimeout(saveTimer);$('#save-state').textContent='同一内容有两份修改';toast('当前修改已保留。点击“处理保存冲突”可重新合并，或保留本窗口副本继续编辑。',true);}
+  if(conflictNotice!==null&&(decision==='ignore'||decision==='adopt-revision')&&comparableProject(server)===serverBase){conflictNotice=null;if(dirty)scheduleSave();else $('#save-state').textContent='已保存到本机';}
+  updateConflictControl();
   return decision;
 }
-function scheduleSave(){dirty=true;clearTimeout(saveTimer);if(conflictNotice!==null){$('#save-state').textContent='工程已有新内容 · 请先导出工程备份';return;}$('#save-state').textContent='正在保存…';saveTimer=setTimeout(()=>saveNow().catch(error=>toast(error.message,true)),500);}
-async function saveNow(){clearTimeout(saveTimer);if(conflictNotice!==null)throw Error('工程已有新内容，本窗口修改保留，请先导出工程备份再刷新。');if(episodeBoardUI?.editing||drag||bubbleGesture||paintBefore||multiGesture||quickGesture){saveTimer=setTimeout(()=>saveNow().catch(error=>toast(error.message,true)),500);return;}if(saving){await saving;if(dirty)return saveNow();return;}if(!project||!dirty)return;let prepared;try{prepared=prepareProjectSave(project);}catch(error){$('#save-state').textContent='保存失败 · 可导出工程备份';throw error;}const {snapshot,removed}=prepared;if(removed){undoRevision++;historyStepsUI?.refresh();historyStepsUI?.notice('达到保存大小上限，已自动清理最早 '+removed+' 条历史记录。');}dirty=false;saving=api('/api/projects/'+snapshot.id,'PUT',snapshot).then(saved=>{if(project?.id===saved.id){project.revision=saved.revision;project.updated=saved.updated;if(mergeSavedHistory(project,snapshot,saved)){undoRevision++;historyStepsUI?.refresh();}syncEpisodeBoardRevision(saved,project);setServerBase(saved);protectImages(saved);mergeDialogueArchive(project,saved);$('#save-state').textContent=dirty?'正在保存…':'已保存到本机';}}).catch(error=>{dirty=true;$('#save-state').textContent='保存失败 · 可导出工程备份';throw error;}).finally(()=>saving=null);await saving;if(dirty)return saveNow();}
+async function openSaveConflict(){
+ modal('处理保存冲突','<p>同一项内容有两份修改，当前窗口的文字和排版仍然保留。</p><p>可重新检查合并；若仍有冲突，另存本窗口副本即可继续编辑，原工程保留后台的最新内容。</p>',[
+  {label:'重新合并',primary:true,run:async()=>{const id=project.id,fresh=await api('/api/projects/'+id);if(project?.id!==id)return;applyServerRevision(fresh);if(conflictNotice!==null)throw Error('同一内容仍有冲突，可另存本窗口副本继续编辑');closeModal();render();await saveNow();toast('已恢复保存，可以继续编辑');}},
+  {label:'另存本窗口副本继续编辑',run:async()=>{document.activeElement?.blur();finishInspectorDrafts();const id=project.id,local=clone(project),token=undoRevision;const data=exportWithLocalDraft(await api('/api/projects/'+id+'/export?mode=local'),local,assets);data.project.title=local.title+' · 本窗口保留副本';const imported=await api('/api/projects/import','POST',data);if(project?.id!==id||undoRevision!==token){toast('本窗口副本已另存到工程列表，当前编辑继续保留');return;}closeModal();await chooseProject(imported,{alreadyLoaded:true});updateConflictControl();toast('已保留本窗口副本，可以继续编辑；原工程保留');}},
+  {label:'导出本窗口备份',run:()=>$('#export-project').click()},
+  {label:'关闭',run:closeModal}
+ ]);
+}
+function scheduleSave(){dirty=true;clearTimeout(saveTimer);if(conflictNotice!==null){$('#save-state').textContent='同一内容有两份修改';return;}$('#save-state').textContent='正在保存…';saveTimer=setTimeout(()=>saveNow().catch(error=>toast(error.message,true)),500);}
+async function saveNow(){clearTimeout(saveTimer);if(conflictNotice!==null){const id=project?.id,fresh=await api('/api/projects/'+id);if(project?.id!==id)return;applyServerRevision(fresh);if(conflictNotice!==null)throw Error('同一内容仍有冲突，请点顶部“处理保存冲突”继续。');}if(episodeBoardUI?.editing||drag||bubbleGesture||paintBefore||multiGesture||quickGesture){saveTimer=setTimeout(()=>saveNow().catch(error=>toast(error.message,true)),500);return;}if(saving){await saving;if(dirty)return saveNow();return;}if(!project||!dirty)return;let prepared;try{prepared=prepareProjectSave(project);}catch(error){$('#save-state').textContent='保存失败 · 可导出工程备份';throw error;}const {snapshot,removed}=prepared;if(removed){undoRevision++;historyStepsUI?.refresh();historyStepsUI?.notice('达到保存大小上限，已自动清理最早 '+removed+' 条历史记录。');}dirty=false;saving=api('/api/projects/'+snapshot.id,'PUT',snapshot).then(saved=>{if(project?.id===saved.id){project.revision=saved.revision;project.updated=saved.updated;if(mergeSavedHistory(project,snapshot,saved)){undoRevision++;historyStepsUI?.refresh();}syncEpisodeBoardRevision(saved,project);setServerBase(saved);protectImages(saved);mergeDialogueArchive(project,saved);$('#save-state').textContent=dirty?'正在保存…':'已保存到本机';}}).catch(error=>{dirty=true;$('#save-state').textContent='保存失败 · 可导出工程备份';throw error;}).finally(()=>saving=null);await saving;if(dirty)return saveNow();}
 function finishInspectorDrafts(){settleInspectorDrafts(numericDrafts,project,before=>commit(before,{inspector:false}));}
 function refreshHistoryButtons(){const draft=!!(quickGesture||numericDrafts.size);$('#undo').disabled=!history.length&&!draft;$('#redo').disabled=!future.length;}
 async function flushSave(){clearTimeout(saveTimer);episodeBoardUI?.finish();quickUI?.finish();finishInspectorDrafts();await saveNow();}

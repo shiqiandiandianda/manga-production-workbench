@@ -206,7 +206,9 @@ AI 局部修图：`integrated-repair.mjs` 建立会话与来源快照 → 内嵌
 
 ### 409 冲突或保存后界面回退
 
-先记录请求中的 `expectedRevision` 与服务端当前版本，再看前端是否存在未结算的属性预览、跨窗口修改、工程切换或晚到回调。检查 `flushSave()`、`acceptImportedProject()`、`revision-sync.js` 与对应 API 的 guard。不要手改磁盘 revision，也不要删除冲突检查。
+先记录请求中的 `expectedRevision` 与服务端当前版本，再看前端是否存在未结算的属性预览、跨窗口修改、工程切换或晚到回调。检查 `flushSave()`、`acceptImportedProject()`、`comic/public/revision-sync.js`、`comic/public/project-revision-merge.js` 与对应 API 的 guard。不要手改磁盘 revision，也不要删除冲突检查。
+
+2026-10-29 修复“后台出图时编辑提示词导致整页无法保存”：`app.js` 的 `applyServerRevision()` 在冲突前，使用最后确认的 `serverBase`、当前草稿和后台工程做三方合并。图片回填、其他字段更新可与本窗口文字一起保留；同一字段、耦合的取景/尺寸/几何及删除与编辑冲突仍拦截。后台回填未增加 revision 时也必须比较内容。合并同步更新撤销/重做与属性草稿快照，保留当前输入焦点；正在拖拽时延后处理，不从旧快照丢失结果。真实冲突通过顶部“处理保存冲突”重试合并，或明确另存“本窗口保留副本”继续工作；原工程保留。旧版已经打开的窗口需先导出草稿，再刷新载入新代码，不可强制刷新。测试入口：`comic/tests/project-revision-merge.test.mjs`、`comic/tests/browser-generation-save-merge.test.mjs`。
 
 ### 生图完成却未应用
 

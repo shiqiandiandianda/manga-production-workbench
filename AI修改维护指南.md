@@ -381,3 +381,14 @@ $checkRoot = Join-Path $platformRoot ('verification/quality-' + (Get-Date -Forma
 站位身份由作品工程和已选场景参考图固定指纹确定；生成记录及接回资产保存 `purpose=blocking` 和 `blockingId`，普通场景与站位图分别处理，不同场景图的站位结果不能混用；重新选回原图时复用原图对应的站位结果。采用沿用范围、版本、锁定和任务保护，原图保留，删除与恢复使用既有入口。后续漫画只继承空间关系，站位图上的姓名标签不绘入正式漫画。
 
 验证见 `comic/tests/scene-blocking.test.mjs` 和 `scene-blocking-workflow.test.mjs`，使用D盘合成工程、独立通道、假图像提供器及浏览器检查。姓名属于生图提示词要求，本轮没有新增独立姓名文字层，也没有提交真实AI生图验证绘字质量。
+
+
+## 15 站位图参考可视化与选图响应（2026-10-31）
+
+生成站位图的场景图直接沿用本话已选的场景图，不再要求重复选择。`comic/public/scene-blocking-references.js` 是前端展示与后端实际提交共用的附图解析器；`scene-blocking-reference-view.js` 显示场景、人物服装和道具缩略图，缺图逐项提示。人物与道具更换使用 `settings.blockingReferenceOverrides` 保存固定资产ID、版本与SHA256；只影响该张站位图。更换场景图会通过原场景绑定更新本话使用位置，再定位新场景图对应的站位卡，不能把新图套进旧站位身份。普通场景候选不再默认混入站位图候选。
+
+列表点图使用 `POST /api/projects/:id/asset-workspace/pick` 一次导入并采用，不再通过浏览器导入后重复保存工程。后台导入后再次核对账号、工程版本及锁定，再保存绑定；标签独立异步保存。前端立即显示待采用缩略图和处理中状态，同一张防连点，其他候选可串行排队；成功后才标记已采用，失败保留候选。绑定批次共用一次参考审计上下文，普通场景更换会失效场景分组缓存。原图、来源与任务保护保留。
+
+项目中心同步前读取当前项目的文件目录，移除失效上传缓存；已移到归档的共用图只有归档归属正确时才直接引用，否则校验恢复原字节后归档到目标项目，避免快照引用其他项目文件而报“记录不存在或不属于此项目”。不得关闭原有归属校验或修改真实源工程来绕过错误。
+
+验证入口：`asset-pick-responsive.test.mjs`、`scene-blocking.test.mjs`、`scene-blocking-workflow.test.mjs`、`project-center-sync.test.mjs`；测试使用D盘合成工程和假图像提供器。

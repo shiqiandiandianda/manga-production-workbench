@@ -26,7 +26,7 @@ export function createProjectCenterSync({store,dataDir,saveProject,collabClient,
  const save=()=>writeFileAtomicSync(file,JSON.stringify(mapping,null,2));
  const referenceWork=project=>{let links={};try{links=JSON.parse(fs.readFileSync(path.join(dataDir,'teamwork/local.json'),'utf8')).links||{};}catch{}return {projectId:project.id,title:project.title,mokuProjectId:links[project.id]?.remoteProjectId||''};};
  const studioClient=createLocalAssetServiceClient({origin:assetStudioUrl,diagnosticFile:path.join(dataDir,'asset-service-connection-events.jsonl')}),referenceResults=createReferenceGenerationResults({store,library,assetStudioUrl,mapping,save,saveProject,serviceClient:studioClient});
- const materialize=(asset,record,bytes)=>{const folder=path.join(dataDir,'project-center-cache',record.projectId);fs.mkdirSync(folder,{recursive:true});const target=path.join(folder,record.sha256+(asset.extension||path.extname(record.name)||'.png'));if(!fs.existsSync(target)||hash(fs.readFileSync(target))!==record.sha256)writeFileAtomicSync(target,bytes);asset.originalFilePath||=asset.filePath;Object.assign(asset,inspectImageFile(target));asset.projectCenterFile={projectId:record.projectId,fileId:record.id,sha256:record.sha256};};
+ const materialize=(asset,record,bytes)=>{const folder=path.join(dataDir,'project-center-cache',record.projectId);fs.mkdirSync(folder,{recursive:true});const target=path.join(folder,record.sha256+(asset.extension||path.extname(record.name)||'.png'));if(!fs.existsSync(target)||hash(fs.readFileSync(target))!==record.sha256)writeFileAtomicSync(target,bytes);asset.originalFilePath||=asset.filePath;Object.assign(asset,inspectImageFile(target));asset.projectCenterFile={projectId:record.projectId,fileId:record.id,sha256:record.sha256};delete asset.storageEvicted;};
  async function ensureAssets(ids){
   if(!url)return;
   for(const asset of store.db.assets.filter(a=>ids.includes(a.id)&&a.projectCenterFile)){
@@ -42,10 +42,14 @@ export function createProjectCenterSync({store,dataDir,saveProject,collabClient,
  }
  async function sync(project){
   const p=await api('/api/v1/projects',{title:project.title,externalKey:project.id});mapping[project.id]||={};mapping[project.id].projectId=p.id;
+  // A cached id or an evicted image may refer to an older/different archive.
+  // Validate against this project's catalogue before sending snapshot links.
+  const catalogue=await api('/api/v1/projects/'+p.id),archived=Array.isArray(catalogue.files)?new Set(catalogue.files.map(f=>f.id)):null;
+  if(archived)for(const [key,value]of Object.entries(mapping))if(key.startsWith(p.id+':')&&typeof value==='string'&&!archived.has(value))delete mapping[key];
   const files={};
   const allIds=new Set();const collect=v=>{if(typeof v==='string'&&/^asset_[a-f0-9-]{36}$/.test(v))allIds.add(v);else if(Array.isArray(v))v.forEach(collect);else if(v&&typeof v==='object')Object.values(v).forEach(collect);};collect(project);
   await ensureAssets([...allIds].filter(id=>!store.db.assets.find(a=>a.id===id)?.storageEvicted));
-  for(const asset of store.db.assets.filter(a=>allIds.has(a.id)))try{if(asset.storageEvicted&&asset.projectCenterFile){files[asset.id]=asset.projectCenterFile.fileId;continue;}const bytes=fs.readFileSync(store.assetPath(asset.id));files[asset.id]=await upload(p.id,asset.name+(path.extname(asset.name)?'':asset.extension||'.png'),bytes,'comic-image','image/'+(asset.extension==='.jpg'?'jpeg':(asset.extension||'.png').slice(1)));materialize(asset,{id:files[asset.id],projectId:p.id,sha256:hash(bytes),name:asset.name},bytes);}catch(e){throw Error('素材未归档：'+asset.name+'；'+e.message);}
+  for(const asset of store.db.assets.filter(a=>allIds.has(a.id)))try{if(asset.storageEvicted&&asset.projectCenterFile){const ref=asset.projectCenterFile;if(ref.projectId===p.id&&(!archived||archived.has(ref.fileId))){files[asset.id]=ref.fileId;continue;}await ensureAssets([asset.id]);}const bytes=fs.readFileSync(store.assetPath(asset.id));files[asset.id]=await upload(p.id,asset.name+(path.extname(asset.name)?'':asset.extension||'.png'),bytes,'comic-image','image/'+(asset.extension==='.jpg'?'jpeg':(asset.extension||'.png').slice(1)));materialize(asset,{id:files[asset.id],projectId:p.id,sha256:hash(bytes),name:asset.name},bytes);}catch(e){throw Error('素材未归档：'+asset.name+'；'+e.message);}
   store.save();
   for(const original of knownOriginalFiles(project)){const originalPath=sourceOriginalPath(dataDir,project.id,original.hash);if(!fs.existsSync(originalPath))continue;const bytes=fs.readFileSync(originalPath);if(hash(bytes)!==original.hash)throw Error('原始资料校验不符：'+original.name);await upload(p.id,original.name,bytes,original.role,'application/octet-stream');}
   const derivatives=[];

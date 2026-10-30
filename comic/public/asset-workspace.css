@@ -254,3 +254,15 @@ body.asset-workspace-open .asset-sidebar-resize{display:none!important}
 .asset-source-passage{padding:10px 0;border-bottom:1px solid #304b61;min-width:0}.asset-source-passage:last-child{border-bottom:0}.asset-source-passage>strong{display:block;color:#c8e2f5;font-size:12px}.asset-source-passage blockquote{margin:5px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.8;color:#e3edf7}.asset-source-location{margin-top:5px;color:#8faac0;font-size:11px}.asset-source-location summary,.asset-source-more>summary{cursor:pointer}.asset-card-sources .asset-source-passages{max-height:360px;overflow:auto;padding-right:4px}.asset-card-sources .asset-source-passage p{max-height:none;overflow:visible}.asset-source-more{margin-top:8px}.asset-source-dialogue{white-space:pre-wrap;line-height:1.7}
 .asset-gallery-card[data-asset-purpose="blocking"]{border-color:#8b78b4}.asset-gallery-card[data-asset-purpose="blocking"] .asset-gallery-caption>small{color:#d5bfff}.asset-blocking-contract{padding:10px;border:1px solid #746297;border-radius:6px;background:#292940;color:#e3d6ff;line-height:1.7}
 #asset-gallery-workspace .asset-gallery-actions:has([data-gallery-blocking]){grid-template-columns:repeat(3,minmax(0,1fr))}
+
+/* Show the actual scene and character attachments beside stance generation. */
+.asset-quick-view:has([data-blocking-references]) .asset-quick-columns{grid-template-columns:minmax(0,1fr) minmax(340px,.8fr)}
+[data-blocking-references]{display:grid;gap:12px;margin:10px 0}
+[data-blocking-references] h4{margin:8px 0}.blocking-reference-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+[data-reference-role="scene"]{grid-column:1/-1}.blocking-reference-card{border:1px solid #45647b;border-radius:7px;padding:9px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.blocking-reference-card.missing{border-color:#9c743d}.blocking-reference-card>button{padding:0;background:#10212e}.blocking-reference-card img{width:100%;height:116px;object-fit:contain}.blocking-reference-card>span{font-size:11px;overflow-wrap:anywhere}.blocking-reference-card small{font-size:11px;color:#b3c9d9}.blocking-reference-card>div{display:flex;flex-wrap:wrap;gap:5px}.blocking-reference-card p{font-size:12px;color:#ffdca5}
+@media(max-width:900px){.asset-quick-view:has([data-blocking-references]) .asset-quick-columns{grid-template-columns:1fr}}
+
+.asset-pending-selection{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}.asset-pending-selection img{max-width:100%;max-height:100%;object-fit:contain}.asset-pending-selection strong{position:absolute;bottom:8px;left:8px;right:8px;border-radius:5px;background:#173f58ed;padding:8px;text-align:center}.asset-gallery-card[data-gallery-pending]{outline:1px solid #9acdfa}
+
+.asset-quick-view:has([data-blocking-references]) .asset-blocking-contract{margin:0;padding:9px;line-height:1.55}[data-blocking-references]>p{margin:0}[data-blocking-references] section{padding:0!important;margin:0!important}[data-blocking-references] h4{font-size:13px;margin:5px 0}[data-reference-role="scene"] img{height:86px}

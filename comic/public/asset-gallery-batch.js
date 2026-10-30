@@ -2,11 +2,13 @@ import {assetUnavailable} from './asset-availability.js';
 import {assetMetadata,assetNameKey} from './asset-metadata.js';
 import {unknownState,libraryStatePlaceholder} from './character-states.js';
 import {mokuCandidate,mokuRevision,usableMokuImage} from './moku-reference-search.js';
+import {isBlockingAsset} from './scene-blocking.js';
 
 // Automatic adoption is deliberately narrower than the visual search results.
 // Similar names, another production and unspecified costumes stay selectable.
 export function exactGalleryAsset(row,asset){
  if(!asset||row.removedAssetIds?.includes(asset.id)||row.removedRevisionIds?.includes(asset.library?.revisionId)||assetUnavailable(asset))return false;
+ if(row.purpose==='blocking'?asset.referenceGeneration?.blockingId!==row.blockingId:isBlockingAsset(asset))return false;
  const meta=assetMetadata(asset),same=meta.role===row.role&&[meta.name,...meta.aliases].some(n=>assetNameKey(n)===assetNameKey(row.name));
  return same&&(row.role!=='character'||!unknownState(row.state)&&assetNameKey(meta.state)===assetNameKey(row.state));
 }
@@ -27,7 +29,7 @@ export function galleryGenerationState(row,records=[],{candidateCount=0}={}){
 /** A same-project scene result is visible on every exact scene requirement card. */
 export function galleryRecordAssignments(rows,record,{projectId}={}){
  if(record.context?.projectId!==projectId||record.source?.projectId&&record.source.projectId!==projectId)return [];
- const exact=record.role==='scene'&&record.source?.projectId===projectId?rows.filter(row=>row.role==='scene'&&assetNameKey(row.name)===assetNameKey(record.name)):[];
+ const exact=record.role==='scene'&&record.source?.projectId===projectId?rows.filter(row=>row.role==='scene'&&(row.purpose==='blocking'?record.source?.purpose==='blocking'&&record.source.blockingId===row.blockingId:!isBlockingAsset(record))&&assetNameKey(row.name)===assetNameKey(record.name)):[];
  const candidates=exact.length?exact:rows.filter(row=>row.uses.some(u=>u.panelId===record.context.panelId&&u.needId===record.context.needId));
  return candidates.map(row=>{const use=row.uses.find(u=>u.panelId===record.source?.panelId&&u.needId===record.source?.needId)||row.uses.find(u=>u.panelId===record.context.panelId&&u.needId===record.context.needId)||row.uses[0];return {row,record:{...record,requirementKey:row.key,context:{projectId,panelId:use.panelId,needId:use.needId},...(exact.length&&record.matchNote==='场景名称相近，请核对后采用'?{matchNote:''}:{})}};});
 }
@@ -36,7 +38,7 @@ export function galleryRecordAssignments(rows,record,{projectId}={}){
 export function galleryReturnDecision(row,records=[],{projectId,includeText=false}={}){
  const targets=row.uses.filter(u=>!u.locked&&!u.skipped&&(u.text?includeText:u.missing)).map(u=>({panelId:u.panelId,needId:u.needId}));
  if(!targets.length)return {status:'skip',reason:'已有图片、文生，或使用位置不可编辑'};
- const nameKey=assetNameKey(row.name),relevant=records.filter(r=>!r.deletedAt&&!row.removedRecordIds?.includes(r.id)&&r.context?.projectId===projectId&&(!r.source?.projectId||r.source.projectId===projectId)&&r.role===row.role&&((row.key&&r.requirementKey===row.key)||(nameKey&&assetNameKey(r.name)===nameKey)));
+ const nameKey=assetNameKey(row.name),relevant=records.filter(r=>!r.deletedAt&&!row.removedRecordIds?.includes(r.id)&&r.context?.projectId===projectId&&(!r.source?.projectId||r.source.projectId===projectId)&&r.role===row.role&&(row.purpose==='blocking'?r.source?.purpose==='blocking'&&r.source.blockingId===row.blockingId:!isBlockingAsset(r))&&((row.key&&r.requirementKey===row.key)||(nameKey&&assetNameKey(r.name)===nameKey)));
  if(relevant.some(r=>['queued','running','claimed','recoverable','delegated','awaiting_confirmation'].includes(r.status)))return {status:'skip',reason:'已有任务进行中，完成后可再次接回'};
  const available=relevant.filter(r=>r.available);
  const generatedForRequirement=r=>libraryStatePlaceholder(row.state)&&r.source?.projectId===projectId&&row.uses.some(u=>u.panelId===r.source.panelId&&u.needId===r.source.needId);

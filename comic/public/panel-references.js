@@ -1,6 +1,7 @@
 import {filterTextAssetImages,textAssetSignature} from './asset-text-references.js';
 import {stateKey,parseNamedStates,sourceStateFields} from './character-states.js';
 import {assetLibraryRole} from './asset-metadata.js';
+import {isBlockingAsset,inheritedBlockingReferenceIds} from './scene-blocking.js';
 // Use the existing workspace reference ceiling, independently of provider limits.
 export const WORKSPACE_REFERENCE_LIMIT=60;
 export const referenceRole=asset=>assetLibraryRole(asset)||'character';
@@ -11,7 +12,7 @@ function initialProjectReferences(project,shot){
  if(!cast.length&&!scene&&!props.length)return project.references.map(r=>r.assetId);
  return project.references.filter(ref=>{if(ref.role==='style')return true;const aliases=Object.values(project.assetBindings||{}).filter(b=>b.assetId===ref.assetId).flatMap(b=>b.names||[]),keys=[ref.name,...aliases].map(stateKey);return (ref.role==='character'?cast:ref.role==='scene'?[scene]:ref.role==='prop'?props:[]).some(name=>keys.includes(stateKey(name)));}).map(r=>r.assetId);
 }
-export function panelReferenceIds(project,panel){return filterTextAssetImages(panel,rawPanelReferenceIds(project,panel));}
+export function panelReferenceIds(project,panel){return filterTextAssetImages(panel,[...new Set([...rawPanelReferenceIds(project,panel),...inheritedBlockingReferenceIds(project,panel)])]);}
 function rawPanelReferenceIds(project,panel){
  if(Array.isArray(panel.referenceIds))return [...panel.referenceIds];
  if(panel.generation?.version===1)return panel.generation.referenceRoles.map(ref=>ref.assetId);
@@ -23,7 +24,7 @@ export function referencesForPanel(project,panel,assets){
  return filterTextAssetImages(panel,panelReferenceIds(project,panel)).map(assetId=>{
   const asset=byId.get(assetId),ref=panel.generation?.version===1?panel.generation.referenceRoles.find(r=>r.assetId===assetId):project.references.find(r=>r.assetId===assetId);
   if(!asset)throw new Error(`参考资产不存在：${ref?.name||assetId}；请重新选择或定位原图`);
-  const binding=Object.values(panel.referenceNeedBindings||{}).find(b=>b.assetId===assetId&&['character','scene','prop','style'].includes(b.role));return {assetId,name:binding?.name||ref?.name||asset.name,role:binding?.role||ref?.role||referenceRole(asset)};
+  const binding=Object.values(panel.referenceNeedBindings||{}).find(b=>b.assetId===assetId&&['character','scene','prop','style'].includes(b.role));let name=binding?.name||ref?.name||asset.name;if((binding?.purpose==='blocking'||isBlockingAsset(asset))&&!name.includes('姓名标注不绘入漫画'))name+='（只参考空间，姓名标注不绘入漫画）';return {assetId,name,role:binding?.role||ref?.role||referenceRole(asset)};
  });
 }
 export function panelReferenceKey(project,panel,assets){

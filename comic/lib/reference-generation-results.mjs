@@ -13,9 +13,11 @@ import {prepareWorkspaceBinding} from './asset-workspace-api.mjs';
 import {assetWorkspaceInventory,assetRequirementKey} from '../public/asset-workspace-model.js';
 import {createReferenceAuditContext} from '../public/reference-audit-context.js';
 import {setImmediate as yieldToRequests} from 'node:timers/promises';
+import {isBlockingAsset} from '../public/scene-blocking.js';
 export function referenceRecordMatch(record,{project,panel,need}){
  if(record.deletedAt||record.source?.projectId!==project.id||record.type!==need.role)return null;
- const name=assetNameKey(record.name),names=[need.name,...(need.aliases||[])].filter(Boolean).map(assetNameKey),exact=names.includes(name);
+ if(need.purpose==='blocking'?record.source?.purpose!=='blocking'||record.source.blockingId!==need.blockingId:isBlockingAsset(record))return null;
+  const name=assetNameKey(record.name),names=[need.name,...(need.aliases||[])].filter(Boolean).map(assetNameKey),exact=names.includes(name);
  const related=!exact&&need.role==='scene'&&names.some(n=>Math.min(n.length,name.length)>=3&&(name.endsWith(n)||n.endsWith(name)));
  if(!exact&&!related)return null;
  // Camera labels such as “侧拍” are not a different scene identity. Unknown costume states need explicit visual selection.
@@ -42,7 +44,7 @@ export function createReferenceGenerationResults({store,library,assetStudioUrl,m
    if(!cloudProjectId){const projects=await library.read('/api/projects'),matched=(projects.items||[]).filter(p=>assetNameKey(p.name)===assetNameKey(project.productionPackage?.title||project.title));check(matched.length===1,'请先从本作品的墨库项目选用一项资产，再接回生成图');cloudProjectId=matched[0].id;}
    receipt=await library.uploadAsset({projectId:cloudProjectId,name:[need.name,need.state,'生成_'+record.id.slice(-8)].filter(Boolean).join('_')+'.png',bytes,mime:'image/png',folder:'漫画生成参考',category:need.role,assetKind:'image',assetType:need.role,objectName:need.name,variantName:need.state,operationId:'reference-result:'+createHash('sha256').update(key).digest('hex')});checkSession();receipt={assetId:receipt.assetId,revisionId:receipt.revisionId,sha256:sha};mapping[key]=receipt;save();
   }
-  if(!asset){const result=await library.importAsset({assetId:receipt.assetId,revisionId:receipt.revisionId});checkSession();check(result.kind==='image','接回结果不是图片');asset=result.asset;Object.assign(asset,{libraryRole:need.role,libraryName:need.name,libraryState:need.state,productionStatus:'confirmed',referenceGeneration:{recordId:record.id,sha256:sha,partial:candidate.partial,projectId:project.id,needId:need.id}});receipt.localAssetId=asset.id;save();store.save();}
+  if(!asset){const result=await library.importAsset({assetId:receipt.assetId,revisionId:receipt.revisionId});checkSession();check(result.kind==='image','接回结果不是图片');asset=result.asset;Object.assign(asset,{libraryRole:need.role,libraryName:need.name,libraryState:need.state,productionStatus:'confirmed',referenceGeneration:{recordId:record.id,sha256:sha,partial:candidate.partial,projectId:project.id,needId:need.id,...(need.purpose==='blocking'?{purpose:'blocking',blockingId:need.blockingId}:{})}});receipt.localAssetId=asset.id;save();store.save();}
   asset.libraryAliases=[...new Set([...(asset.libraryAliases||[]),record.name,need.name].filter(Boolean))];
   checkSession();const current=target(input);check(current.project===project&&current.project.revision===input.expectedRevision,'结果已存入墨库；工程刚有修改，请再次采用即可',409);check(!current.panel.locked&&!current.page.locked,'结果已存入墨库，请解锁画格后再采用',409);check(!store.db.jobs.some(j=>j.projectId===project.id&&j.panelId===panel.id&&['queued','running','delegated','recoverable','awaiting_confirmation'].includes(j.status)),'结果已存入墨库，等待本格生成结束后再采用',409);
   const next=prepareWorkspaceBinding(store,project,{...input,targets:input.targets||[{panelId:panel.id,needId:need.id}]},asset,current.need);store.db.projects[store.db.projects.indexOf(project)]=next;receipt.adoptedAt=new Date().toISOString();save();return {asset,project:saveProject(next,{editor:true}),record:candidate};

@@ -1,5 +1,7 @@
 // Scene assets describe one persistent space. Storyboard prose remains in the
 // source record; only environmental facts belong in the image request.
+import {isBlockingAsset} from '../public/scene-blocking.js';
+import {sceneBlockingPrompt} from './scene-blocking-prompt.mjs';
 const text=value=>typeof value==='string'?value.trim():'';
 export const ASSET_VISUAL_PROMPT_VERSION=2;
 export function asset2DStyle(style=''){
@@ -62,10 +64,12 @@ function common(record,project){
  return {spec,lines:['【空间设定】',spec.facts,'【时间与光照】',[spec.time&&'时间：'+spec.time,spec.weather&&'天气：'+spec.weather].filter(Boolean).join('；')||'采用空间设定中明确的时间与天气；没有明确依据时使用自然、清楚的候选光照。','光源在空间中的实际位置固定，反打后只改变它在画面中的投影位置；光照采用二维手绘色块与受控阴影。','【二维画风】',asset2DStyle(project?.style)]};
 }
 export function sceneFrontPrompt(record,project={}){
+ if(isBlockingAsset(record))return sceneBlockingPrompt(record);
  const {spec,lines}=common(record,project);
  return ['绘制漫画生产用场景「'+record.name+'」的正打主景。16:9横版，单幅完整的二维动漫无人场景。',...lines,'【固定机位与轴线】',spec.plan.front,(!spec.plan.explicit?'原文未明确拍摄方位，本次以'+spec.plan.axis+'作为候选拍摄轴线；这不是原著已确认的方位。':'按明确的拍摄方位固定机位。')+(record.sceneMeta?.camera?'来源机位用途：'+record.sceneMeta.camera+'。':''),'【空间与陈设要求】',spec.indoor?'清楚呈现主要室内区域、门窗与固定家具；桌椅尺度合理，入口与活动通道畅通。不要添加没有依据的床、书桌或灯具。':'清楚呈现主路径或活动区域、入口出口、地形层级和资料中明确的固定地标。不要凭空添加石灯、牌坊或建筑。','先确定同一空间中固定物件的位置和朝向，再按机位判断可见部分；镜头身后或被遮挡的物件无需强行塞进画面。','【参考与补充规则】',record.referenceIds?.length?'已有场景参考只约束同一地点的建筑、陈设、造型和配色；改变观察位置时保持它们的空间关系。':'没有对应参考时只补足可使用的简洁空间；未明确的建筑外观、材质与装饰属于原创候选，不新增剧情设定。','【输出要求】','画满单幅连续场景，清晰线稿与平涂色块；无人物、人体局部、人物剪影、随身兵器、文字、对白气泡、水印、边框、多格拼贴和UI。'].join('\n');
 }
 export function sceneReversePrompt(record,project={}){
+ if(isBlockingAsset(record))return sceneBlockingPrompt(record);
  const {spec,lines}=common(record,project),indoor=spec.indoor;
  const plan=record.scenePlan||spec.plan;
  const knownAxis=record.scenePlan||plan.explicit;

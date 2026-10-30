@@ -13,17 +13,19 @@ import {assetWorkspaceSettings} from '../public/asset-workspace-settings.js';
 import {characterAppearancePrompt} from './character-appearance.mjs';
 import {CHARACTER_CARD_LAYOUT_RULES} from '../public/hand-card-rules.js';
 import {buildCharacterAssetPrompt} from './character-asset-prompt.mjs';
+import {blockingAssetGenerationRequest} from './scene-blocking-generation.mjs';
 const check=(condition,message,status=400)=>{if(!condition)throw Object.assign(Error(message),{status});};
 const text=value=>typeof value==='string'?value.trim():'';
 
 // Build one explicit candidate request, independently of whether a usable image exists.
-export function referenceAssetGenerationRequest(project,input,assets){
+export function referenceAssetGenerationRequest(project,input,assets,options={}){
  check(input.expectedRevision===project.revision,'工程已变化，请保存并重试',409);
  check(typeof input.requestId==='string'&&/^[a-zA-Z0-9-]{8,100}$/.test(input.requestId),'生成请求编号无效');
  const page=project.pages.find(p=>p.panels.some(f=>f.id===input.panelId)),panel=page?.panels.find(f=>f.id===input.panelId);
  check(panel,'画格已删除',404);check(!page.locked&&!panel.locked,'请先解锁画板和画格',409);
  const need=auditPanelReferences(project,panel,assets).needs.find(n=>n.id===input.needId);
  check(need&&['character','scene','prop'].includes(need.role),'本格参考需求已变化，请重新打开参考窗口',409);
+ if(need.purpose==='blocking')return blockingAssetGenerationRequest(project,input,assets,need,panel,options);
  const defaultReferenceIds=[...new Set([...need.selectedIds,...(!panel.productionSegment?[need.recommendedId]:[])].filter(id=>id&&!removedReferenceIds(project,panel.id,need.id).includes(id)))];
  // Never silently choose one of several identity/state variants.
  if(need.role!=='character'&&!input.settings?.generationReferenceMode)check(defaultReferenceIds.length<=1,'此项已有多个参考版本，请先明确选用一个版本再重新生成',409);

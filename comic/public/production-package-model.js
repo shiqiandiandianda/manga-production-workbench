@@ -14,6 +14,7 @@ import {obsoleteProductionReference} from './production-reference-policy.js';
 import {applyBubbleEdit} from './bubble-editor.js';
 import {id,clone} from './model.js';
 import {productionExtraReferenceRoles} from './production-extra-references.js';
+import {isBlockingReference,withBlockingIdentity,blockingExtraReferenceRoles} from './scene-blocking.js';
 const invalid=message=>Object.assign(Error(message),{status:400});
 export function productionSegment(project,key){return project?.productionPackage?.episodes.flatMap(e=>e.segments).find(s=>s.id===key);}
 export function productionFrame(project,key){return project.pages.flatMap(p=>p.panels).find(f=>f.productionSegment===key||f.productionBackground===key);}
@@ -29,7 +30,7 @@ export function validateProductionPackage(project){
 }
 export function productionSourceAsset(frame){return frame?.packageCutout?.assetId===frame?.imageAssetId?frame.packageCutout.originalAssetId:frame?.imageAssetId;}
 export function productionRequirementKey(ref){return JSON.stringify([ref['类型'],ref['人物']||'',ref['服装']||'',ref['说明']||'']);}
-export function productionJobSignature(project,frame){const s=productionSegment(project,frame.productionSegment||frame.productionBackground?.replace(/-BG$/,'')),shot=project.shots.find(v=>v.id===frame.shotId);return JSON.stringify([project.productionPackage.hash,shot?.sourceFields,frame.generation?.promptSource||'imported',s?.references.map(r=>[r.slot,r.binding,r.skipped]),...(s?.unifiedLayoutRuleDigest?[s.unifiedLayoutRuleDigest,project.layoutRuleBindings?.[s.episode]]:[]),...(textAssetSignature(frame).length?[textAssetSignature(frame)]:[]),...(frame.generation?.omitCharacterOutfitLabels===true?['character-labels-identity-only']:[])]);}
+export function productionJobSignature(project,frame){const s=productionSegment(project,frame.productionSegment||frame.productionBackground?.replace(/-BG$/,'')),shot=project.shots.find(v=>v.id===frame.shotId);return JSON.stringify([project.productionPackage.hash,shot?.sourceFields,frame.generation?.promptSource||'imported',s?.references.map(r=>[r.slot,r.binding,r.skipped]),...(Object.keys(frame.referenceNeedBindings||{}).some(k=>k.startsWith('blocking:'))?[['scene-blocking',Object.entries(frame.referenceNeedBindings).filter(([k])=>k.startsWith('blocking:'))]]:[]),...(s?.unifiedLayoutRuleDigest?[s.unifiedLayoutRuleDigest,project.layoutRuleBindings?.[s.episode]]:[]),...(textAssetSignature(frame).length?[textAssetSignature(frame)]:[]),...(frame.generation?.omitCharacterOutfitLabels===true?['character-labels-identity-only']:[])]);}
 export function productionTextReference(frame,segment,ref,project){return textAssetBinding(frame,{id:segment.id+'@'+ref.slot,name:productionReferenceSubject(ref),role:ref['类型']==='设定卡'?'character':ref['类型'].includes('场景')?'scene':/道具/.test(ref['类型'])?'prop':'style',state:(project?productionReferenceOutfit(project,ref):ref['服装'])||ref['说明']||ref['段ID']||'',predecessor:ref['类型']==='上一段成图'});}
 export function productionReferencePlan(project,frame,assets=[]){
  if(!frame.productionSegment&&!frame.productionBackground)return null;const s=productionSegment(project,frame.productionSegment||frame.productionBackground.replace(/-BG$/,''));if(!s)throw invalid('屏段来源缺失');if(s.pendingSourceFields)throw invalid('此屏段有待处理的源提示词更新，请先接受或保留本地版本');
@@ -43,10 +44,13 @@ export function productionReferencePlan(project,frame,assets=[]){
   if(assetUnavailable(asset))throw invalid('所选素材被标记为不能使用：'+asset.name);
   if(binding.sourceType==='local'){if(binding.revisionId!=='local-sha256:'+binding.sha256)throw invalid('本地参考原件版本无效，请重新绑定：'+asset.name);}
   else if(!binding.revisionId||asset.library?.revisionId!==binding.revisionId||asset.library?.sha256!==binding.sha256)throw invalid('参考素材固定版本发生变化，请重新绑定：'+asset.name);
-  refs.push({assetId:asset.id,name:ref['类型']==='设定卡'?[ref['人物'],ref['服装']].filter(Boolean).join(' · '):productionReferenceSubject(ref)||asset.name,role:ref['类型']==='设定卡'?'character':ref['类型'].includes('场景')?'scene':/道具/.test(ref['类型'])?'prop':'style'});
+  const station=isBlockingReference(ref),blockingNeed=station&&withBlockingIdentity(project,frame,{name:productionReferenceSubject(ref)},ref);
+  if(station&&refs.some(r=>r.purpose==='blocking'&&r.blockingId===blockingNeed.blockingId&&r.assetId===asset.id))continue;
+  refs.push({assetId:asset.id,name:station?blockingNeed.name+'（只参考空间，姓名标注不绘入漫画）':ref['类型']==='设定卡'?[ref['人物'],ref['服装']].filter(Boolean).join(' · '):productionReferenceSubject(ref)||asset.name,role:ref['类型']==='设定卡'?'character':ref['类型'].includes('场景')?'scene':/道具/.test(ref['类型'])?'prop':'style',...(station?{purpose:'blocking',blockingId:blockingNeed.blockingId}:{})});
  }
  if(frame.productionBackground){const prior=productionFrame(project,s.id),assetId=productionSourceAsset(prior);if(assetId)refs.push({assetId,name:s.localId+' · 底图色调参考',role:'style'});}
  if(!frame.productionBackground)for(const ref of productionExtraReferenceRoles(project,frame,assets))if(!refs.some(r=>r.assetId===ref.assetId))refs.push(ref);
+ if(!frame.productionBackground)for(const ref of blockingExtraReferenceRoles(project,frame,assets))if(!refs.some(r=>r.assetId===ref.assetId))refs.push(ref);
  if(missing.length)throw invalid('缺少必需设定卡：'+missing.join('；'));
  if(refs.length>60)throw invalid('附图超过60张');const seen=new Set();for(const ref of refs){if(seen.has(ref.assetId))throw invalid('不同附图槽位指向同一图片，请核对素材身份');seen.add(ref.assetId);}return {refs,dependencies:dependencies.filter(Boolean),segment:s};
 }

@@ -18,7 +18,7 @@ function validChoice(project,need,choice,asset){
 }
 export function rememberWorkspaceChoice(project,panel,need,asset){
  if(!eligible({...need,removed:false,skipped:false,status:'ready'}))return;
- const b=panel.referenceNeedBindings?.[need.id],choice={assetId:asset.id,name:need.name,role:need.role,state:need.state||'',revisionId:asset.library?.revisionId,sha256:asset.library?.sha256,...(b?.manualStateConfirmation?{manualStateConfirmation:structuredClone(b.manualStateConfirmation)}:{}),selectedAt:new Date().toISOString()};
+ const b=panel.referenceNeedBindings?.[need.id],choice={assetId:asset.id,name:need.name,role:need.role,state:need.state||'',...(need.purpose==='blocking'?{purpose:'blocking',blockingId:need.blockingId}:{}),revisionId:asset.library?.revisionId,sha256:asset.library?.sha256,...(b?.manualStateConfirmation?{manualStateConfirmation:structuredClone(b.manualStateConfirmation)}:{}),selectedAt:new Date().toISOString()};
  if(!validChoice(project,need,choice,asset))return;
  project.assetWorkspaceChoices={version:1,items:{...project.assetWorkspaceChoices?.items,[assetRequirementKey(need)]:choice}};
 }
@@ -26,7 +26,7 @@ export function rememberWorkspaceChoice(project,panel,need,asset){
 export function knownWorkspaceChoices(project,assets,contexts){
  const byId=new Map(assets.map(a=>[a.id,a])),choices=new Map(),seen=new Map();
  for(const [key,choice]of Object.entries(project.assetWorkspaceChoices?.version===1?project.assetWorkspaceChoices.items||{}:{}))if(validChoice(project,choice,choice,byId.get(choice.assetId)))choices.set(key,choice);
- for(const {panel,need}of contexts){if(!eligible(need)||need.status!=='ready'||need.selectedIds.length!==1)continue;const asset=byId.get(need.selectedIds[0]),b=panel.referenceNeedBindings?.[need.id],choice=asset&&{assetId:asset.id,name:need.name,role:need.role,state:need.state||'',revisionId:asset.library?.revisionId,sha256:asset.library?.sha256,...(b?.manualStateConfirmation?{manualStateConfirmation:structuredClone(b.manualStateConfirmation)}:{})};if(!validChoice(project,need,choice,asset))continue;const key=assetRequirementKey(need),versions=seen.get(key)||new Map();versions.set(choice.assetId+'@'+choice.revisionId,choice);seen.set(key,versions);}
+ for(const {panel,need}of contexts){if(!eligible(need)||need.status!=='ready'||need.selectedIds.length!==1)continue;const asset=byId.get(need.selectedIds[0]),b=panel.referenceNeedBindings?.[need.id],choice=asset&&{assetId:asset.id,name:need.name,role:need.role,state:need.state||'',...(need.purpose==='blocking'?{purpose:'blocking',blockingId:need.blockingId}:{}),revisionId:asset.library?.revisionId,sha256:asset.library?.sha256,...(b?.manualStateConfirmation?{manualStateConfirmation:structuredClone(b.manualStateConfirmation)}:{})};if(!validChoice(project,need,choice,asset))continue;const key=assetRequirementKey(need),versions=seen.get(key)||new Map();versions.set(choice.assetId+'@'+choice.revisionId,choice);seen.set(key,versions);}
  for(const [key,versions]of seen)if(!choices.has(key)&&versions.size===1)choices.set(key,[...versions.values()][0]);return choices;
 }
 export function reuseWorkspaceChoices(store,old){

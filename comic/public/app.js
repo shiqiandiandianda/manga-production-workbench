@@ -1,3 +1,4 @@
+import {mountPanelReferencePreview} from './panel-reference-preview.js';
 import {openMokuProject} from './project-library-open.js';
 import {mountCanvasPanelCancel} from './canvas-panel-cancel.js';
 import {mountRepairTaskbar} from './repair-taskbar.js';
@@ -516,6 +517,7 @@ function syncZoomChoice(value){
 const frameStatusUI=mountFrameGenerationStatus({wrap:$('.canvas-wrap'),stage,escape,getState:()=>({project,jobs,submitting,pageIds:project&&page()?episodePages(project,page()).map(p=>p.id):[],fixed:!!episodeBoardUI?.active,layout:viewState?.layout,offset:project&&viewState&&!episodeBoardUI?.active&&viewState.layout.pages.some(e=>project.pages.some(p=>p.id===e.pageId))?documentView(project,viewState).offset:0,onChange:()=>renderCanvas()})});
 const canvasLayerOrderUI=mountCanvasLayerOrder({wrap:$('.canvas-wrap'),scroll:$('#canvas-scroll'),stage,getState:()=>({project,keys:[...selectedLayerIds],fixed:!!episodeBoardUI?.active,busy:!!(drag||bubbleGesture||paintBefore||multiGesture||quickGesture),box:project&&selectedLayerIds.size===1?selectionDocumentBox(project,selectedLayerIds,measurement):null,offset:project&&viewState?documentView(project,viewState).offset:0}),onMove:moveCurrentLayerOrder});
 const canvasGenerateButton=document.createElement('button');canvasGenerateButton.id='canvas-generate-current-panel';canvasGenerateButton.type='button';canvasGenerateButton.innerHTML='<b aria-hidden="true">✦</b><span data-generation-label>生成本格图片</span>';canvasGenerateButton.addEventListener('click',safely(generateCurrentPanel));canvasLayerOrderUI.addAction(canvasGenerateButton,{visible:state=>{const entry=findLayer(state.project,state.keys[0]);return entry?.type==='panel'&&!entry.item.cutoutLayer&&!entry.item.sfxImage&&!entry.item.breakoutForeground;}});
+const panelReferencePreviewUI=mountPanelReferencePreview({toolbar:canvasLayerOrderUI,getState:()=>{const entry=project&&selectedLayerIds.size===1?findLayer(project,[...selectedLayerIds][0]):null;return {project,panel:entry?.type==='panel'&&!entry.item.cutoutLayer&&!entry.item.sfxImage&&!entry.item.breakoutForeground&&!entry.item.designDecoration?entry.item:null,assets,fixed:!!episodeBoardUI?.active};}});
 const canvasPanelCancel=mountCanvasPanelCancel({toolbar:canvasLayerOrderUI,getState:()=>({project,jobs,keys:[...selectedLayerIds],fixed:!!episodeBoardUI?.active}),api,refresh:refreshState,onMessage:message=>toast(message),onError:error=>toast(error.message,true)});
 function moveCurrentLayerOrder(direction){
  quickUI?.finish();if(!project||episodeBoardUI?.active||selectedLayerIds.size!==1||drag||bubbleGesture||paintBefore||multiGesture)return;
@@ -523,6 +525,7 @@ function moveCurrentLayerOrder(direction){
  edit(()=>moveGroupedLayer(project,key,direction),{operation:'layers.order'});
 }
 function renderCanvas(state=null){
+  panelReferencePreviewUI.sync();
   integratedWorkspace?.sync();
   novelSourcePanel?.refresh();
   refreshGenerationShortcuts();if(!project||episodeBoardUI?.active)canvasLayerOrderUI.sync();

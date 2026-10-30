@@ -424,7 +424,7 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
   if(b.hasAttribute('data-asset-browse-episode')){browseAssets('episode');return;}
   if(b.hasAttribute('data-project-assets-return')){await returnProjectResults();return;}
   const row=rows.find(r=>r.key===(b.dataset.assetKey||b.dataset.galleryChoose||b.dataset.galleryGenerate||b.dataset.gallerySettings||b.dataset.galleryPreview||b.dataset.galleryText||b.dataset.galleryOwner||b.dataset.galleryVariants||b.dataset.galleryEvidence||b.dataset.galleryRemove||b.dataset.galleryBlocking));
-  if(b.dataset.galleryBlocking){const choices=rows.filter(r=>r.purpose==='blocking'&&r.uses.some(u=>row.uses.some(v=>v.panelId===u.panelId)));if(choices.length===1){await openRow(choices[0],{tab:'generate'});}else{category='blocking';query=row.name;paintShelf();}return;}
+  if(b.dataset.galleryBlocking){const choices=rows.filter(r=>r.purpose==='blocking'&&r.uses.some(u=>row.uses.some(v=>v.panelId===u.panelId)));if(!choices.length)throw Error('请先为'+row.name+'选用明确的场景参考图，再生成该图片的人物站位图');if(choices.length===1){await openRow(choices[0],{tab:'generate'});}else{category='blocking';query=row.name;paintShelf();}return;}
   if(b.dataset.galleryVariants){await openRow(row,{tab:'variants'});return;}
   if(b.dataset.galleryEvidence){await openRow(row,{tab:'source'});return;}
   if(b.dataset.assetKey){const records=galleryRecords.get(row.key)||[];await openRow(row,{tab:!row.assetIds.length&&records.some(r=>r.available||ongoing(r))?'records':row.status==='text'?'text':row.assetIds.length||row.availableIds.length?'current':'moku'});return;}

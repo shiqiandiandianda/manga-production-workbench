@@ -45,7 +45,7 @@ const features = [
   feature('素材和资产','素材自动匹配与相近名称核对','素材侧栏','comic/public/asset-fuzzy-search.js','asset-auto-match'),
   feature('素材和资产','素材批量选择和操作','素材侧栏','comic/public/asset-gallery-batch.js','asset-gallery,asset-gallery-layout'),
   feature('素材和资产','场景资产生成、参考与接回','场景资产','comic/lib/scene-asset-prompts.mjs','scene-asset-workflow,scene-reference-return'),
-  feature('素材和资产','按连续场景生成人物站位图、正俯视姓名模板及独立分类','本话资产 → 站位图；场景卡 → 生成站位图','comic/public/scene-blocking.js,comic/lib/scene-blocking-generation.mjs,comic/lib/scene-blocking-prompt.mjs,comic/public/asset-workspace-ui.js,asset-studio/app/roles/production-reference-inputs.mjs','scene-blocking,scene-blocking-workflow',true,'隔离假通道与浏览器验证场景复用、真实附图传递、默认俯视姓名模板、单张16:9、预览、身份隔离及绑定删除恢复；未提交真实AI生图或验收模型绘字效果'),
+  feature('素材和资产','按已选场景参考图复用人物站位图、正俯视姓名模板及独立分类','本话资产 → 站位图；场景卡 → 生成站位图','comic/public/scene-blocking.js,comic/lib/scene-blocking-generation.mjs,comic/lib/scene-blocking-prompt.mjs,comic/public/asset-workspace-ui.js,asset-studio/app/roles/production-reference-inputs.mjs','scene-blocking,scene-blocking-workflow',true,'隔离假通道与浏览器验证场景复用、真实附图传递、默认俯视姓名模板、单张16:9、预览、身份隔离及绑定删除恢复；未提交真实AI生图或验收模型绘字效果'),
   feature('素材和资产','人物组件、反打和参考素材准备','角色工房','comic/lib/character-appearance.mjs','character-component-pipeline,character-preparation'),
   feature('画布与画格','连续画布、缩放和平移','画布工具栏','comic/public/canvas-pan.js','viewport,episode-board-canvas',true),
   feature('画布与画格','不同窗口宽度下工具栏和版本入口布局','顶部栏与画布工具栏','comic/public/team-toolbar.css','comic/quality/cases/toolbar-layout.test.mjs',true,'使用合成工程测试 245—1864 像素宽度'),

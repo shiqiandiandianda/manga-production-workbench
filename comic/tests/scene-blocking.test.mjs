@@ -14,12 +14,33 @@ export async function blockingFixture(){
  ensureProjectPanelGeneration(project,assets);
  return {project,assets};
 }
-test('continuous scene shares one stance even when imported plans describe movement; returning later creates a separate scene',async()=>{
+test('chosen scene image determines stance identity, regardless of scene wording, movement and returning later',async()=>{
  const {project:p}=await blockingFixture(),ep=p.productionPackage.episodes[0],r=ep.panelRecords;
  p.productionPackage.blockingPlans=[{id:'B011-01',scene:'测试庭院',prompt:'初始位置',appliesTo:[r[0].id],referenceIds:[]},{id:'B011-02',scene:'测试庭院',prompt:'后来走动',supersedes:'B011-01',appliesTo:[r[1].id],referenceIds:[]}];
  for(const [i,s]of ep.segments.entries())s.references.push({slot:'待绑定-B011-0'+(i+1),'类型':'场景图','名称':'测试庭院','用途':'场景人物站位参考','站位计划编号':'B011-0'+(i+1),'必须':true});
  let rows=assetWorkspaceInventory(p,[],{scope:'work'}).filter(r=>r.purpose==='blocking');assert.equal(rows.length,1);assert.equal(rows[0].uses.length,2);assert.equal(sceneBlockingGroups(p)[0].initialDescription,'初始位置');
- ep.panelRecords.push({...structuredClone(r[0]),id:'E011-003',segmentId:'other',original:{...r[0].original,'当前场景':'书房'}},{...structuredClone(r[0]),id:'E011-004',segmentId:'return'});const groups=sceneBlockingGroups(p);assert.equal(groups.length,3);assert.notEqual(groups[0].id,groups[2].id);assert.equal(groups[2].scene,'测试庭院');
+ const sceneRef=ep.segments[1].references.find(ref=>ref.slot==='scene');r[1].original['当前场景']='同一院落的新名称';sceneRef['名称']='同一院落的新名称';assert.equal(sceneBlockingGroups(p).length,1,'same adopted picture must survive a scene-name change');
+ sceneRef.binding={...sceneRef.binding,sha256:'b'.repeat(64),revisionId:randomUUID()};let groups=sceneBlockingGroups(p);assert.equal(groups.length,2,'a different selected picture needs its own stance');assert.notEqual(groups[0].id,groups[1].id);
+ const segment={...structuredClone(ep.segments[0]),id:'return'},frame={...structuredClone(p.pages.flatMap(pg=>pg.panels).find(f=>f.productionSegment===ep.segments[0].id)),id:'return-frame',productionSegment:'return'};ep.segments.push(segment);p.pages[0].panels.push(frame);ep.panelRecords.push({...structuredClone(r[0]),id:'E011-003',segmentId:'return'});groups=sceneBlockingGroups(p);assert.equal(groups.length,2);assert.deepEqual(groups[0].records.map(r=>r.id),[r[0].id,'E011-003'],'returning to the original picture reuses its stance');
+});
+
+test('unselected scenes do not create stance cards, even when imported descriptions contain multiple plans',async()=>{
+ const {project,assets}=await blockingFixture(),ep=project.productionPackage.episodes[0];project.productionPackage.blockingPlans=ep.panelRecords.map((r,i)=>({id:'B011-0'+(i+1),prompt:'分镜站位描述',referenceIds:[],appliesTo:[r.id]}));
+ for(const [i,segment]of ep.segments.entries()){for(const ref of segment.references)if(ref.slot==='scene')delete ref.binding;segment.references.push({slot:'待绑定-B011-0'+(i+1),'类型':'场景图','名称':'测试庭院','站位计划编号':'B011-0'+(i+1),'必须':true});}for(const page of project.pages)for(const panel of page.panels){panel.referenceIds=[];if(panel.generation)panel.generation.referenceRoles=[];}
+ assert.ok(sceneBlockingGroups(project).every(g=>!g.sceneReady));assert.equal(assetWorkspaceInventory(project,assets,{scope:'work'}).filter(r=>r.purpose==='blocking').length,0);
+ const panel=project.pages.flatMap(p=>p.panels).find(p=>p.productionSegment),need=auditPanelReferences(project,panel,assets).needs.find(n=>n.purpose==='blocking');assert.throws(()=>referenceAssetGenerationRequest(project,{panelId:panel.id,needId:need.id,expectedRevision:project.revision,requestId:randomUUID()},assets),/先选用场景参考图/);
+});
+
+test('new uses of the same selected scene image inherit its existing stance, while explicit removal is respected',async()=>{
+ const {project,assets}=await blockingFixture(),row=assetWorkspaceInventory(project,assets,{scope:'work'}).find(r=>r.purpose==='blocking'),image={...assets[1],id:'asset_'+randomUUID(),name:'测试庭院人物站位图.png',referenceGeneration:{purpose:'blocking',blockingId:row.blockingId}},store={db:{assets:[...assets,image],jobs:[]}},next=prepareWorkspaceBinding(store,project,{expectedRevision:project.revision,targets:[row.uses[0]]},image),other=next.pages.flatMap(p=>p.panels).find(p=>p.id===row.uses[1].panelId);
+ assert.equal(other.referenceNeedBindings?.[row.uses[1].needId],undefined);assert.deepEqual(auditPanelReferences(next,other,store.db.assets).needs.find(n=>n.purpose==='blocking').selectedIds,[image.id]);assert.ok(productionReferencePlan(next,other,store.db.assets).refs.some(r=>r.assetId===image.id));next.assetWorkspaceTrash=[{activeTargets:[{panelId:other.id,needId:row.uses[1].needId,assetIds:[image.id]}]}];assert.equal(auditPanelReferences(next,other,store.db.assets).needs.find(n=>n.purpose==='blocking').selectedIds.length,0);
+});
+
+test('changing the actual scene picture prevents using a stance generated for the previous picture',async()=>{
+ const {project,assets}=await blockingFixture(),ep=project.productionPackage.episodes[0];for(const segment of ep.segments)segment.references.push({slot:'待绑定-B011-01','类型':'场景图','名称':'测试庭院','站位计划编号':'B011-01','必须':true});
+ const row=assetWorkspaceInventory(project,assets,{scope:'work'}).find(r=>r.purpose==='blocking'),image={...assets[1],id:'asset_'+randomUUID(),name:'测试庭院人物站位图.png',referenceGeneration:{purpose:'blocking',blockingId:row.blockingId}},replacement={...assets[1],id:'asset_'+randomUUID(),library:{...assets[1].library,revisionId:randomUUID(),sha256:'b'.repeat(64)}},all=[...assets,image,replacement],next=prepareWorkspaceBinding({db:{assets:all,jobs:[]},asset:id=>all.find(a=>a.id===id)},project,{expectedRevision:project.revision,targets:row.uses},image);
+ for(const segment of next.productionPackage.episodes[0].segments)segment.references.find(r=>r.slot==='scene').binding={...replacement.library,assetId:replacement.id,sourceType:'moku'};
+ const frame=next.pages.flatMap(p=>p.panels).find(p=>p.productionSegment),need=auditPanelReferences(next,frame,all).needs.find(n=>n.purpose==='blocking');assert.notEqual(need.blockingId,row.blockingId);assert.equal(need.status,'conflict');assert.equal(need.selectedIds.length,0);assert.throws(()=>productionReferencePlan(next,frame,all),/场景参考图已更换/);
 });
 test('scene without imported plan has a separate stance; adoption, deletion, restore and actual panel references retain base scene',async()=>{
  const {project,assets}=await blockingFixture(),store={db:{assets,jobs:[]}},rows=assetWorkspaceInventory(project,assets,{scope:'work'}),standing=rows.find(r=>r.purpose==='blocking'),scene=rows.find(r=>r.role==='scene'&&!r.purpose);assert.ok(standing);assert.ok(scene);assert.notEqual(scene.key,standing.key);
@@ -35,7 +56,7 @@ test('generation uses actual selected scene and outfit images, fixed top view wi
  const record={name:request.payload.name,prompt:request.payload.prompt,source:{purpose:'blocking',blocking:request.payload.blocking}};assert.equal(sceneFrontPrompt(record),request.payload.prompt);assert.equal(sceneFrontPrompt({name:record.name,prompt:record.prompt}),request.payload.prompt);assert.equal(sceneReversePrompt(record),request.payload.prompt);assert.match(sceneFrontPrompt({name:'普通庭院',prompt:'门在院墙边'}),/无人场景/);assert.equal(JSON.stringify(project),before);
  assert.throws(()=>referenceAssetGenerationRequest(project,input,[]),/先为本场景选用参考图/);const preview=referenceAssetGenerationRequest(project,input,[],{preview:true});assert.equal(preview.payload.referencePreparation.missing.length,2);assert.match(preview.payload.prompt,/测试人物/);
 });
-test('stance results never appear on base-scene cards or another visit to the same scene',async()=>{
+test('stance results never appear on base-scene cards or cards for a different scene picture',async()=>{
  const {project,assets}=await blockingFixture(),rows=assetWorkspaceInventory(project,assets,{scope:'work'}),row=rows.find(r=>r.purpose==='blocking'),use=row.uses[0],panel=project.pages.flatMap(p=>p.panels).find(p=>p.id===use.panelId),need=auditPanelReferences(project,panel,assets).needs.find(n=>n.id===use.needId),record={name:row.name,type:'scene',role:'scene',source:{projectId:project.id,purpose:'blocking',blockingId:row.blockingId},context:{projectId:project.id,...use}};
  assert.ok(referenceRecordMatch(record,{project,panel,need}));assert.equal(referenceRecordMatch(record,{project,panel,need:{...need,blockingId:'different'}}),null);assert.equal(referenceRecordMatch(record,{project,panel,need:{role:'scene',name:'测试庭院'}}),null);assert.equal(galleryRecordAssignments([...rows,{...row,key:'other',blockingId:'other'}],record,{projectId:project.id}).length,1);
 });

@@ -39,12 +39,12 @@ export function productionReferencePlan(project,frame,assets=[]){
   if(productionTextReference(frame,s,ref,project))continue;
   if(ref.skipped){if(ref['必须'])missing.push('必需参考不能跳过');continue;}
   if(ref['类型']==='上一段成图'){const predecessor=project.productionPackage.episodes.find(e=>e.episode===s.episode).segments.find(v=>v.localId===ref['段ID']),prior=productionFrame(project,predecessor?.id),assetId=productionSourceAsset(prior);if(assetId)refs.push({assetId,name:ref['段ID']+' · 接续成图',role:'style'});else dependencies.push(prior?.id);continue;}
-  const binding=ref.binding,asset=binding&&byId.get(binding.assetId);
+  const station=isBlockingReference(ref),blockingNeed=station&&withBlockingIdentity(project,frame,{name:productionReferenceSubject(ref)},ref),binding=ref.binding||blockingNeed?.blockingBinding,asset=binding&&byId.get(binding.assetId);
   if(!asset){if(ref['必须'])missing.push([ref['人物'],ref['服装']].filter(Boolean).join(' · ')||ref['类型']);continue;}
   if(assetUnavailable(asset))throw invalid('所选素材被标记为不能使用：'+asset.name);
   if(binding.sourceType==='local'){if(binding.revisionId!=='local-sha256:'+binding.sha256)throw invalid('本地参考原件版本无效，请重新绑定：'+asset.name);}
   else if(!binding.revisionId||asset.library?.revisionId!==binding.revisionId||asset.library?.sha256!==binding.sha256)throw invalid('参考素材固定版本发生变化，请重新绑定：'+asset.name);
-  const station=isBlockingReference(ref),blockingNeed=station&&withBlockingIdentity(project,frame,{name:productionReferenceSubject(ref)},ref);
+  if(station&&(binding.blockingId&&binding.blockingId!==blockingNeed.blockingId||asset.referenceGeneration?.blockingId&&asset.referenceGeneration.blockingId!==blockingNeed.blockingId))throw invalid('场景参考图已更换，请更新站位图：'+asset.name);
   if(station&&refs.some(r=>r.purpose==='blocking'&&r.blockingId===blockingNeed.blockingId&&r.assetId===asset.id))continue;
   refs.push({assetId:asset.id,name:station?blockingNeed.name+'（只参考空间，姓名标注不绘入漫画）':ref['类型']==='设定卡'?[ref['人物'],ref['服装']].filter(Boolean).join(' · '):productionReferenceSubject(ref)||asset.name,role:ref['类型']==='设定卡'?'character':ref['类型'].includes('场景')?'scene':/道具/.test(ref['类型'])?'prop':'style',...(station?{purpose:'blocking',blockingId:blockingNeed.blockingId}:{})});
  }

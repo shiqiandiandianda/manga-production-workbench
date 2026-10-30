@@ -25,7 +25,7 @@ export function assetWorkspaceInventory(project,assets=[],{scope='episode',pageI
    if(scope==='panel'&&panel.id!==panelId||panel.cutoutLayer||panel.sfxImage||panel.designDecoration||panel.breakoutForeground||panel.productionBackground||panel.productionBackgroundInstance)continue;
    const audit=audits?.get(panel.id)||auditPanelReferences(project,panel,assets,{referenceContext:ctx});audits?.set(panel.id,audit);
    for(const need of audit.needs){
-    if(need.predecessor||!['character','scene','prop'].includes(need.role))continue;
+    if(need.predecessor||!['character','scene','prop'].includes(need.role)||need.purpose==='blocking'&&!need.blockingReady&&!need.selectedIds.length)continue;
     const identity=need.workspaceIdentity||need,key=assetRequirementKey(need),row=rows.get(key)||{key,name:identity.name,role:need.role,purpose:need.purpose,blockingId:need.blockingId,sceneName:need.sceneName,blockingPlanId:need.blockingPlanId,state:need.role==='character'?characterRequirementState(identity.state):need.state||'',uses:[],sources:[],assetIds:[],availableIds:[],textDescriptions:[],preparationNotes:[],requirementKeys:[],required:false};
     const legacyKey=need.workspaceLegacyKey||JSON.stringify([need.role,assetNameKey(need.name),assetNameKey(need.state||'')]);if(!row.requirementKeys.includes(legacyKey))row.requirementKeys.push(legacyKey);
     const note=need.role==='character'&&(need.preparationNote||characterPreparationNote(need.state));if(note&&!row.preparationNotes.includes(note))row.preparationNotes.push(note);

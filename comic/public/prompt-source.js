@@ -2,6 +2,7 @@ import {effectiveOutfitPrompt} from './episode-outfit.js';
 import {bounds} from './model.js';
 import {productionPanelPrompts} from './production-panel-prompts.js';
 import {singlePanelPromptScope} from './single-panel-prompt-scope.js';
+import {cleanPromptVariant} from './clean-prompt-variant.js';
 export const PROMPT_SOURCES=Object.freeze([{value:'imported',label:'分镜表提示词'},{value:'post-lettering',label:'生图提示词（后期嵌字）'},{value:'direct',label:'直出提示词'}]);
 export function promptSource(value){if(value===undefined||value===null||value==='current')return 'imported';if(!PROMPT_SOURCES.some(option=>option.value===value))throw Object.assign(Error('提示词来源无效'),{status:400});return value;}
 const header=value=>String(value).normalize('NFKC').replace(/\s+/gu,'');
@@ -23,6 +24,7 @@ export function generationPromptChoices(panel,project){
  const generation=panel?.generation||{},shot=project?.shots?.find(shot=>shot.id===panel?.shotId),original=shot||generation.lastSourceSnapshot?.original||generation.sourceSnapshot?.original||{},fields=original.sourceFields||{};
  const read=names=>{const match=Object.entries(fields).find(([key,value])=>names.includes(header(key))&&typeof value==='string'&&value.trim());return match?{text:match[1],column:match[0]}:{text:'',column:null};};
  const post=read(['生图提示词(后期嵌字)','后期嵌字提示词','后期嵌字生图提示词','生图提示词(无泡)']),direct=read(['直出提示词','生图直出提示词']),explicit=read(['生图提示词','生产提示词','提示词','prompt','productionPrompt']);
+ if(!post.text&&original.productionSegment){const clean=cleanPromptVariant(explicit.text);if(clean)Object.assign(post,{text:clean,column:explicit.column,derived:true,label:'屏段无框提示词（由空泡原文转换）'});}
  if(original.productionPromptVariants===1){const variants=productionPanelPrompts({original:fields}),nested=fields['提示词']||fields['单格提示词']||{},withText=typeof nested['带字']==='string'?{text:nested['带字'],column:'提示词.带字'}:{text:'',column:null},empty=variants.empty.text?variants.empty:withText,clean=variants.clean.text?variants.clean:post;return PROMPT_SOURCES.map(option=>({...option,label:option.value==='imported'?(variants.empty.text?'单格空泡原文':withText.text?'单格带字原文':'单格空泡原文'):option.value==='post-lettering'?'单格无泡原文':withText.text?'单格带字原文':'直出提示词（本格未提供）',...(option.value==='imported'?empty:option.value==='post-lettering'?clean:withText)}));}
  const content=read(['画面内容','画面描述','description','画面','分镜内容','分镜','画面内容描述']);
  const imported=original.productionSegment?explicit:explicit.text?explicit:post.text?post:direct.text?direct:content.text?content:{text:original.productionPrompt||original.description||generation.prompt||'',column:null};

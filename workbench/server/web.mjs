@@ -11,6 +11,7 @@
  */
 import http from 'node:http';
 import {createReadStream, existsSync} from 'node:fs';
+import {createBrotliDecompress} from 'node:zlib';
 import {readFile, stat} from 'node:fs/promises';
 import path from 'node:path';
 import {randomUUID, createHash} from 'node:crypto';
@@ -228,7 +229,7 @@ export async function sendFile(req, res, file, {cors = false, cacheControl = 'no
   const name = file.downloadName ? `; filename*=UTF-8''${encodeURIComponent(file.downloadName)}` : '';
   res.writeHead(200, {
     'Content-Type': file.mime || 'application/octet-stream',
-    'Content-Length': info.size,
+    'Content-Length': file.encoding==='br'?file.bytes:info.size,
     'Cache-Control': cacheControl,
     'Content-Disposition': `${file.inline === false ? 'attachment' : 'inline'}${name}`,
     'X-Content-Type-Options': 'nosniff',
@@ -237,10 +238,9 @@ export async function sendFile(req, res, file, {cors = false, cacheControl = 'no
   });
   if (req.method === 'HEAD') return res.end();
   await new Promise((resolve, reject) => {
-    const stream = createReadStream(file.path);
-    stream.on('error', reject);
-    stream.on('end', resolve);
-    stream.pipe(res);
+    const input=createReadStream(file.path),stream=file.encoding==='br'?input.pipe(createBrotliDecompress()):input;
+    input.on('error',reject);stream.on('error',reject);res.once('close',()=>{input.destroy();if(stream!==input)stream.destroy();resolve();});
+    stream.on('end', resolve);stream.pipe(res);
   });
 }
 

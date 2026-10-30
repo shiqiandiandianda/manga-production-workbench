@@ -17,8 +17,8 @@ export function bubbleEditGeometry(bubble){
     points:(validBubblePoints(bubble.points)?bubble.points:bubbleShapePoints('custom')).map(p=>({x:x+p.x*w,y:y+p.y*h}))};
 }
 export function applyBubbleEdit(bubble,change){
-  if(['segment-move','segment-resize'].includes(change.type))return editDialogueSegment(bubble,change.index,{dx:finite(change.dx),dy:finite(change.dy),resize:change.type==='segment-resize'});
-  if(change.type==='part-move'||change.type==='part-resize')return editBubblePart(bubble,change.index,{dx:finite(change.dx),dy:finite(change.dy),resize:change.type==='part-resize'});
+  if(['segment-move','segment-resize'].includes(change.type)){const next=editDialogueSegment(bubble,change.index,{dx:finite(change.dx),dy:finite(change.dy),resize:change.type==='segment-resize'});if(next.autoLettering)next.autoLettering.mode='manual';return next;}
+  if(change.type==='part-move'||change.type==='part-resize'){const next=editBubblePart(bubble,change.index,{dx:finite(change.dx),dy:finite(change.dy),resize:change.type==='part-resize'});if(next.autoLettering)next.autoLettering.mode='manual';return next;}
   let next=copy(bubble);const geometry=bubbleEditGeometry(bubble),dx=finite(change.dx),dy=finite(change.dy);
   if(change.type==='tail-width'){
     if(bubble.locked)return next;const g=bubbleTailGeometry({...bubble,tail:{...bubble.tail,visible:true}}),path=bubbleBoundary(bubbleOutlinePoints(bubble));if(!g?.anchor||!path)return next;
@@ -50,10 +50,12 @@ export function applyBubbleEdit(bubble,change){
     if(change.preserveAspectRatio){const factor=Math.max(30/geometry.w,20/geometry.h,1+(geometry.w*dx+geometry.h*dy)/(geometry.w**2+geometry.h**2));next.w=geometry.w*factor;next.h=geometry.h*factor;}
     else{next.w=Math.max(30,geometry.w+dx);next.h=Math.max(20,geometry.h+dy);}
     saveBubbleTextFlow(next);
+    if(next.autoLettering)next.autoLettering.mode='manual';
   }else if(change.type==='text-move'||change.type==='text-resize'){
     const box=bubbleTextBox(bubble);
     next.textBox=change.type==='text-move'?{...box,x:box.x+dx,y:box.y+dy}:{...box,w:Math.max(1,box.w+dx),h:Math.max(1,box.h+dy)};
     if(change.type==='text-resize'){delete next.textLayout;next.textFrameLayout=true;saveBubbleTextFlow(next);}
+    if(next.autoLettering)next.autoLettering.mode='manual';
   }else if(change.type==='tail'){
     const x=finite(change.x,geometry.tail?.x??geometry.x+geometry.w*.57),y=finite(change.y,geometry.tail?.y??geometry.y+geometry.h+30);
     next.tail={...next.tail,mode:'normalized',x:clamp((x-geometry.x)/geometry.w,-2,3),y:clamp((y-geometry.y)/geometry.h,-2,3),visible:true,directionOnly:false};
@@ -110,18 +112,18 @@ export class BubbleEditor {
     const handle=event.target.closest?.('[data-bubble-handle]'),group=handle?.closest('[data-bubble]');
     if(!handle||!group||!this.root.contains(handle))return;
     const bubble=this.getBubble(group.dataset.bubble);if(!bubble||bubble.locked)return;
-    const kind=handle.dataset.bubbleHandle,index=Number(handle.dataset.bubblePoint),before=copy(bubble),point=this.toPagePoint(event);
+    const kind=handle.dataset.bubbleHandle,index=Number(handle.dataset.bubblePoint),before=copy(bubble),offset={x:Number(handle.dataset.bubbleOffsetX)||0,y:Number(handle.dataset.bubbleOffsetY)||0},raw=this.toPagePoint(event),point={x:raw.x-offset.x,y:raw.y-offset.y};
     const working=copy(before),renderW=Number(group.dataset.renderW),renderH=Number(group.dataset.renderH);
     if(Number.isFinite(renderW)&&renderW>=30)working.w=renderW;if(Number.isFinite(renderH)&&renderH>=20)working.h=renderH;
     if(['text-move','resize','segment-move','part-move','part-resize'].includes(kind)&&this.getLayout){
       if(dialogueSegments(working).length||['text-move','resize'].includes(kind))freezeBubbleForGeometry(working,this.getLayout(before));
     }
-    this.active={before,working,current:working,point,kind,index,pointerId:event.pointerId};
+    this.active={before,working,current:working,point,kind,index,offset,pointerId:event.pointerId};
     this.onStart(before,{bubbleId:before.id,kind,index,before});try{this.root.setPointerCapture?.(event.pointerId);}catch{}event.preventDefault();event.stopImmediatePropagation();
   }
   pointerMove(event){
     const drag=this.active;if(!drag||event.pointerId!==drag.pointerId)return;
-    const point=this.toPagePoint(event),change={type:drag.kind,dx:point.x-drag.point.x,dy:point.y-drag.point.y,x:point.x,y:point.y,startX:drag.point.x,startY:drag.point.y,index:drag.index,preserveAspectRatio:drag.kind==='resize'&&event.shiftKey===true};
+    const raw=this.toPagePoint(event),point={x:raw.x-drag.offset.x,y:raw.y-drag.offset.y},change={type:drag.kind,dx:point.x-drag.point.x,dy:point.y-drag.point.y,x:point.x,y:point.y,startX:drag.point.x,startY:drag.point.y,index:drag.index,preserveAspectRatio:drag.kind==='resize'&&event.shiftKey===true};
     drag.current=applyBubbleEdit(drag.working,change);this.onChange(drag.current,{bubbleId:drag.before.id,kind:drag.kind,before:drag.before,commit:false});event.preventDefault();event.stopImmediatePropagation();
   }
   pointerUp(event){
@@ -137,5 +139,3 @@ export class BubbleEditor {
     this.window?.removeEventListener?.('blur',this.blur);this.root.removeEventListener('lostpointercapture',this.lost,true);this.root.removeEventListener('pointerdown',this.down,true);this.document.removeEventListener('pointermove',this.move,true);this.document.removeEventListener('pointerup',this.up,true);this.document.removeEventListener('pointercancel',this.cancel,true);this.active=null;
   }
 }
-
-

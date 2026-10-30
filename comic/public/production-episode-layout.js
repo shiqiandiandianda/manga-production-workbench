@@ -5,6 +5,7 @@ import {validateAssistantGeometry} from './assistant-layout-geometry.js';
 import {validateLayoutDesign} from './layout-design.js';
 import {prepareProductionPanel,productionPanelSource,ensureProductionSegmentLettering} from './production-panel-generation.js';
 import {productionFrame} from './production-package-model.js';
+import {scaleReflowLettering} from './reflow-lettering.mjs';
 
 const fail=message=>{throw Object.assign(Error(message),{status:409});};
 export const productionEpisodeUnit=(project,episode)=>project?.productionEpisodeViews?.[episode]?.unit||project?.productionPackage?.generationUnit||'screen';
@@ -100,8 +101,7 @@ function placeGroup(page,frame,rect,{uniformChildren=false}={}){
   const rx=uniformChildren&&item!==frame?scale:sx,ry=uniformChildren&&item!==frame?scale:sy,padX=uniformChildren&&item!==frame?(rect.w-before.w*scale)/2:0,padY=uniformChildren&&item!==frame?(rect.h-before.h*scale)/2:0;
   item.x=rect.x+padX+(item.x-before.x)*rx;item.y=rect.y+padY+(item.y-before.y)*ry;item.w*=rx;item.h*=ry;
   if(item.imageTransform){const t=item.imageTransform;t.x=t.x*scale+(item.w-oldW*scale)/2;t.y=t.y*scale+(item.h-oldH*scale)/2;t.scale*=scale;}
-  if(item!==frame){for(const key of ['fontSize','padding','outlineWidth','letterSpacing'])if(Number.isFinite(item[key]))item[key]*=scale;}
-  if(item.textBox)for(const k of ['x','y','w','h'])if(Number.isFinite(item.textBox[k]))item.textBox[k]*=['x','w'].includes(k)?rx:ry;
+  if(page.bubbles.includes(item))scaleReflowLettering(item,rx,ry);
   if(item.tail?.mode!=='normalized'&&Number.isFinite(item.tail?.x)&&Number.isFinite(item.tail?.y)){item.tail.x=rect.x+padX+(item.tail.x-before.x)*rx;item.tail.y=rect.y+padY+(item.tail.y-before.y)*ry;}
  }
  Object.assign(frame,rect);return owned;

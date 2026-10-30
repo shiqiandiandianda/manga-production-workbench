@@ -1,6 +1,8 @@
+import {TEXT_FONT_DEFAULTS} from './text-font-defaults.js';
 import {SHOT_SIZES,validateShotSettings} from './shot-settings.js';
 import {isCircleFrame} from './frame-primitives.js';
 import {parseNamedStates,sourceCharacterStates} from './character-states.js';
+import {scaleReflowLettering} from './reflow-lettering.mjs';
 export const id = prefix => `${prefix}_${globalThis.crypto.randomUUID()}`;
 export const clone = value => JSON.parse(JSON.stringify(value));
 export const rectangle = () => [{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}];
@@ -73,7 +75,7 @@ export function createProject(title='未命名漫画',demo=false) {
   const descriptions=demo?['黄昏，短刀将一封信钉在古宅门柱上，近景，信封与短刀清楚可见。','古宅门口，黑衣女侠回头对身后的白衣女子说话，双人中景，落日从门外照入。','黑衣女侠抬手从门柱上取下信件，侧后方中景，衣袖与发带带出动作。','黑衣女侠低头读信，面部与信纸近景，目光停顿。']:['填写这个镜头的画面内容'];
   const shots=descriptions.map((description,i)=>({id:id('shot'),code:`S${String(i+1).padStart(2,'0')}`,title:demo?['信件特写','门口对话','取信','阅读特写'][i]:'新镜头',description,dialogue:demo&&i===1?'你待在这里别动，\n我出门看看':demo&&i===3?'原来是她……':'',referenceIds:[]}));
   const page=makePage(shots.map(s=>s.id));page.name='长图 01';
-  if(demo){const scene=page.panels[1];page.bubbles.push({id:id('bubble'),shotId:shots[1].id,x:scene.x+scene.w*.22,y:scene.y+scene.h*.12,w:350,h:120,text:shots[1].dialogue,type:'speech',fontSize:30,visible:true});}
+  if(demo){const scene=page.panels[1];page.bubbles.push({id:id('bubble'),shotId:shots[1].id,x:scene.x+scene.w*.22,y:scene.y+scene.h*.12,w:350,h:120,text:shots[1].dialogue,type:'speech',...TEXT_FONT_DEFAULTS,visible:true});}
   return {id:id('project'),title,revision:0,style:'',references:[],shots,pages:[page],created:new Date().toISOString(),updated:new Date().toISOString()};
 }
 export function parseTable(text) {
@@ -187,8 +189,8 @@ export function rescalePageWidth(page,width=COMIC_PAGE_WIDTH) {
     if(frame.featherEdges)for(const key of ['top','bottom','left','right'])frame.featherEdges[key]=Math.min(10000,frame.featherEdges[key]*factor);
   }
   for(const bubble of page.bubbles||[]) {
-    scaleFields(bubble,['x','y','w','h','fontSize','outlineWidth','padding','letterSpacing','shadowOffsetX','shadowOffsetY'],factor);
-    scaleFields(bubble.textBox,['x','y','w','h'],factor);
+    scaleFields(bubble,['x','y','w','h','outlineWidth','shadowOffsetX','shadowOffsetY'],factor);
+    scaleReflowLettering(bubble,factor);
     if(bubble.tail?.mode!=='normalized')scaleFields(bubble.tail,['x','y'],factor);
   }
   page.width=width;page.height=nextHeight;
@@ -206,7 +208,7 @@ export function resizePageHeight(page,height,{scaleContent=false}={}) {
     }
     for(const bubble of page.bubbles||[]) {
       scaleFields(bubble,['y','h'],factor);
-      scaleFields(bubble.textBox,['y','h'],factor);
+      scaleReflowLettering(bubble,1,factor);
       if(bubble.tail?.mode!=='normalized')scaleFields(bubble.tail,['y'],factor);
     }
   }

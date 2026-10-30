@@ -1,4 +1,5 @@
 import {appendAdoptedProductionReferences} from './production-reference-append.mjs';
+import {applyProductionEpisodeMode} from './production-episode-mode.mjs';
 import {assetUnavailable} from '../public/asset-availability.js';
 import {ensureEpisodeLettering} from '../public/production-episode-lettering.js';
 import {ensureProductionScreenLettering} from '../public/production-screen-lettering.js';
@@ -7,8 +8,9 @@ import {layoutAssistantEpisode,switchProductionEpisodeUnit,switchProductionSegme
 import {productionTextReference} from '../public/production-package-model.js';
 import {productionExtraReferenceRoles} from '../public/production-extra-references.js';
 import {FONT_FAMILIES} from '../public/lettering.js';
+import {validateTypography,TYPOGRAPHY_DEFAULT} from '../public/unified-typography.js';
 import {dialogueSegments} from '../public/bubble-dialogue-segments.js';
-import {PRODUCTION_BOX_KINDS,PRODUCTION_FONT_FIELDS,productionStyleKind,updateProductionStyle,resolveProductionStyle,applyProductionStyle} from '../public/production-lettering-style.js';
+import {PRODUCTION_BOX_KINDS,PRODUCTION_BOX_FIELDS,PRODUCTION_FONT_FIELDS,applyProductionStyleToScope,resolveProductionStyle,applyProductionStyle} from '../public/production-lettering-style.js';
 import {resolveAssistantEpisode} from './assistant-episode-source.mjs';
 import {applyEpisodeLocalBackgrounds} from './episode-local-backgrounds.mjs';
 import fs from 'node:fs';
@@ -28,6 +30,8 @@ import {productionAssetBinding} from './production-reference-files.mjs';
 import {prepareProductionPanel,findProductionPanel,productionPanelRecord,productionPanelRegion,applyProductionPanelLettering,ensureProductionSegmentLettering,automaticLetteringUntouched} from '../public/production-panel-generation.js';
 import {productionPanelPrompts,productionPanelDataIssues} from '../public/production-panel-prompts.js';
 import {auditPanelReferences} from '../public/panel-reference-audit.js';
+import {applyProductionModeDefault} from '../public/production-mode-default.js';
+import {generationPromptSelection} from '../public/prompt-source.js';
 const active=['queued','preparing','running','recoverable','awaiting_confirmation','delegated'];
 export function createProductionPackageAPI({store,dataDir,library,body,json,saveProject,addAsset,projectView,getBubbleManifest}){
  const scans=new Map(),sourceRoot=path.join(dataDir,'production-sources');
@@ -38,7 +42,7 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
    check(input.sourceAssetId===undefined||input.sourceAssetId===frame.imageAssetId,'成图已改变，请重新打开定位界面',409);const before=new Set(next.pages.flatMap(p=>p.bubbles.map(b=>b.id))),automatic=new Set(next.pages.flatMap(p=>p.bubbles.filter(automaticLetteringUntouched).map(b=>b.id))),styles=input.materialStyles||{},selected=Object.values(styles).filter(Boolean),materials=new Map();
    if(selected.length){let manifest;for(const key of Object.keys(styles)){const styleId=styles[key];if(!styleId)continue;let style=builtinBubbleStyle(styleId);if(!style){check(getBubbleManifest,'气泡素材读取接口尚未就绪');if(!manifest){manifest=await getBubbleManifest();applyRemoteBubbleStyles(manifest.items);}style=manifest.items.find(m=>m.id===styleId);check(style?.revisionId,'所选墨库气泡款式不存在');}let localAssetId;if(style.texture){const imported=await library.importAsset({assetId:style.assetId,revisionId:style.revisionId});check(imported.kind==='image','气泡纹理不是图片');localAssetId=imported.asset.id;}materials.set(key,{styleId,localAssetId,assetId:style.assetId,revisionId:style.revisionId,definitionSha256:packageDigest(Buffer.from(JSON.stringify(style)))});}check(store.project(next.id).revision===input.expectedRevision,'读取素材期间工程已改变，请重试',409);idle(next);}
    const count=applyProductionLettering(next,s.id,input,options);s.materialBindings={...s.materialBindings,...Object.fromEntries(materials)};for(const page of next.pages)for(const bubble of page.bubbles)if(bubble.productionSegment===s.id&&(!before.has(bubble.id)||automatic.has(bubble.id)||input.replace||(input.materialChangedKeys||[]).includes(JSON.stringify([bubble.productionOriginal?.['素材']?.['库']||bubble.productionOriginal?.['类型'],bubble.productionOriginal?.['素材']?.['款式']||'默认'])))){const original=bubble.productionOriginal,key=JSON.stringify([original?.['素材']?.['库']||original?.['类型'],original?.['素材']?.['款式']||'默认']),material=materials.get(key);if(material&&bubble.shape!=='none'&&(!dialogueSegments(bubble).length||(input.materialChangedKeys||[]).includes(key))){const typed=applyBubbleMaterial(bubble,material.styleId,material.localAssetId);typed.productionMaterialVersion=material;Object.assign(bubble,typed);}}
-   const configured=resolveProductionStyle(next,s.id);if(input.fontChanged)configured.fontFamily=input.fontFamily;for(const page of next.pages)for(const bubble of page.bubbles)if(bubble.productionSegment===s.id&&(!before.has(bubble.id)||input.replace)){const original=bubble.productionOriginal,key=JSON.stringify([original?.['素材']?.['库']||original?.['类型'],original?.['素材']?.['款式']||'默认']);const style=structuredClone(configured);if(dialogueSegments(bubble).length||(input.materialChangedKeys||[]).includes(key))style.boxes={};applyProductionStyle(bubble,style);}
+   const configured=resolveProductionStyle(next,s.id);if(input.fontChanged)configured.fontFamily=input.fontFamily;for(const page of next.pages)for(const bubble of page.bubbles)if(bubble.productionSegment===s.id&&(!before.has(bubble.id)||input.replace)){const original=bubble.productionOriginal,key=JSON.stringify([original?.['素材']?.['库']||original?.['类型'],original?.['素材']?.['款式']||'默认']);const style=structuredClone(configured);if(before.has(bubble.id))delete style.fontSize;if(dialogueSegments(bubble).length||(input.materialChangedKeys||[]).includes(key))style.boxes={};applyProductionStyle(bubble,style);}
    return count;
  }
  async function handle(req,res,{pathname,method,url}){
@@ -55,13 +59,14 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
    if(scan.mokuSessionVersion!==undefined){check(library.sessionVersion()===scan.mokuSessionVersion,'墨库登录状态已变化，请重新扫描制作资料',409);await library.read('/api/auth/me');check(library.sessionVersion()===scan.mokuSessionVersion,'墨库登录状态已变化，请重新扫描制作资料',409);}
    const old=scan.projectId?store.project(scan.projectId):null;if(old&&(['single-mode-20261027','post-lettering-20261027'].includes(old.productionPackage?.sourceFormat)||['single-mode-20261027','post-lettering-20261027'].includes(scan.pkg.sourceFormat))&&old.productionPackage?.sourceFormat!==scan.pkg.sourceFormat)check(false,'本资料包与当前工程的制作契约不同，请新建工程导入，避免混入旧图片和提示词',409);if(old){idle(old);check(old.revision===scan.revision&&input.expectedRevision===old.revision,'资料预览后工程已改变，请重新扫描',409);if(old.productionPackage.hash===scan.pkg.hash){json(res,200,projectView(old));scans.delete(input.scanId);return true;}}
    let project=old?mergeProductionProject(projectView(old),scan.pkg,{replaceChanged:input.replaceChanged===true}):productionProject(scan.pkg,input.title);
+   applyProductionModeDefault(project,input.defaultPromptSource,old);
    for(const file of scan.files){const dest=sourcePath(scan.pkg.hash,file.relativePath);fs.mkdirSync(path.dirname(dest),{recursive:true});if(!fs.existsSync(dest)||packageDigest(fs.readFileSync(dest))!==file.sha256)fs.writeFileSync(dest,file.bytes);}
    const packageImages=new Map();
    for(const e of project.productionPackage.episodes)for(const s of e.segments)for(const ref of s.references){if(!ref.packageImage||ref.binding)continue;const image=ref.packageImage;let binding=packageImages.get(image.path);if(!binding){const file=sourcePath(scan.pkg.hash,image.path);check(fs.existsSync(file)&&packageDigest(fs.readFileSync(file))===image.sha256,'随包参考图校验失败');const asset=addAsset(file,ref['名称']+' · 随包参考图','production-package');binding={...productionAssetBinding(store,asset.id),characterName:ref['人物']||undefined};packageImages.set(image.path,binding);}ref.binding=structuredClone(binding);}
    complete(project);
    if(old){const backup=path.join(dataDir,'backups',old.id+'_before_package_'+old.revision+'.json');fs.mkdirSync(path.dirname(backup),{recursive:true});fs.writeFileSync(backup,JSON.stringify(old));store.db.projects[store.db.projects.indexOf(old)]=project;}else store.db.projects.push(project);scans.delete(input.scanId);json(res,old?200:201,saveProject(project,{editor:!!old}));return true;
   }
-  const match=pathname.match(/^\/api\/projects\/([a-z]+_[0-9a-f-]{36})\/production\/(source|bind|references|reference-options|layout|detect|compose|background|resolve|issues|mode|styles|unit|episode-unit|relayout-panels|episode-layout|episode-preview|panels|panel|panel-lettering|screen-lettering|episode-lettering)$/);if(!match)return false;
+  const match=pathname.match(/^\/api\/projects\/([a-z]+_[0-9a-f-]{36})\/production\/(source|bind|references|reference-options|layout|detect|compose|background|resolve|issues|mode|episode-mode|styles|unit|episode-unit|relayout-panels|episode-layout|episode-preview|panels|panel|panel-lettering|screen-lettering|episode-lettering)$/);if(!match)return false;
   const project=store.project(match[1]),pkg=project.productionPackage;check(pkg,'当前工程不是制作资料包工程',404);
   if(method==='GET'&&match[2]==='episode-preview'){
    const number=Number(url.searchParams.get('episode'));check(Number.isInteger(number),'请选择当前话');const source=resolveAssistantEpisode(project,number,{scriptId:url.searchParams.get('scriptId')||undefined});
@@ -74,19 +79,35 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
   // Every mutation uses a clone so validation failures never partially edit a saved project.
   const returnStarted=performance.now();const cloneStarted=performance.now();const next=structuredClone(project),s=productionSegment(next,input.segmentId),frame=productionFrame(next,input.segmentId);const commit=options=>{complete(next,options?.referenceSegments);store.db.projects[store.db.projects.indexOf(project)]=next;return saveProject(next,{editor:true});};
 
+  if(match[2]==='episode-mode'){
+   const result=applyProductionEpisodeMode(next,input.episode,input.mode);
+   json(res,200,{...result,project:commit({referenceSegments:new Set()})});return true;
+  }
   if(match[2]==='episode-lettering'){
    check(Number.isInteger(input.episode)&&pkg.episodes.some(e=>e.episode===input.episode),'请选择有效的话数');
    const result=ensureEpisodeLettering(next,input.episode);json(res,200,{...result,project:result.segments?commit({referenceSegments:new Set()}):project});return true;
   }
+  if(['screen-lettering','panel-lettering'].includes(match[2]))check(false,'请从上方“台词与气泡”在主画板逐句点击摆放',400);
   if(match[2]==='styles'){
    check(s&&['screen','episode','all'].includes(input.scope),'请选择屏段及应用范围');const patch=input.patch;check(patch&&typeof patch==='object'&&!Array.isArray(patch)&&Object.keys(patch).length&&Object.keys(patch).every(k=>[...PRODUCTION_FONT_FIELDS,'boxes'].includes(k)),'样式设置无效');
-   if(patch.fontFamily!==undefined)check(Object.hasOwn(FONT_FAMILIES,patch.fontFamily),'请选择支持的字体');if(patch.fontSize!==undefined)check(Number.isFinite(patch.fontSize)&&patch.fontSize>=10&&patch.fontSize<=2048,'字号范围为10至2048');if(patch.fontWeight!==undefined)check([300,400,500,600,700,800,900].includes(patch.fontWeight),'字重无效');
-   if(patch.boxes){check(typeof patch.boxes==='object'&&!Array.isArray(patch.boxes)&&Object.keys(patch.boxes).every(k=>Object.hasOwn(PRODUCTION_BOX_KINDS,k)),'边框类型无效');let manifest;for(const key of Object.keys(patch.boxes)){const value=patch.boxes[key],id=value?.styleId;check(typeof id==='string'&&id.length<=160,'请选择边框样式');if(['none','default'].includes(id)){patch.boxes[key]={styleId:id};continue;}let d=builtinBubbleStyle(id);if(!d){manifest||=await getBubbleManifest();d=manifest.items.find(m=>m.id===id);check(d?.revisionId,'所选墨库样式不存在');}let localAssetId;if(d.texture){const imported=await library.importAsset({assetId:d.assetId,revisionId:d.revisionId});check(imported.kind==='image','边框素材不是图片');localAssetId=imported.asset.id;}patch.boxes[key]={styleId:id,assetId:d.assetId,revisionId:d.revisionId,localAssetId,definition:{contour:d.contour,insets:d.insets,label:d.label,texture:d.texture===true,parts:d.parts,rays:d.rays,frame:d.frame,preset:d.preset,tailKind:d.tailKind,tailPreset:d.tailPreset}};}}
-   check(store.project(project.id).revision===input.expectedRevision,'读取素材期间工程已修改，请重试',409);const segments=updateProductionStyle(next,s.id,input.scope,patch);let count=0,skipped=0;
-   for(const page of next.pages)for(const bubble of page.bubbles){const parent=page.panels.find(f=>f.id===bubble.parentPanelId),key=bubble.productionSegment||parent?.productionSegment||parent?.panelSlice?.segmentId||parent?.productionGrid?.segmentId||page.screenBoard?.segmentId;if(!segments.has(key))continue;if(!PRODUCTION_FONT_FIELDS.some(k=>Object.hasOwn(patch,k))&&!Object.hasOwn(patch.boxes||{},productionStyleKind(bubble)))continue;if(bubble.locked||page.locked){skipped++;continue;}const effective=resolveProductionStyle(next,key),selected={...Object.fromEntries(PRODUCTION_FONT_FIELDS.filter(k=>Object.hasOwn(patch,k)).map(k=>[k,effective[k]])),boxes:Object.fromEntries(Object.keys(patch.boxes||{}).map(k=>[k,effective.boxes[k]]))};applyProductionStyle(bubble,selected);count++;}
+   const fonts=Object.fromEntries(PRODUCTION_FONT_FIELDS.filter(k=>Object.hasOwn(patch,k)).map(k=>[k,patch[k]]));if(Object.keys(fonts).length)validateTypography({...TYPOGRAPHY_DEFAULT,...fonts});
+   if(patch.boxes){
+    check(typeof patch.boxes==='object'&&!Array.isArray(patch.boxes)&&(Object.keys(patch.boxes).length||Object.keys(fonts).length)&&Object.keys(patch.boxes).every(k=>Object.hasOwn(PRODUCTION_BOX_KINDS,k)),'边框类型无效');let manifest;
+    for(const key of Object.keys(patch.boxes)){
+     const value=patch.boxes[key];check(value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length&&Object.keys(value).every(f=>['styleId',...PRODUCTION_BOX_FIELDS].includes(f)),'边框设置无效');
+     const appearance=Object.fromEntries(PRODUCTION_BOX_FIELDS.filter(f=>Object.hasOwn(value,f)).map(f=>[f,value[f]]));
+     for(const [f,v] of Object.entries(appearance))check(f==='tailVisible'?typeof v==='boolean':f.endsWith('Color')?typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v):Number.isFinite(v)&&v>=0&&v<=(f==='fillOpacity'?1:256),'边框设置无效：'+f);
+     if(!Object.hasOwn(value,'styleId')){patch.boxes[key]=appearance;continue;}
+     const id=value.styleId;check(typeof id==='string'&&id.length<=160,'请选择边框样式');if(['none','default'].includes(id)){patch.boxes[key]={styleId:id,...appearance};continue;}
+     let d=builtinBubbleStyle(id);if(!d){manifest||=await getBubbleManifest();d=manifest.items.find(m=>m.id===id);check(d?.revisionId,'所选墨库样式不存在');}
+     let localAssetId;if(d.texture){const imported=await library.importAsset({assetId:d.assetId,revisionId:d.revisionId});check(imported.kind==='image','边框素材不是图片');localAssetId=imported.asset.id;}
+     patch.boxes[key]={styleId:id,assetId:d.assetId,revisionId:d.revisionId,localAssetId,definition:{contour:d.contour,insets:d.insets,label:d.label,uses:d.uses,width:d.width,height:d.height,texture:d.texture===true,parts:d.parts,rays:d.rays,frame:d.frame,preset:d.preset,tailKind:d.tailKind,tailPreset:d.tailPreset},...appearance};
+    }
+   }
+   check(store.project(project.id).revision===input.expectedRevision,'读取素材期间工程已修改，请重试',409);const applied=applyProductionStyleToScope(next,s.id,input.scope,patch);
    // Lettering is editable while images generate. Do not rebuild source/reference snapshots.
    validateProject(next);store.db.projects[store.db.projects.indexOf(project)]=next;
-   json(res,200,{project:saveProject(next,{editor:true}),count,skipped,segments:segments.size});return true;
+   json(res,200,{project:saveProject(next,{editor:true}),...applied});return true;
   }
   if(match[2]==='issues'){check(Array.isArray(input.reviewed)&&input.reviewed.every(v=>Number.isInteger(v)&&v>=0&&v<pkg.issues.length),'核对项编号无效');next.productionPackage.reviewedIssues=input.reviewed;json(res,200,commit());return true;}
   if(match[2]==='reference-options'){
@@ -173,7 +194,7 @@ export function createProductionPackageAPI({store,dataDir,library,body,json,save
   if(match[2]==='mode'){
    check(['clean','empty'].includes(input.mode),'请选择空泡或无泡');const source=input.mode==='clean'?'post-lettering':'imported';
    if(input.gridId){const record=productionPanelRecord(next,s.id,input.gridId);check(record,'单格不属于当前屏段');const prompts=productionPanelPrompts(record);check((input.mode==='clean'?prompts.clean:prompts.empty).text,'分镜表缺少本格'+(input.mode==='clean'?'无泡':'空泡')+'提示词：'+record.id);s.panelPromptSources={...s.panelPromptSources,[record.id]:source};const target=findProductionPanel(next,s.id,record.id);if(target){check(!target.locked,'请先解锁本格',409);prepareProductionPanel(next,s.id,record.id);target.generation.promptSource=source;}}
-   else {if(input.mode==='empty')check(String(next.shots.find(v=>v.id===frame.shotId)?.sourceFields?.['生图提示词']||'').trim(),'本屏未提供空泡提示词，不能借用无泡原文');frame.generation.promptSource=source;if(productionSegmentUnit(next,s.episode,s.id)==='screen')ensureProductionScreenLettering(next,s.id);}
+   else {const choice=generationPromptSelection({...frame,generation:{...frame.generation,promptSource:source}},next);check(choice.text?.trim(),choice.scopeError||'本屏缺少'+(input.mode==='clean'?'无框无字':'空泡')+'提示词，请补入对应原文');frame.generation.promptSource=source;if(productionSegmentUnit(next,s.episode,s.id)==='screen')ensureProductionScreenLettering(next,s.id);}
    if(input.gridId&&findProductionPanel(next,s.id,input.gridId)&&productionSegmentUnit(next,s.episode,s.id)==='panel')applyProductionPanelLettering(next,s.id,input.gridId,{automatic:true});
    json(res,200,commit());return true;
   }

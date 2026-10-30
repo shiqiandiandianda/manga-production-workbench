@@ -21,9 +21,10 @@ export function createBatchLayoutRun({api,getProject,getEpisode,flushSave,applyC
   const version=binding?.version||rule?.activeVersion;
   if(!version)throw Error('第'+plan.episode+'话没有可用的已启用风格');
   if(!Array.isArray(plan.segments)||!plan.segments.length)throw Error('第'+plan.episode+'话缺少制作资料');
-  return {projectId:state.projectId,episode:Number(plan.episode),revision:state.revision,activeEpisode:state.canvasEpisode,learningProjectId:styleId,segments:plan.segments,ruleVersion:version,ruleReady:true};
+  if(state.requireArtwork&&plan.segments.some(s=>!s.hasImage))throw Error('第'+plan.episode+'话尚有屏段图片未生成，屏段排版未开始；请先补齐成图。');
+  return {projectId:state.projectId,episode:Number(plan.episode),revision:state.revision,activeEpisode:state.canvasEpisode,learningProjectId:styleId,segments:plan.segments,requireArtwork:!!state.requireArtwork,ruleVersion:version,ruleReady:true};
  }
- return {get running(){return running;},record(){const id=getProject()?.id;return state?.projectId===id?state:read(id);},async start({episodes,styleId}){
+ return {get running(){return running;},record(){const id=getProject()?.id;return state?.projectId===id?state:read(id);},async start({episodes,styleId,requireArtwork=false}){
   if(running)return state;
   if(!styleId)throw Error('请先选择风格');
   const wanted=[...new Set(episodes)].sort((a,b)=>a-b),p=getProject();
@@ -34,7 +35,7 @@ export function createBatchLayoutRun({api,getProject,getEpisode,flushSave,applyC
    const old=read(p.id),resume=old&&['paused','running','checking'].includes(old.status)&&old.styleId===styleId&&JSON.stringify(old.episodes)===JSON.stringify(wanted);
    state=resume?old:{id:token(),projectId:p.id,styleId,episodes:wanted,index:0,completed:[],createdAt:new Date().toISOString()};
    if(resume&&state.revision!==current.revision&&state.currentRun&&['starting','running','uncertain','done'].includes(state.currentRun.status))throw Error('批量原任务已保留，但工程版本已变化；请先核对原任务，未重复提交');
-   state.revision=current.revision;state.canvasEpisode=Number(getEpisode());state.status='checking';state.message='正在检查所选话数资料';save();
+   state.requireArtwork=!!requireArtwork;state.revision=current.revision;state.canvasEpisode=Number(getEpisode());state.status='checking';state.message='正在检查所选话数资料';save();
    // Preflight the entire remaining range before any job or project write.
    const plans=new Map();
    for(const number of wanted.slice(state.index)){

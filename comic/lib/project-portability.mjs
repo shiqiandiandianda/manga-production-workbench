@@ -6,6 +6,8 @@ import {writeFileAtomicSync} from './durable-files.mjs';
 import {decodeProjectSnapshot,SNAPSHOT_FORMAT} from './project-snapshot-codec.mjs';
 import {sourceOriginalPath,validateOriginalRecords} from './source-originals.mjs';
 import {readZip} from './xlsx.mjs';
+import {expandProjectFile} from './compact-project-file.mjs';
+import {backupEntryBytes} from './maintenance-backup.mjs';
 
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const uuid=value=>typeof value==='string'&&/^[a-f0-9-]{36}$/i.test(value);
@@ -48,7 +50,8 @@ export function createProjectPortability({store,library,dataDir,productionPackag
  }
  async function exportFile(project,{syncMedia=false,remoteProjectId='',manifests={}}={}){
   const ticket=project.revision,view=portableProject(project);validateProject(view);
-  if(syncMedia&&remoteProjectId){
+  const usedIds=[...projectAssetIds(view)],archivedReady=usedIds.length>0&&usedIds.every(id=>{const a=store.db.assets.find(x=>x.id===id),ref=a?.storageBackupRef;if(!ref?.fileSha256)return false;const file=store.assetPath(id);return fs.existsSync(file)?hash(fs.readFileSync(file))===ref.fileSha256:a.storageEvicted?.sha256===ref.fileSha256;});
+  if(syncMedia&&remoteProjectId&&!archivedReady){
    const complete=await library.packProject(view,remoteProjectId);check(complete,'墨库不支持固定资源归档');active();
    check(store.project(project.id).revision===ticket,'归档期间工程已修改，请重新保存',409);
   }
@@ -57,13 +60,13 @@ export function createProjectPortability({store,library,dataDir,productionPackag
    const a=store.db.assets.find(x=>x.id===id);check(a,'工程图片未登记：'+id,409);
    const file=store.assetPath(id);let bytes;
    if(fs.existsSync(file)){check(fs.statSync(file).size<=MAX_FILE,'图片超过256MB：'+a.name,413);bytes=fs.readFileSync(file);}
-   else check(fixed(a.library),'图片原件缺失且没有墨库固定版本：'+a.name,409);
-   const digest=bytes?hash(bytes):a.library.sha256,ref=fixed(a.library)&&a.library.sha256===digest?safeRef(a.library):null;
-   if(!ref){total+=bytes.length;check(total<=MAX_PROJECT,'离线工程原件超过512MB，请先上传墨库再保存',413);}
-   assets.push({id,name:a.name,width:a.width,height:a.height,mime:a.mime,sha256:digest,...(ref?{library:ref}:{dataBase64:bytes.toString('base64')}),...Object.fromEntries(metadata.filter(k=>a[k]!==undefined).map(k=>[k,a[k]]))});
+   else check(fixed(a.library)||a.storageBackupRef,'图片原件缺失且没有墨库固定版本：'+a.name,409);
+   const digest=bytes?hash(bytes):a.storageBackupRef?.fileSha256||a.library.sha256,ref=fixed(a.library)&&a.library.sha256===digest?safeRef(a.library):null,archive=a.storageBackupRef?.fileSha256===digest?structuredClone(a.storageBackupRef):null;
+   if(!ref&&!archive){total+=bytes.length;check(total<=MAX_PROJECT,'离线工程原件超过512MB，请先上传墨库再保存',413);}
+   assets.push({id,name:a.name,width:a.width,height:a.height,mime:a.mime,sha256:digest,...(archive?{archive,...(ref?{library:ref}:{})}:ref?{library:ref}:{dataBase64:bytes.toString('base64')}),...Object.fromEntries(metadata.filter(k=>a[k]!==undefined).map(k=>[k,a[k]]))});
   }
   const text=JSON.stringify(view),fonts=[];
-  for(const f of store.db.libraryFonts||[]){if(!text.includes(JSON.stringify(f.key)))continue;const ref=safeRef({...f.provenance,revisionId:f.revisionId});check(fixed(ref),'字体缺少墨库固定版本：'+f.name,409);fonts.push({key:f.key,name:f.name,library:ref});}
+  for(const f of store.db.libraryFonts||[]){if(!text.includes(JSON.stringify(f.key)))continue;const ref=safeRef({...f.provenance,revisionId:f.revisionId});check(fixed(ref),'字体缺少墨库固定版本：'+f.name,409);fonts.push({key:f.key,name:f.name,library:ref,...(f.provenance?.archiveRef?{archive:f.provenance.archiveRef}:{})});}
   const originals=[];for(const f of project.sourceOriginalFiles||[]){const file=sourceOriginalPath(dataDir,project.id,f.hash);check(fs.existsSync(file),'导入原件缺失：'+f.name,409);const bytes=fs.readFileSync(file);check(hash(bytes)===f.hash,'导入原件摘要不符：'+f.name,409);total+=bytes.length;originals.push({...f,dataBase64:bytes.toString('base64')});}
   const packageSources=project.productionPackage?productionPackages.exportSources(project):undefined;
   const targets=library.projectSnapshotTargets?.(project.id,remoteProjectId)||[],restoreSnapshots=targets.length?targets:project.mokuRestoreSnapshots||[];
@@ -71,7 +74,7 @@ export function createProjectPortability({store,library,dataDir,productionPackag
   check(Buffer.byteLength(JSON.stringify(result))<=MAX_PROJECT*1.4,'工程文件超过大小上限，请先上传墨库再保存',413);active();return result;
  }
  async function prepareImport(raw){
-  let input=raw,sourceFile;
+  let input=expandProjectFile(raw),sourceFile;
   if(uuid(raw?.documentId)){
    const document=await library.read('/api/documents/'+raw.documentId);input={...document.content,restoreSnapshots:document.restoreSnapshots};
   }else if(raw?.mokuFile){
@@ -83,6 +86,7 @@ export function createProjectPortability({store,library,dataDir,productionPackag
   }
   // Moku's downloadable snapshot archive wraps the editor format in content.
   for(let i=0;i<4&&!input?.format&&input?.content;i++)input=input.content;
+  input=expandProjectFile(input);
   const restoreSnapshots=input?.restoreSnapshots;
   if(input?.format===SNAPSHOT_FORMAT){
    const envelope=input;remember(envelope.payload);input=await decodeProjectSnapshot(envelope,library);
@@ -112,10 +116,16 @@ export function createProjectPortability({store,library,dataDir,productionPackag
    }
   }
   }
-  let embeddedTotal=0;
+  let embeddedTotal=0;const archiveCache=new Map();
   async function resource(item,expected){
    const ref=item.library||((item.assetId&&item.revisionId)?item:null);let bytes,identity=ref?safeRef(ref):null;
-   if(ref){
+   if(item.archive){
+    const a=item.archive;check(uuid(a.assetId)&&uuid(a.revisionId)&&sha(a.sha256)&&sha(a.fileSha256)&&a.fileSha256===expected&&a.entry==='objects/'+a.fileSha256&&a.assetType!=='comic_panel','工程归档原件身份无效',422);
+    check(!a.baseUrl||!library.baseUrl||a.baseUrl.replace(/\/$/,'')===library.baseUrl.replace(/\/$/,''),'归档原件属于其他墨库服务器',409);
+    remember({...a,scopeId:'project',assetKind:'file',assetType:'project_archive'});const key=a.revisionId+':'+a.sha256;
+    let zip=archiveCache.get(key);if(!zip){zip=await bytesFrom(await library.remote('/api/revisions/'+a.revisionId+'/download'),a.sha256,240*1024*1024);if(archiveCache.size>=1)archiveCache.delete(archiveCache.keys().next().value);archiveCache.set(key,zip);}
+    bytes=backupEntryBytes(zip,a.entry);check(hash(bytes)===expected&&(!a.fileBytes||bytes.length===a.fileBytes),'工程归档原件摘要不符',422);if(identity){identity.sha256=expected;identity.archiveRef=a;}
+   }else if(ref){
     check(uuid(ref.assetId)&&uuid(ref.revisionId),'工程资源固定版本身份无效');remember(ref);
     // A verified local cache may be reused offline; never trust a path supplied by the file.
     if(sha(expected)){
@@ -131,7 +141,7 @@ export function createProjectPortability({store,library,dataDir,productionPackag
    }else if(typeof item.dataBase64==='string'){
     check(item.dataBase64.length<=Math.ceil(MAX_FILE/3)*4&&/^[A-Za-z0-9+/]*={0,2}$/.test(item.dataBase64),'工程内嵌原件格式或大小无效',413);bytes=Buffer.from(item.dataBase64,'base64');embeddedTotal+=bytes.length;check(embeddedTotal<=maxEmbeddedBytes,'工程内嵌原件超过大小限制，请先在原电脑上传墨库',413);check(sha(expected)&&hash(bytes)===expected,'工程内嵌原件摘要不符',422);
    }else return null;
-   active();return {bytes,library:identity};
+   active();return {bytes,library:identity,archive:item.archive};
   }
   const stage=(bytes,name,ref,localId='')=>{
    const extension=path.extname(String(name||'')).toLowerCase(),suffix=/^\.[a-z0-9]{1,8}$/.test(extension)?extension:'.bin';

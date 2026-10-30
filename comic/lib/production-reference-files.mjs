@@ -1,3 +1,4 @@
+import {productionFrameSegment} from '../public/production-frame-source.js';
 import {assetUnavailable} from '../public/asset-availability.js';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
@@ -13,6 +14,6 @@ export function verifyProductionReferenceFiles(plan,assets){
  for(const ref of plan?.segment.references||[]){if(ref.skipped||ref.binding?.sourceType!=='local'||!plan.refs.some(r=>r.assetId===ref.binding.assetId))continue;const asset=assets.find(a=>a.id===ref.binding.assetId);check(asset?.filePath&&fs.existsSync(asset.filePath),'本地附图已缺失，请重新定位并绑定');check(fs.statSync(asset.filePath).size<=256*1024*1024&&sha(fs.readFileSync(asset.filePath))===ref.binding.sha256,'本地附图内容已改变，请重新看图绑定：'+asset.name,409);}
 }
 export function productionReferenceVersions(project,frame,refs,assets){
- const segment=project.productionPackage?.episodes.flatMap(e=>e.segments).find(s=>s.id===(frame.productionSegment||frame.productionBackground?.replace(/-BG$/,'')||frame.panelSlice?.segmentId));
+ const segment=project.productionPackage?.episodes.flatMap(e=>e.segments).find(s=>s.id===(productionFrameSegment(frame)));
  return refs.map(r=>({...assets.find(a=>a.id===r.assetId)?.library,...segment?.references.find(ref=>ref.binding?.assetId===r.assetId)?.binding,localAssetId:r.assetId,name:r.name}));
 }

@@ -18,5 +18,6 @@ export function bubbleTailVisible(bubble){
   &&!tail.visibilityExplicit&&!Number.isFinite(tail.x)&&!Number.isFinite(tail.y);
 }
 export function productionTailVisible(text,type){
- return Object.hasOwn(text||{},'泡尾')?!!text['泡尾']:type==='speech';
+ if(text?.['泡尾']===false||text?.['泡尾']?.visible===false)return false;
+ return ['speech','thought'].includes(type);
 }

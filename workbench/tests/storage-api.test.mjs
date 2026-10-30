@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import http from 'node:http';import {randomUUID,createHash} from 'node:crypto';
+test('center cleanup checks verified backup receipt, rejects remote callers, and restores cold files before serving',async t=>{
+ const base=fs.mkdtempSync(path.join(os.tmpdir(),'storage-api-'));process.env.WORKBENCH_DATA_DIR=path.join(base,'center');
+ const {registerProjectCenter}=await import('../server/project-api.mjs');
+ const ctx={logger:{error(){}},jobs:{},index:{}};const routes=await registerProjectCenter(ctx);t.after(()=>ctx.projectCenter.close());const core=ctx.projectCenter.core,p=core.createProject({title:'Synthetic'});
+ const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64'),sha=createHash('sha256').update(bytes).digest('hex'),file=core.upload(p.id,{name:'image.png',type:'comic-image',mime:'image/png'},bytes);let verified=false;
+ const helper=http.createServer(async(req,res)=>{for await(const chunk of req){}res.setHeader('Content-Type','application/json');if(req.url.endsWith('/verify-backup'))return res.end(JSON.stringify({ok:verified}));if(req.url.endsWith('/restore-center')){fs.writeFileSync(file.path,bytes);return res.end('{"ok":true}');}res.statusCode=404;res.end('{}');});await new Promise(r=>helper.listen(0,'127.0.0.1',r));t.after(()=>{helper.closeAllConnections();helper.close();});
+ const service=path.join(base,'comic-service.local.json');fs.writeFileSync(service,JSON.stringify({port:helper.address().port}));process.env.COMIC_SERVICE_FILE=service;
+ const route=routes.find(r=>r.pattern.test('/api/v1/storage/evict')),input={files:[{id:file.id,sha256:sha,backup:{assetId:randomUUID(),revisionId:randomUUID(),sha256:'a'.repeat(64)}}]},request={loopback:true,headers:{host:'127.0.0.1'},params:[],json:async()=>input,url:new URL('http://127.0.0.1/api/v1/storage/evict')};
+ await assert.rejects(route.handler({...request,loopback:false}),/本机/);await assert.rejects(route.handler(request),/回执/);assert.equal(fs.existsSync(file.path),true);
+ verified=true;const result=await route.handler(request);assert.equal(result.body.files,1);assert.equal(fs.existsSync(file.path),false);assert.equal(core.get('file',file.id).storageBackup.fileSha256,sha);
+ const getter=routes.find(r=>r.pattern.test('/api/v1/files/'+file.id+'/content')),opened=await getter.handler({...request,params:[file.id],url:new URL('http://127.0.0.1/api/v1/files/'+file.id+'/content')});assert.equal(opened.file.path,file.path);assert.deepEqual(fs.readFileSync(file.path),bytes);
+});

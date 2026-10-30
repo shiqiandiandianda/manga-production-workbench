@@ -19,7 +19,7 @@ export function mountResponsiveWorkbench({onOpenInspector,getInspectorState,onAd
 
  // Six stable editing entries. Detailed commands live in named groups.
  const insert=menu(tools,'insert-menu','＋ 添加');insert.id='insert-actions';
- caption(insert,'文字与素材');move(insert,'#add-bubble','[data-open-sfx]','#gradient-tool','[data-tool="insert-space"]');
+ move(insert,'#gradient-tool','#add-bubble');$('#gradient-tool').textContent='添加渐变';
  const edit=menu(tools,'edit-menu','编辑');
  caption(edit,'画面图层');move(edit,'#image-layer-copy','#image-layer-paste');
  caption(edit,'选择范围');for(const button of [...$('#select-all-menu').children])edit.append(button);
@@ -57,7 +57,7 @@ export function mountResponsiveWorkbench({onOpenInspector,getInspectorState,onAd
  const nodeModes=document.createElement('div');nodeModes.className='dock-frame-modes';nodeModes.hidden=true;nodeModes.dataset.frameModes='';const nodes=$('[data-tool="nodes"]');nodes.textContent='自由节点';nodes.title='拖动节点调整画格轮廓，图片保持原位';nodeModes.append(nodes);primary.after(nodeModes);
  const oldMenu=$('.panel-tool-wrap');oldMenu.before($('#toolbar-add-panel'),$('[data-tool="mask"]'));oldMenu.remove();
  const nodeActions=document.createElement('div');nodeActions.className='dock-node-actions';nodeActions.dataset.nodeControls='';nodeActions.hidden=true;nodeActions.innerHTML='<button data-node-add aria-label="增加格子点">加点</button><button data-node-delete aria-label="删除格子点">删点</button><small>点击边线加点，选中节点后可删除</small>';nodeModes.after(nodeActions);nodeActions.querySelector('[data-node-add]').onclick=onAddNode;nodeActions.querySelector('[data-node-delete]').onclick=onDeleteNode;
- const creates=$('.layer-create');creates.classList.add('rail-create');creates.setAttribute('aria-label','新增图层');$('.workspace-rail').insertBefore(creates,$('[data-open-generation-settings]'));for(const [id,label] of [['layer-add','格子＋'],['layer-add-bubble','对白'],['layer-add-gradient','渐变']])$('#'+id).textContent=label;creates.querySelector('[data-open-sfx]').textContent='特效';
+ const creates=$('.layer-create');creates.classList.add('rail-create');creates.setAttribute('aria-label','新增图层');$('.workspace-rail').insertBefore(creates,$('[data-open-generation-settings]'));for(const [id,label] of [['layer-add','格子＋'],['layer-add-gradient','渐变']])$('#'+id).textContent=label;
  const toggle=document.createElement('button');toggle.id='canvas-tools-toggle';toggle.textContent='常用工具';toggle.setAttribute('aria-controls',dock.id);toolbar.prepend(toggle);
  const floating=mountFloatingCanvasTools({dock,area,toolbar});
  function showTools(value){const changed=area.classList.contains('tools-collapsed')===value;area.classList.toggle('tools-collapsed',!value);toggle.setAttribute('aria-expanded',String(value));if(changed)window.dispatchEvent(new Event('resize'));}

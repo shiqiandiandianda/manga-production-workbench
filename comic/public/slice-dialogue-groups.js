@@ -5,7 +5,7 @@ import {validateSliceRegion} from './panel-slices.js';
 export const localDialogueId=id=>'local:'+id;
 export const dialogueGroupFor=(groups,id)=>Object.values(groups).find(g=>g.textIds.includes(id));
 export function groupPreviewBubble(group,preview){
- const r=group.region,b={...group.bubble,x:r.x*preview.width,y:r.y*preview.height,w:r.w*preview.width,h:r.h*preview.height,visible:true};
+ const r=group.region,scale=group.coordinateScale||1,b={...group.bubble,x:r.x*preview.width/scale,y:r.y*preview.height/scale,w:r.w*preview.width/scale,h:r.h*preview.height/scale,visible:true};
  b.dialogueSegments=structuredClone(group.segments);b.text=b.dialogueSegments.map(s=>s.text).join('\n\n');return b;
 }
 export function groupTextRegions(group){
@@ -26,8 +26,8 @@ export function createSliceDialogueGroup(ids,{texts,positions,regions,groups,exi
  const grid=regions[lines[0]['格ID']];if(!grid)throw Error('请先确认本格区域');
  const available=ids.map(id=>positions[id]).filter(Boolean),x=available.length?Math.min(...available.map(r=>r.x)):grid.x+grid.w*.3,y=available.length?Math.min(...available.map(r=>r.y)):grid.y+grid.h*.1;
  const w=Math.min(1-x,Math.max(grid.w*.4,...available.map(r=>r.x+r.w-x))),h=Math.min(1-y,Math.max(w*preview.width/preview.height*.9,...available.map(r=>r.y+r.h-y)));
- const bubble=applyBubbleMaterial({type:'speech',visible:true,fontSize:existing.get(ids[0])?.fontSize||Math.max(16,preview.width*.035),fontFamily:fontFamily||'source-han-sans',fontWeight:500,lineHeight:1.32,textAlign:'center',textColor:'#111111',fillColor:'#ffffff',fillOpacity:1,outlineWidth:2},'builtin-double');
- const group={textIds:ids,region:{x,y,w,h},bubble,segments:lines.map((t,i)=>({id:'dialogue-'+(i+1),sourceTextId:t.localDialogue?undefined:t['文字ID'],speaker:t['说话人']||'',text:existing.get(t['文字ID'])?.text??t['文本'],textBox:defaultDialogueBox(bubble,i)})),changed:true};
+ const bubble=applyBubbleMaterial({type:'speech',visible:true,fontSize:existing.get(ids[0])?.fontSize||preview.letteringStyle?.fontSize||36,fontFamily:fontFamily||'source-han-sans',fontWeight:500,lineHeight:1.32,textAlign:'center',textColor:'#111111',fillColor:'#ffffff',fillOpacity:1,outlineWidth:2},'builtin-double');
+ const group={textIds:ids,region:{x,y,w,h},bubble,coordinateScale:preview.letteringScale||1,segments:lines.map((t,i)=>({id:'dialogue-'+(i+1),sourceTextId:t.localDialogue?undefined:t['文字ID'],speaker:t['说话人']||'',text:existing.get(t['文字ID'])?.text??t['文本'],textBox:defaultDialogueBox(bubble,i)})),changed:true};
  if(group.segments.map(s=>s.text).join('\n\n').length>4000)throw Error('两段台词合计最多 4000 字');
  groups[ids[0]]=group;Object.assign(positions,groupTextRegions(group));return group;
 }

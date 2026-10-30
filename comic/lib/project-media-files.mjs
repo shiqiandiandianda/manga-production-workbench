@@ -19,6 +19,7 @@ const assetId=v=>/^asset_[a-f0-9-]{36}$/i.test(v||'');
 const metadata=['libraryRole','libraryName','libraryState','libraryAliases','libraryStateAliases','productionStatus','productionAssetId','productionStageId','referenceGeneration'];
 function strings(value,set=new Set(),depth=0){if(depth>60)return set;if(typeof value==='string')set.add(value);else if(Array.isArray(value))for(const v of value)strings(v,set,depth+1);else if(value&&typeof value==='object')for(const v of Object.values(value))strings(v,set,depth+1);return set;}
 export function createProjectMediaFiles({store,library,dataDir,receipts,persist,exportSources=()=>undefined}){
+ const digestCache=new Map();
  async function upload(bytes,name,projectId,key,mime='application/octet-stream',category='reference',folder,context={}){
   const sha256=hashBytes(bytes),receiptKey='v2:'+hashValue([projectId,key,sha256,context]),legacy=receipts[projectId+':'+key+':'+sha256],fields=['scopeId','episodeId','assetKind','assetType','engineeringId','panelId'];
   // Keep an old receipt only when its recorded classification still matches.
@@ -36,10 +37,14 @@ export function createProjectMediaFiles({store,library,dataDir,receipts,persist,
   const remember=ref=>{if(ref?.projectId===projectId&&ref.assetType==='comic_panel'&&uuid(ref.assetId)&&uuid(ref.revisionId)&&/^[a-f0-9]{64}$/i.test(ref.sha256||''))sharedImages.set(ref.sha256,ref);};
   for(const receipt of Object.values(receipts))remember(receipt);
   for(const asset of store.db.assets)if(values.has(asset.id)&&panelImages.has(asset.id))remember(asset.library);
-  for(const id of values){if(!assetId(id))continue;const asset=store.db.assets.find(a=>a.id===id);check(asset,'工程引用的图片未登记：'+id,409);const file=store.assetPath(id);check(fs.existsSync(file),'图片原件缺失：'+asset.name,409);check(fs.statSync(file).size<=256*1024*1024,'图片超过256MB：'+asset.name,413);const bytes=fs.readFileSync(file);const sha=hashBytes(bytes);
+  for(const id of values){if(!assetId(id))continue;const asset=store.db.assets.find(a=>a.id===id);check(asset,'工程引用的图片未登记：'+id,409);
+   const file=store.assetPath(id);if(!fs.existsSync(file)&&asset.storageEvicted&&asset.library?.revisionId){assets.push({id,name:asset.name,width:asset.width,height:asset.height,mime:asset.mime||'image/png',sha256:asset.library.sha256,library:{...asset.library},...Object.fromEntries(metadata.filter(k=>asset[k]!==undefined).map(k=>[k,asset[k]]))});continue;}
+   check(fs.existsSync(file),'图片原件缺失：'+asset.name,409);const stat=fs.statSync(file);check(stat.size<=256*1024*1024,'图片超过256MB：'+asset.name,413);
+   const stamp=[file,stat.dev,stat.ino,stat.size,stat.mtimeMs,stat.ctimeMs].join('|');let bytes,sha=digestCache.get(stamp);
+   if(!sha){bytes=fs.readFileSync(file);sha=hashBytes(bytes);if(digestCache.size>=2048)digestCache.delete(digestCache.keys().next().value);digestCache.set(stamp,sha);}
    let reference=uuid(asset.library?.assetId)&&uuid(asset.library?.revisionId)&&asset.library.sha256===sha&&(!asset.library.projectId||asset.library.projectId===projectId)?{...asset.library}:null;
    if(!reference&&panelImages.has(id))reference=sharedImages.get(sha);
-   if(!reference){const context=await library.projectUploadContext?.(project,projectId,{assetId:id})||{};reference=await upload(bytes,asset.name||id+'.png',projectId,context.assetType==='comic_panel'?'image-content:'+sha:'image:'+id,asset.mime||'image/png',asset.libraryRole||'reference',folders.asset(id),context);}
+   if(!reference){const context=await library.projectUploadContext?.(project,projectId,{assetId:id})||{};reference=await upload(bytes||fs.readFileSync(file),asset.name||id+'.png',projectId,context.assetType==='comic_panel'?'image-content:'+sha:'image:'+id,asset.mime||'image/png',asset.libraryRole||'reference',folders.asset(id),context);}
    if(panelImages.has(id))remember(reference);
    library.assertSession?.();reference={...reference,baseUrl:library.baseUrl,sha256:sha};if(JSON.stringify(asset.library)!==JSON.stringify(reference)){asset.library=reference;metadataChanged=true;}
    assets.push({id,name:asset.name,width:asset.width,height:asset.height,mime:asset.mime||'image/png',sha256:sha,library:reference,...Object.fromEntries(metadata.filter(k=>asset[k]!==undefined).map(k=>[k,asset[k]]))});

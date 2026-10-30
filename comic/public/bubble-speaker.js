@@ -22,9 +22,17 @@ export function speakerMarkup(project,bubble,assets=[],{editable=false}={}){
   const asset=speakerAvatar(project,bubble,assets),avatar=asset?speakerAvatarMarkup(asset,speaker.name,{assigned:!!project?.speakerAvatars?.[speaker.name],escape:esc}):'<span class="speaker-initial" aria-hidden="true">'+esc([...speaker.name][0])+'</span>';
   return '<div class="bubble-speaker-info">'+avatar+'<div><small>'+esc(speaker.label)+'</small><strong>'+esc(speaker.name)+'</strong></div>'+(editable&&speaker.known?'<button type="button" data-action="choose-speaker-avatar" title="为本话这个人物选择头像">'+(asset?'换头像':'选头像')+'</button>':'')+'</div>';
 }
-export function mountBubbleSpeaker({stage,scroll,getProject,getSelection,getAssets}){
+export function badgePosition(rect,area,width,height,controls){
+ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),overlap=(a,b)=>Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))*Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));
+ const candidates=[rect.left-width-14,rect.right+14].flatMap(left=>[rect.top,rect.bottom-height,(rect.top+rect.bottom-height)/2,...controls.flatMap(r=>[r.top-height-12,r.bottom+12])].map(y=>{const top=clamp(y,area.top+6,area.bottom-height-6);return {left,top,right:left+width,bottom:top+height};}));
+ // Never clamp a side badge back over the body or put it above the bubble.
+ // Prefer the visible side, then a free vertical position beside the controls.
+ return candidates.map((p,i)=>({...p,score:(width*height-overlap(p,area))*100+controls.reduce((sum,r)=>sum+overlap(p,r),0)*10,i})).sort((a,b)=>a.score-b.score||a.i-b.i)[0];
+}
+export function mountBubbleSpeaker({stage,scroll,getProject,getSelection,getAssets,displayOnCanvas=true}){
   const chip=document.createElement('div');chip.className='bubble-speaker-chip';chip.hidden=true;chip.setAttribute('role','status');chip.setAttribute('aria-live','polite');document.body.append(chip);
   function refresh(){
+    if(!displayOnCanvas){chip.hidden=true;return;}
     const selection=getSelection(),project=getProject(),bubble=selection?.type==='bubble'?project?.pages?.flatMap(page=>page.bubbles||[]).find(item=>item.id===selection.id):null;
     if(!bubbleSpeaker(project,bubble)){chip.hidden=true;return;}
     const node=stage.querySelector('[data-bubble="'+bubble.id+'"]');if(!node){chip.hidden=true;return;}
@@ -34,8 +42,8 @@ export function mountBubbleSpeaker({stage,scroll,getProject,getSelection,getAsse
     const corners=[[0,0],[width,0],[0,height],[width,height]].map(([x,y])=>({x:matrix.a*x+matrix.c*y+matrix.e,y:matrix.b*x+matrix.d*y+matrix.f}));
     const rect={left:Math.min(...corners.map(p=>p.x)),right:Math.max(...corners.map(p=>p.x)),top:Math.min(...corners.map(p=>p.y)),bottom:Math.max(...corners.map(p=>p.y))},area=scroll.getBoundingClientRect();if(rect.right<area.left||rect.left>area.right||rect.bottom<area.top||rect.top>area.bottom){chip.hidden=true;return;}
     let scope='segment';try{scope=localStorage.getItem('comic-speaker-order:'+project.id)==='episode'?'episode':'segment';}catch{}
-    const order=speakerOrder(project,bubble,scope);chip.innerHTML=speakerMarkup(project,bubble,getAssets())+(order?'<span class="speaker-order-number" title="说话顺序">'+order+'</span><button type="button" class="speaker-order-scope" data-speaker-order-scope title="切换编号范围">'+(scope==='segment'?'本屏':'整话')+'</button>':'');chip.hidden=false;
-    const chipWidth=chip.offsetWidth,chipHeight=chip.offsetHeight,above=rect.top-chipHeight-8>=area.top,left=above?rect.left:rect.left-chipWidth-8>=area.left?rect.left-chipWidth-8:rect.right+8;chip.style.left=Math.max(area.left+6,Math.min(left,area.right-chipWidth-6))+'px';chip.style.top=Math.max(area.top+6,Math.min(above?rect.top-chipHeight-8:rect.top,area.bottom-chipHeight-6))+'px';
+    const order=speakerOrder(project,bubble,scope);chip.innerHTML=speakerMarkup(project,bubble,getAssets())+(order?'<div class="speaker-order-row"><span class="speaker-order-number" title="说话顺序">'+order+'</span><button type="button" class="speaker-order-scope" data-speaker-order-scope title="切换编号范围">'+(scope==='segment'?'本屏':'整话')+'</button></div>':'');chip.hidden=false;
+    const controls=[...stage.querySelectorAll('[data-bubble="'+CSS.escape(bubble.id)+'"] [data-bubble-handle]')].map(n=>n.getBoundingClientRect()),position=badgePosition(rect,area,chip.offsetWidth,chip.offsetHeight,controls);chip.style.left=position.left+'px';chip.style.top=position.top+'px';
   }
   chip.addEventListener('click',event=>{if(!event.target.closest('[data-speaker-order-scope]'))return;const project=getProject();if(!project)return;let next='episode';try{const key='comic-speaker-order:'+project.id;next=localStorage.getItem(key)==='episode'?'segment':'episode';localStorage.setItem(key,next);}catch{}refresh();});
   scroll.addEventListener('scroll',refresh,{passive:true});window.addEventListener('resize',refresh);return {refresh,hide:()=>{chip.hidden=true;}};

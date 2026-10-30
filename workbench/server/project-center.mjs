@@ -3,6 +3,8 @@ import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {randomUUID, createHash, randomBytes} from 'node:crypto';
 import {readImageSize} from './archive.mjs';
+import {encodeEngineering} from './compact-engineering.mjs';
+import {brotliDecompressSync} from 'node:zlib';
 
 export const id = prefix => prefix + '_' + randomUUID();
 const now = () => new Date().toISOString();
@@ -57,11 +59,14 @@ export class ProjectCenter {
     const duplicate = existing.find(f => f.sha256 === digest); if (duplicate) return {...duplicate, duplicate: true};
     const extension = path.extname(name).toLowerCase();
     const folder = path.join(this.directory, 'projects', projectId, 'blobs'); fs.mkdirSync(folder, {recursive: true});
-    const filePath = path.join(folder, digest + extension); if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, bytes, {flag: 'wx'});
+    const compressed=input.type==='comic-project'&&extension==='.json'?encodeEngineering(bytes):null;
+    const filePath = path.join(folder, digest + extension+(compressed?'.br':'')); if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, compressed||bytes, {flag: 'wx'});
     const record = {id: id('file'), projectId, name, type: clean(input.type || 'original'), mime: clean(input.mime || 'application/octet-stream'), sha256: digest, bytes: bytes.length, path: filePath, version: existing.length + 1, previousId: existing.at(-1)?.id || null, createdAt: now(), sourceId: input.sourceId || null};
+    if(compressed)Object.assign(record,{storageEncoding:'br',storageBytes:compressed.length,storageSha256:hash(compressed)});
     if (record.sourceId) this.get('file', record.sourceId, projectId);
     this.put('file', record); if (record.sourceId) this.depend(projectId, record.sourceId, record.id); this.event(projectId, 'file.uploaded', {fileId: record.id, name, version: record.version}); return record;
   }
+  readFile(record){const bytes=fs.readFileSync(record.path),raw=record.storageEncoding==='br'?brotliDecompressSync(bytes,{maxOutputLength:128*1024*1024}):bytes;check(hash(raw)===record.sha256,'归档文件摘要不符',422);return raw;}
   draft(projectId, input) {
     this.get('project', projectId); const rules = structuredClone(DEFAULT_RULES);
     for (const [group, value] of Object.entries(input.rules || {})) { check(group in rules && value && typeof value === 'object' && !Array.isArray(value), '规范分类无效：' + group); rules[group] = {...rules[group], ...value}; }

@@ -100,6 +100,19 @@ export class Store {
     }
     this.meta.set(project.id,this.stamp(project,hash));this.dirty.delete(project.id);
   }
+  /** Publish an editor revision in memory only after its existing shard is written.
+   * A failed write leaves the old revision retryable by the same client. */
+  replaceProject(previous,next,{commit=()=>{}}={}){
+    const index=this.db.projects.indexOf(previous);
+    check(index>=0&&previous.id===next.id,'工程已改变，请重新载入',409);
+    try{this.writeProject(next);}catch(error){
+      this.lastSaveError=error.message;
+      throw Object.assign(new Error('工程尚未保存到本机，请检查磁盘空间或文件占用后重试：'+error.message),{status:503,code:'storage_write_failed'});
+    }
+    this.db.projects[index]=next;commit();
+    check(this.save(),'工程文件已写入，但共享模板或任务索引尚未保存，请保留窗口并重试',503);
+    return next;
+  }
   // Progress messages change many times per image. Coalescing them keeps the event loop free.
   // Status changes still call save() directly.
   saveSoon(delay=1000){if(this.saveTimer)return;this.saveTimer=setTimeout(()=>{this.saveTimer=null;this.save();},delay);this.saveTimer.unref?.();}
@@ -127,6 +140,7 @@ export class Store {
       this.lastSaveError=errors[0].message;console.error('工程数据暂时无法写盘，稍后自动重试：'+this.lastSaveError);
       if(!this.retryTimer){this.retryTimer=setTimeout(()=>{this.retryTimer=null;this.save();},1000);this.retryTimer.unref?.();}
     }else this.lastSaveError=null;
+    return errors.length===0;
   }
   /** 兜底核对：少数代码直接改工程对象而不更新版本号，这里分批比对内容，有差异就补写。 */
   scrub(budgetMs){
@@ -215,6 +229,3 @@ export function imageInfo(bytes) {
   }
   check(Number.isInteger(width)&&Number.isInteger(height)&&width>0&&height>0&&width<=20000&&height<=2000000&&width*height<=100000000,'仅支持有效的 PNG、JPEG 或 WebP 图片');return {width,height,mime,extension};
 }
-
-
-

@@ -1,0 +1,13 @@
+dialog.frame-upscale-dialog{width:min(1060px,calc(100vw - 40px));max-height:90vh;overflow:auto}
+.frame-upscale-columns{display:grid;grid-template-columns:minmax(240px,1fr) minmax(260px,1fr);gap:22px;align-items:start}
+.frame-upscale-columns figure{margin:0;text-align:center;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.frame-upscale-columns figure>img{display:block;width:100%;max-height:55vh;object-fit:contain;background:repeating-conic-gradient(#37414d 0% 25%,#242d37 0% 50%) 0 0/20px 20px}
+.frame-upscale-columns figcaption{padding-top:10px;color:var(--muted);line-height:1.7}
+.frame-upscale-columns h3{margin:0;font-size:15px;font-weight:600}
+.frame-upscale-reference-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px;max-height:40vh;overflow:auto}
+.frame-upscale-reference{display:flex;align-items:center;gap:8px;margin:0;padding:8px;border:1px solid var(--line);border-radius:7px;cursor:pointer;overflow-wrap:anywhere}
+.frame-upscale-reference>input{display:inline-block;flex:none;width:16px;margin:0}
+.frame-upscale-reference>img{width:68px;height:90px;object-fit:contain;flex:none;background:var(--bg)}
+.frame-upscale-reference>span{min-width:0;line-height:1.6}
+.frame-upscale-missing{padding:9px;border:1px solid #a28751;border-radius:6px}
+@media(max-width:700px){.frame-upscale-columns{grid-template-columns:1fr}.frame-upscale-columns figure>img{max-height:36vh}}

@@ -1,11 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
+import {createHash} from 'node:crypto';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {ProjectCenter, check, id} from './project-center.mjs';
 import {paths} from './paths.mjs';
 import {createFormalBridge} from './formal-bridge.mjs';
 import {recordSnapshot} from './project-snapshots.mjs';
+import {compressEngineeringBatch} from './compact-engineering.mjs';
 import {teamBridge} from './team-bridge.mjs';
 import {projectUploads} from './project-uploads.mjs';
 import {fileToText} from './script-library.mjs';
@@ -34,11 +36,36 @@ export async function registerProjectCenter(ctx) {
     }});
   }
   const body = r => r.json(48 * 1024 * 1024);
+  async function ensureLocalFile(f){
+    if(fs.existsSync(f.path))return;
+    check(f.storageBackup,'原件没有可恢复的墨库备份',404);
+    let port=18909;try{port=Number(JSON.parse(fs.readFileSync(process.env.COMIC_SERVICE_FILE||path.resolve(core.directory,'../../comic-service.local.json'),'utf8')).port)||port;}catch{}
+    const response=await fetch('http://127.0.0.1:'+port+'/api/storage-maintenance/restore-center',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fileId:f.id}),signal:AbortSignal.timeout(180000)});
+    const result=await response.json();check(response.ok&&result.ok&&fs.existsSync(f.path),result.error||'墨库原件恢复失败，保留原版本引用',503);
+  }
   const exposeFile = ({path: _path, ...f}) => ({...f, contentUrl: '/api/v1/files/' + f.id + '/content'});
   route('POST',/^\/api\/v1\/projects\/([^/]+)\/uploads$/,async r=>{allow(r,r.params[0]);return {body:uploads.start(r.params[0],await body(r),actor(r)?.id||'local')};});
   route('PUT',/^\/api\/v1\/projects\/([^/]+)\/uploads\/([^/]+)\/chunks\/(\d+)$/,async r=>{const bytes=await r.raw(8*1024*1024);allow(r,r.params[0]);return {body:uploads.chunk(r.params[0],r.params[1],Number(r.params[2]),bytes,actor(r)?.id||'local')};});
   route('POST',/^\/api\/v1\/projects\/([^/]+)\/uploads\/([^/]+)\/complete$/,async r=>{allow(r,r.params[0]);return {body:exposeFile(await uploads.complete(r.params[0],r.params[1],actor(r)?.id||'local'))};});
   route('GET', /^\/api\/v1\/center\/status$/, async r => ({body: {application: 'project-production-center', version: '3.0.0', projects: core.list('project').length,...(r.loopback?{dataRoot:paths.data,codeRoot:paths.root}: {})}}));
+  route('POST',/^\/api\/v1\/storage\/compact$/,async r=>{check(r.loopback,'仅允许本机维护',403);return {body:compressEngineeringBatch(core,await body(r))};});
+  route('GET',/^\/api\/v1\/storage\/status$/,async r=>{check(r.loopback,'仅允许本机维护',403);const seen=new Set();let bytes=0;for(const row of core.list('file'))if(!seen.has(row.path)&&fs.existsSync(row.path)){seen.add(row.path);bytes+=fs.statSync(row.path).size;}return {body:{bytes,files:seen.size,directory:core.directory}};});
+  route('GET',/^\/api\/v1\/storage\/inventory$/,async r=>{check(r.loopback,'仅允许本机维护',403);return {body:{directory:core.directory,files:core.list('file').map(f=>({...f,projectTitle:core.get('project',f.projectId).title,localProjectId:core.get('project',f.projectId).externalKey||''}))}};});
+  route('GET',/^\/api\/v1\/storage\/file\/([^/]+)$/,async r=>{check(r.loopback,'仅允许本机维护',403);return {body:{directory:core.directory,file:core.get('file',r.params[0])}};});
+  route('POST',/^\/api\/v1\/storage\/evict$/,async r=>{check(r.loopback,'仅允许本机维护',403);const input=await body(r);check(Array.isArray(input.files)&&input.files.length<=20,'每批最多20份归档文件');let files=0,bytes=0;
+    check(!core.list('task').some(t=>['queued','claimed','running','uncertain'].includes(t.status)),'项目中心有任务，暂缓清理');
+    for(const item of input.files){const f=core.get('file',item.id);if(!fs.existsSync(f.path))continue;
+      check(typeof item.backup?.revisionId==='string'&&/^[a-f0-9-]{36}$/i.test(item.backup.revisionId)&&/^[a-f0-9]{64}$/.test(item.backup.sha256||'')&&/^[a-f0-9]{64}$/.test(item.sha256||''),'缺少已验证的固定备份');
+      const real=fs.realpathSync(f.path),relative=path.relative(core.directory,real);check(relative.startsWith('projects'+path.sep)&&!relative.split(path.sep).includes('..')&&!fs.lstatSync(f.path).isSymbolicLink(),'归档路径不在本机工程目录');
+      const stat=fs.statSync(f.path);if(files&&bytes+stat.size>50*1024*1024)break;
+      const sha=createHash('sha256').update(fs.readFileSync(f.path)).digest('hex');if(sha!==item.sha256)continue;
+      let port=18909;try{port=Number(JSON.parse(fs.readFileSync(process.env.COMIC_SERVICE_FILE||path.resolve(core.directory,'../../comic-service.local.json'),'utf8')).port)||port;}catch{}
+      const verified=await fetch('http://127.0.0.1:'+port+'/api/storage-maintenance/verify-backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({backup:item.backup,entrySha256:sha}),signal:AbortSignal.timeout(15000)}).then(x=>x.json());
+      check(verified.ok,'缺少可核对的墨库备份回执，原件保留');
+      core.tx(()=>{for(const record of core.list('file').filter(x=>x.path===f.path))core.put('file',{...record,storageBackup:{...item.backup,entry:'objects/'+sha,fileSha256:sha,fileBytes:stat.size},storageEvicted:true});});
+      fs.unlinkSync(f.path);files++;bytes+=stat.size;
+    }return {body:{files,bytes}};
+  });
   route('GET', /^\/api\/v1\/projects$/, async r => ({body: {projects: core.list('project').filter(p => !actor(r)?.projectIds?.length || actor(r).projectIds.includes(p.id))}}));
   route('POST', /^\/api\/v1\/projects$/, async r => {
     const input = await body(r); check(!actor(r)?.projectIds?.length, '受限工具不能创建新项目', 403);
@@ -60,7 +87,7 @@ export async function registerProjectCenter(ctx) {
     else { input = {name: r.url.searchParams.get('name'), type: r.url.searchParams.get('type'), mime: r.headers['content-type']}; bytes = await r.raw(128 * 1024 * 1024); }
     return {status: 201, body: exposeFile(core.upload(p, input, bytes))};
   });
-  route('GET', /^\/api\/v1\/files\/([^/]+)\/content$/, async r => { const f = core.get('file', r.params[0]); allow(r, f.projectId); return {file: {path: f.path, mime: f.mime, downloadName: f.name,inline:/^image\/(png|jpeg|webp|gif)$/.test(f.mime)}, headers: {'X-Content-Type-Options': 'nosniff','Content-Security-Policy':"sandbox; default-src 'none'"}, cacheControl: 'private, no-cache'}; });
+  route('GET', /^\/api\/v1\/files\/([^/]+)\/content$/, async r => { const f = core.get('file', r.params[0]); allow(r, f.projectId);await ensureLocalFile(f); return {file: {path: f.path, mime: f.mime,bytes:f.bytes,encoding:f.storageEncoding,downloadName: f.name,inline:/^image\/(png|jpeg|webp|gif)$/.test(f.mime)}, headers: {'X-Content-Type-Options': 'nosniff','Content-Security-Policy':"sandbox; default-src 'none'"}, cacheControl: 'private, no-cache'}; });
   route('POST', /^\/api\/v1\/projects\/([^/]+)\/scripts\/import$/, async r => {
     const [p] = r.params; allow(r, p); const input = await body(r), f = core.get('file', input.fileId, p);
     const imported = await ctx.scripts.importFile({fileName: f.name, bytes: fs.readFileSync(f.path), title: input.title || f.name});

@@ -1,2 +1,11 @@
-@font-face{font-family:'Source Han Sans SC';src:url('./fonts/SourceHanSansSC-Regular.otf') format('opentype');font-weight:100 500;font-display:swap}
-@font-face{font-family:'Source Han Sans SC';src:url('./fonts/SourceHanSansSC-Bold.otf') format('opentype');font-weight:600 900;font-display:swap}
+@font-face{font-family:'Source Han Sans SC';src:url('/repair/fonts/SourceHanSansSC-Light.otf') format('opentype');font-weight:300;font-display:swap}
+@font-face{font-family:'Source Han Sans SC';src:url('./fonts/SourceHanSansSC-Regular.otf') format('opentype');font-weight:400;font-display:swap}
+@font-face{font-family:'Source Han Sans SC';src:url('/repair/fonts/SourceHanSansSC-Medium.otf') format('opentype');font-weight:500;font-display:swap}
+@font-face{font-family:'Source Han Sans SC';src:url('./fonts/SourceHanSansSC-Bold.otf') format('opentype');font-weight:700;font-display:swap}
+@font-face{font-family:'Source Han Sans SC';src:url('/repair/fonts/SourceHanSansSC-Heavy.otf') format('opentype');font-weight:900;font-display:swap}
+@font-face{font-family:'Source Han Serif SC';src:url('/repair/fonts/SourceHanSerifSC-Light.otf') format('opentype');font-weight:300;font-display:swap}
+@font-face{font-family:'Source Han Serif SC';src:url('/repair/fonts/SourceHanSerifSC-Regular.otf') format('opentype');font-weight:400;font-display:swap}
+@font-face{font-family:'Source Han Serif SC';src:url('/repair/fonts/SourceHanSerifSC-Medium.otf') format('opentype');font-weight:500;font-display:swap}
+@font-face{font-family:'Source Han Serif SC';src:url('/repair/fonts/SourceHanSerifSC-SemiBold.otf') format('opentype');font-weight:600;font-display:swap}
+@font-face{font-family:'Source Han Serif SC';src:url('/repair/fonts/SourceHanSerifSC-Bold.otf') format('opentype');font-weight:700;font-display:swap}
+@font-face{font-family:'Source Han Serif SC';src:url('/repair/fonts/SourceHanSerifSC-Heavy.otf') format('opentype');font-weight:900;font-display:swap}

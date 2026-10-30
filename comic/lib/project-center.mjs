@@ -18,7 +18,10 @@ export function createProjectCenterSync({store,dataDir,saveProject,collabClient,
  const file=path.join(dataDir,'project-center-sync.local.json');let mapping={};try{mapping=JSON.parse(fs.readFileSync(file));}catch{}
  let busy=false,closed=false,lastError='';const dirty=new Set(),referenceSubmissions=new Set();
  async function api(route,data,method=data===undefined?'GET':'POST'){
-  const res=await fetch(url+route,{method,headers:{...(data===undefined?{}:{'Content-Type':'application/json'}),...(token?{Authorization:'Bearer '+token}:{})},...(data===undefined?{}:{body:JSON.stringify(data)}),signal:AbortSignal.timeout(60000)});const result=await res.json();if(!res.ok)throw Error(result.error||'项目中心连接失败');return result;
+  let res;
+  try{res=await fetch(url+route,{method,headers:{...(data===undefined?{}:{'Content-Type':'application/json'}),...(token?{Authorization:'Bearer '+token}:{})},...(data===undefined?{}:{body:JSON.stringify(data)}),signal:AbortSignal.timeout(60000)});}
+  catch(cause){const address=new URL(url),local=['127.0.0.1','localhost','[::1]'].includes(address.hostname);throw Object.assign(Error('无法连接项目中心（'+address.host+'）。'+(local?'请通过“启动工作台.cmd”启动完整工作台，等待配套服务就绪。':'请检查项目中心地址和服务状态。'),{cause}),{status:503,code:'project_center_unavailable'});}
+  const result=await res.json();if(!res.ok)throw Object.assign(Error(result.error||'项目中心连接失败'),{status:res.status});return result;
  }
  const save=()=>writeFileAtomicSync(file,JSON.stringify(mapping,null,2));
  const referenceWork=project=>{let links={};try{links=JSON.parse(fs.readFileSync(path.join(dataDir,'teamwork/local.json'),'utf8')).links||{};}catch{}return {projectId:project.id,title:project.title,mokuProjectId:links[project.id]?.remoteProjectId||''};};
@@ -41,8 +44,8 @@ export function createProjectCenterSync({store,dataDir,saveProject,collabClient,
   const p=await api('/api/v1/projects',{title:project.title,externalKey:project.id});mapping[project.id]||={};mapping[project.id].projectId=p.id;
   const files={};
   const allIds=new Set();const collect=v=>{if(typeof v==='string'&&/^asset_[a-f0-9-]{36}$/.test(v))allIds.add(v);else if(Array.isArray(v))v.forEach(collect);else if(v&&typeof v==='object')Object.values(v).forEach(collect);};collect(project);
-  await ensureAssets([...allIds]);
-  for(const asset of store.db.assets.filter(a=>allIds.has(a.id)))try{const bytes=fs.readFileSync(store.assetPath(asset.id));files[asset.id]=await upload(p.id,asset.name+(path.extname(asset.name)?'':asset.extension||'.png'),bytes,'comic-image','image/'+(asset.extension==='.jpg'?'jpeg':(asset.extension||'.png').slice(1)));materialize(asset,{id:files[asset.id],projectId:p.id,sha256:hash(bytes),name:asset.name},bytes);}catch(e){throw Error('素材未归档：'+asset.name+'；'+e.message);}
+  await ensureAssets([...allIds].filter(id=>!store.db.assets.find(a=>a.id===id)?.storageEvicted));
+  for(const asset of store.db.assets.filter(a=>allIds.has(a.id)))try{if(asset.storageEvicted&&asset.projectCenterFile){files[asset.id]=asset.projectCenterFile.fileId;continue;}const bytes=fs.readFileSync(store.assetPath(asset.id));files[asset.id]=await upload(p.id,asset.name+(path.extname(asset.name)?'':asset.extension||'.png'),bytes,'comic-image','image/'+(asset.extension==='.jpg'?'jpeg':(asset.extension||'.png').slice(1)));materialize(asset,{id:files[asset.id],projectId:p.id,sha256:hash(bytes),name:asset.name},bytes);}catch(e){throw Error('素材未归档：'+asset.name+'；'+e.message);}
   store.save();
   for(const original of knownOriginalFiles(project)){const originalPath=sourceOriginalPath(dataDir,project.id,original.hash);if(!fs.existsSync(originalPath))continue;const bytes=fs.readFileSync(originalPath);if(hash(bytes)!==original.hash)throw Error('原始资料校验不符：'+original.name);await upload(p.id,original.name,bytes,original.role,'application/octet-stream');}
   const derivatives=[];
@@ -149,5 +152,11 @@ export function createProjectCenterSync({store,dataDir,saveProject,collabClient,
    send(200,{ok:true,project:p});return true;
   }catch(e){const network=/^(fetch failed|Failed to fetch)$/i.test(e.message||'');send(e.status||409,{error:network?'资产生成准备时连接失败，请检查墨库与资产工作室连接；本次提交前请先核对生成记录。':e.message,...(e.code?{code:e.code}:{}),...(e.submissionUncertain?{submissionUncertain:true}:{})});return true;}
  };
- return {handle,sync,ensureAssets,preflight,isPolicyCurrent,mark(project){if(url)dirty.add(project.id);},markAsset(asset){delete asset.projectCenterFile;for(const p of store.db.projects)dirty.add(p.id);},status:()=>({url,lastError}),close(){closed=true;clearInterval(timer);},tick,running:()=>busy,forget(id){dirty.delete(id);for(const key of Object.keys(mapping))if(key===id||key.startsWith('reference-generation:'+id+':'))delete mapping[key];save();}};
+ return {handle,sync,ensureAssets,preflight,isPolicyCurrent,
+  compact:async input=>{if(!url)return null;if(!['localhost','127.0.0.1','[::1]'].includes(new URL(url).hostname))return null;return api('/api/v1/storage/compact',input);},
+  storageStatus:async()=>{if(!url||!['localhost','127.0.0.1','[::1]'].includes(new URL(url).hostname))return null;return api('/api/v1/storage/status');},
+  storageInventory:async()=>{if(!url||!['localhost','127.0.0.1','[::1]'].includes(new URL(url).hostname))return null;return api('/api/v1/storage/inventory');},
+  storageFile:async id=>api('/api/v1/storage/file/'+encodeURIComponent(id)),
+  evictStorage:async files=>api('/api/v1/storage/evict',{files}),
+  mark(project){if(url)dirty.add(project.id);},markAsset(asset){delete asset.projectCenterFile;for(const p of store.db.projects)dirty.add(p.id);},status:()=>({url,lastError}),close(){closed=true;clearInterval(timer);},tick,running:()=>busy,forget(id){dirty.delete(id);for(const key of Object.keys(mapping))if(key===id||key.startsWith('reference-generation:'+id+':'))delete mapping[key];save();}};
 }

@@ -3,6 +3,7 @@ import path from 'node:path';
 import {createRequire} from 'node:module';
 import {createHash,randomUUID} from 'node:crypto';
 import {bounds,clone,id} from '../public/model.js';
+import {isCircleFrame} from '../public/frame-primitives.js';
 import {pageCanvas} from '../public/render.js';
 import {check} from './store.mjs';
 import {readableRaster} from './readable-raster.mjs';
@@ -11,7 +12,7 @@ import {generationTargetStamp} from './generation-autofill.mjs';
 
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const artworkMembers=(project,panel)=>orderedLayers(project).filter(e=>e.type==='panel'&&e.item.visible!==false&&(e.item.id===panel.id||!panel.cutoutLayer&&e.item.cutoutLayer?.parentPanelId===panel.id)).map(e=>e.item);
-export const FRAME_UPSCALE_PROMPT='将所附画格截图高清放大至宽高各 2 倍。严格保持截图的构图、可见范围、人物身份、姿态、服装、物件、颜色和二维画风，只提升线条清晰度与细节。不要恢复裁掉的原图内容，不扩图、不改变镜头、不添加人物、文字或水印。保留已有文字和透明区域。';
+export const FRAME_UPSCALE_PROMPT='将图1的格内可见画面高清重绘至宽高各 2 倍。构图、取景范围、人物数量、位置、姿态、物件和二维画风严格以图1为准，只提升线条清晰度与细节。图2起是本格人物、场景或道具资产，只用于核对身份、服装、建筑与物件细节，不能引入资产中的额外人物、视角或构图。不要恢复框外被裁掉的原图内容，不扩图、不改变镜头、不添加人物、文字或水印。保留画面自带文字与透明区域，独立的工具气泡文字保持独立。';
 
 // Render artwork with the editor's own painter at document resolution. Viewport
 // zoom, selection handles, other panels and editable lettering are not pixels.
@@ -25,11 +26,16 @@ export async function captureFrameUpscale(project,panel,store,cacheDir){
  const lib=createRequire(import.meta.url)(process.env.COMIC_CANVAS_MODULE||process.env.COMIC_TEST_CANVAS_MODULE||'@napi-rs/canvas');
  const file=store.assetPath(panel.imageAssetId),source=fs.readFileSync(file),image=await readableRaster(lib,source,{file,cacheDir});
  const snapshot=clone(page),members=artworkMembers(project,panel),images=new Map([[panel.imageAssetId,image]]),appearanceStamp=frameUpscaleStamp(project,panel,store);
- snapshot.panels=members.map(member=>{const frame=clone(member);frame.border=0;delete frame.productionBackgroundInstance;delete frame.productionBackgroundResource;return frame;});snapshot.bubbles=[];
+ snapshot.panels=members.map(member=>{const frame=clone(member);frame.border=0;delete frame.productionBackgroundInstance;delete frame.productionBackgroundResource;return frame;});snapshot.bubbles=[];snapshot.background='transparent';
  const canvas=await pageCanvas(snapshot,{region,imageLoader:async key=>{if(!images.has(key)){check(members.some(m=>m.imageAssetId===key),'截图包含未知图片');const file=store.assetPath(key);images.set(key,await readableRaster(lib,fs.readFileSync(file),{file,cacheDir}));}return images.get(key);},canvasFactory:()=>lib.createCanvas(1,1)});
  check(appearanceStamp===frameUpscaleStamp(project,panel,store),'截图期间画格显示已改变，请重试',409);
- const bytes=canvas.toBuffer('image/png');
- return {bytes,source:{assetId:panel.imageAssetId,width:canvas.width,height:canvas.height,sha256:hash(source),snapshotSha256:hash(bytes),region,transform:{x:left-panel.x,y:top-panel.y,scale:1},frameUpscale:true,requestedScale:2,appearanceStamp}};
+ // Child patches can extend outside the frame. Clip the complete composite to
+ // the same outline as the editor so hidden pixels never become AI input.
+ const clipped=lib.createCanvas(canvas.width,canvas.height),context=clipped.getContext('2d');context.translate(panel.x-left,panel.y-top);context.beginPath();
+ if(isCircleFrame(panel.points))context.ellipse(panel.w/2,panel.h/2,panel.w/2,panel.h/2,0,0,Math.PI*2);else panel.points.forEach((p,i)=>i?context.lineTo(p.x*panel.w,p.y*panel.h):context.moveTo(p.x*panel.w,p.y*panel.h));
+ context.closePath();context.clip();context.translate(left-panel.x,top-panel.y);context.drawImage(canvas,0,0);
+ const bytes=clipped.toBuffer('image/png');canvas.width=canvas.height=1;
+ return {bytes,source:{version:2,assetId:panel.imageAssetId,width:clipped.width,height:clipped.height,sha256:hash(source),snapshotSha256:hash(bytes),region,transform:{x:left-panel.x,y:top-panel.y,scale:1},frameUpscale:true,requestedScale:2,appearanceStamp}};
 }
 
 export function frameUpscaleStamp(project,panel,store){

@@ -11,8 +11,10 @@ export function createDirectLayoutRun({api,getContext,flushSave,open,onChange=()
   if(starting)return;starting=true;onChange();
   try{
    await flushSave();const c=getContext();if(!c?.projectId||!c.learningProjectId)throw Error('请先选择排版学习项目');
+   if(c.requireArtwork&&(!c.segments.length||c.segments.some(s=>!s.hasImage)))throw Error('屏段排版需要本话所有屏段图片生成完成；请先补齐成图。');
    const old=record();
    if(old&&(['starting','running','uncertain'].includes(old.status)||old.status==='failed'&&!restart&&!old.preDispatch)){
+    if(c.requireArtwork&&old.planningMode)throw Error('原单格排版任务尚未结束，请先核对原任务后再开始屏段排版。');
     if(old.preDispatch)throw Error(old.message||'上次准备未完成，请明确重新排版或重新读取预览');
     open(old,{fresh:false});return old;
    }

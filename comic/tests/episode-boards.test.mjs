@@ -14,7 +14,7 @@ import {createStudio} from '../server.mjs';
 import {writeXlsx} from '../lib/xlsx.mjs';
 
 
-const require=createRequire(import.meta.url),runtime=path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'),canvas=require(path.join(runtime,'@napi-rs/canvas'));
+const require=createRequire(import.meta.url),runtime=path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'),canvas=require(process.env.COMIC_TEST_CANVAS_MODULE||path.join(runtime,'@napi-rs/canvas'));
 const qaRoot=path.resolve('../verification/inline-boards-20261022'),output=path.join(qaRoot,'evidence');fs.mkdirSync(output,{recursive:true});
 const outline={version:1,sourceKey:'synthetic-outline',workTitle:'合成测试漫画',episodes:[{episode:11,title:'长生会与两个月后的消息'},{episode:14,title:'第一战'},{episode:15,title:'第二战'},{episode:21,title:'终局'}]};
 const fixture=(number=14)=>{const p=migrateLayerDocument(createProject('合成测试漫画')).project;p.pages[0].storyboard={episode:number};p.pages[0].height=500;p.pages[0].panels=[];p.shots=[];p.layerOrder=[];p.episodeOutline=clone(outline);ensureEpisodeBoards(p);return p;};

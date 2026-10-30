@@ -81,7 +81,7 @@ export function placePanelSfx({words,frame,page,intensity=3,letters=[],faces=[],
    const preset=CRACK.test(word)?'crack':category==='speed'?'speed':'impact';
    const layer=makeSfxLayer({id:makeId('bubble'),text:String(raw).trim().slice(0,24),preset,page,frame});
    const ratio=clamp(baseW/layer.w,.45,1.6);
-   for(const field of ['w','h','fontSize','padding','outlineWidth','shadowOffsetX','shadowOffsetY'])if(Number.isFinite(layer[field]))layer[field]=Math.round(layer[field]*ratio);
+   for(const field of ['w','h','outlineWidth','shadowOffsetX','shadowOffsetY'])if(Number.isFinite(layer[field]))layer[field]=Math.round(layer[field]*ratio);
    if(category==='ambient')layer.rotation=-4;
    const spot=chooseSpot({frame,size:{w:layer.w,h:layer.h},avoid,category,seedKey:key+word,taken,contain});
    layer.x=Math.round(clamp(spot.rect.x,8,page.width-8-layer.w));layer.y=Math.round(spot.rect.y);layer.name=word+' · 字效';layer.sfxAuto=category;

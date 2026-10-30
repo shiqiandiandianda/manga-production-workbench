@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {canonicalAssetNaming} from '../public/asset-naming.js';
 const uuid=value=>typeof value==='string'&&/^[a-f0-9-]{36}$/i.test(value);
-const projectTypes=new Set(['storyboard','production_table','novel','comic_project','character','scene','prop','pet','comic_panel','episode_strip','header','footer']);
+const projectTypes=new Set(['storyboard','production_table','novel','comic_project','project_archive','character','scene','prop','pet','comic_panel','episode_strip','header','footer']);
 const globalTypes=[['image','bubble'],['image','nameplate'],['image','sfx_text'],['file','font']];
 const failure=(message,status=409)=>Object.assign(Error(message),{status});
 const response=value=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});

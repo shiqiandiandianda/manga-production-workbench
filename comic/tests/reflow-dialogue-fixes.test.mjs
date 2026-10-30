@@ -4,6 +4,7 @@ import {generationPromptChoices,generationPromptSelection} from '../public/promp
 import {speakerOrder} from '../public/bubble-speaker.js';
 import {bubbleTextBox,normalizeBubbleStyle,svgBubbleSelectionMarkup} from '../public/lettering.js';
 import {mergeReflowIntoOriginal} from '../public/auto-layout-reflow.mjs';
+import {setBubbleEditMode} from '../public/bubble-edit-mode.js';
 
 test('重排单格保留嵌套的带字和无泡原文，缺少空泡时不伪称空泡',()=>{
  const shot={id:'shot1',productionPromptVariants:1,sourceFields:{提示词:{带字:'带字原文',无泡:'无泡原文'}}},panel={shotId:'shot1',generation:{}},project={shots:[shot]};
@@ -15,12 +16,12 @@ test('说话顺序按当前屏段或整话逐句编号，重复说话有独立�
  const b={productionSegment:'S2',productionTextId:'c'};assert.equal(speakerOrder(project,b),1);assert.equal(speakerOrder(project,b,'episode'),3);assert.equal(speakerOrder(project,{...b,productionTextId:'missing'}),null);
 });
 test('默认文字框为居中横向区域，气泡内部拖动不再拦截整框拖动',()=>{
- const b={id:'b',productionTextId:'t1',type:'speech',shape:'oval',text:'测试台词',x:0,y:0,w:240,h:180,fontSize:30,visible:true};const box=bubbleTextBox(b,normalizeBubbleStyle(b));assert.ok(box.w>box.h);assert.ok(box.h>100);
- const context={measureText:t=>({width:t.length*20})};const markup=svgBubbleSelectionMarkup(context,b,{zoom:1});assert.match(markup,/pointer-events="none"/);assert.doesNotMatch(markup,/<rect data-bubble-handle="text-move"/);assert.match(markup,/<circle data-bubble-handle="text-move"/);
+ const b={id:'b',productionTextId:'t1',type:'speech',shape:'oval',text:'测试台词',x:0,y:0,w:240,h:180,fontSize:30,visible:true};const box=bubbleTextBox(b,normalizeBubbleStyle(b));assert.ok(box.w>box.h);assert.ok(box.w>0&&box.h>0);assert.equal(box.x+box.w/2,b.w/2);assert.equal(box.y+box.h/2,b.h/2);
+ const context={measureText:t=>({width:t.length*20})};const markup=svgBubbleSelectionMarkup(context,b,{zoom:1});assert.match(markup,/pointer-events="none"/);assert.match(markup,/data-bubble-handle="text-move"/);assert.match(markup,/data-bubble-handle="resize"/);setBubbleEditMode(b.id,'text');assert.match(svgBubbleSelectionMarkup(context,b),/data-bubble-handle="text-move"/);setBubbleEditMode(b.id,'body');
 });
 test('重排接回原工程且只替换目标话，其他话与原画板图层保留',()=>{
  const old={id:'old',name:'旧板',storyboard:{episode:1},panels:[{id:'root',visible:true}],bubbles:[{id:'text',visible:true}]},other={id:'other',name:'其他话',storyboard:{episode:2},panels:[{id:'other-panel',visible:true}],bubbles:[]};
- const original={id:'original',title:'原工程',revision:7,pages:[old,other],shots:[],gradients:[],layerOrder:['root','text','other-panel']};
+ for(const page of [old,other])Object.assign(page,{width:1280,height:2000});const original={id:'original',title:'原工程',revision:7,pages:[old,other],shots:[],gradients:[],layerOrder:['root','text','other-panel']};
  const derived={pages:[{id:'new',name:'新板',storyboard:{episode:1},panels:[{id:'root',visible:false,autoLayoutOriginalPageId:'old'},{id:'other-panel',visible:false,autoLayoutOriginalPageId:'other'},{id:'cut',visible:true}],bubbles:[{id:'text',visible:false,autoLayoutOriginalPageId:'old'}]}],shots:[],gradients:[],autoLayoutSource:{mode:'screen-crop-reflow',batchId:'batch'}};
- const before=structuredClone(original),merged=mergeReflowIntoOriginal(original,derived,1);assert.equal(merged.id,'original');assert.equal(merged.revision,7);assert.deepEqual(merged.pages[1],other);assert.deepEqual(merged.pages[0].panels.map(p=>p.id),['root','cut']);assert.equal(merged.pages[0].panels[0].visible,false);assert.equal(merged.episodeReflows[1].batchId,'batch');assert.deepEqual(original,before);
+ Object.assign(derived.pages[0],{width:1280,height:2000});const before=structuredClone(original),merged=mergeReflowIntoOriginal(original,derived,1);assert.equal(merged.id,'original');assert.equal(merged.revision,7);assert.deepEqual(merged.pages[1],other);assert.deepEqual(merged.pages[0].panels.map(p=>p.id),['root','cut']);assert.equal(merged.pages[0].panels[0].visible,false);assert.equal(merged.episodeReflows[1].batchId,'batch');assert.deepEqual(original,before);
 });

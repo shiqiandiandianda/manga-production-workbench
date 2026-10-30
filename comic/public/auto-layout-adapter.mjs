@@ -24,12 +24,7 @@ export function buildLayoutProject(script,geometry,{originalProject=null}={}){
  project.pages=[page];project.gradients=[];
  for(const [i,g] of frames.entries()){
   const shot=project.shots[i],f=panel(shot.id,g.x,g.y,g.w,g.h);Object.assign(f,{name:shot.code,border:g.border??6,feather:g.feather??0,layoutRole:g.role,layoutSourceKey:g.key});page.panels.push(f);
-  // No speaker or dialogue type is guessed. Unknown text remains editable, without a tail.
-  let textY=f.y+24;
-  for(const text of shot.dialogue.split(/\r?\n/).filter(t=>t.trim())){
-   const h=Math.max(100,Math.ceil(text.length/16)*46+24);
-   page.bubbles.push({id:id('bubble'),shotId:shot.id,parentPanelId:f.id,speaker:'',text,type:'caption',shape:'none',x:Math.max(0,Math.min(900,f.x+24)),y:textY,w:Math.min(700,Math.max(200,f.w-48)),h,fontSize:32,fontFamily:'source-han-sans',fontWeight:400,lineHeight:1.35,textColor:'#111111',fillOpacity:0,outlineWidth:0,tail:{visible:false},visible:true,locked:false});textY+=h+12;
-  }
+  // Dialogue remains in the source list until the user places it on the main canvas.
  }
  if(!Array.isArray(geometry.backgrounds)||geometry.backgrounds.length>200)throw Error('背景分段无效');
  let end=0;
@@ -39,6 +34,6 @@ export function buildLayoutProject(script,geometry,{originalProject=null}={}){
   project.gradients.push({id:id('gradient'),name:'排版底色 '+(project.gradients.length+1),coverage:'area',x:0,y:b.y,w:1280,h:b.h,visible:true,locked:false,points:rectangle(),border:0,borderColor:'#111111',feather:0,gradient:{enabled:true,mode:'color',startColor:b.color,endColor:b.mode==='linear'?b.endColor:b.color,opacity:1,start:{x:.5,y:0},end:{x:.5,y:1}}});
  }
  if(Math.abs(end-page.height)>.01)throw Error('背景没有覆盖整话');
- Object.assign(project,{layerSchema:1,layerGroupsVersion:1,editorLayoutVersion:2,layerOrder:[...project.gradients,...page.panels,...page.bubbles].map(v=>v.id),autoLayoutSource:{version:1,scriptId:script.id,profileVersion:geometry.profileVersion,source:clone(script.source),sourceProjectId:script.studioSource?.projectId||null,images:'原工程图片保留；新排版工程使用空画格',lettering:'保留原文的可编辑文字；说话人和位置待确认',generator:clone(geometry.generator||{})}});
+ Object.assign(project,{layerSchema:1,layerGroupsVersion:1,editorLayoutVersion:2,layerOrder:[...project.gradients,...page.panels,...page.bubbles].map(v=>v.id),autoLayoutSource:{version:1,scriptId:script.id,profileVersion:geometry.profileVersion,source:clone(script.source),sourceProjectId:script.studioSource?.projectId||null,images:'原工程图片保留；新排版工程使用空画格',lettering:'原文保留在台词列表；从主画板逐句点击摆放',generator:clone(geometry.generator||{})}});
  return project;
 }

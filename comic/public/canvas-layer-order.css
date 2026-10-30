@@ -11,3 +11,7 @@
 .modern-workbench .canvas-layer-order #repair-current-panel{margin-top:5px;border-color:#456782;background:#2a4864;color:#dcefff}
 .canvas-layer-order #repair-current-panel b{display:none}
 .canvas-layer-order.compact #repair-current-panel b{display:block}
+.modern-workbench .canvas-layer-order #canvas-cancel-current-panel{border-color:#925050;background:#462b32;color:#ffd4d4}
+.modern-workbench .canvas-layer-order #canvas-cancel-current-panel:not(:disabled):hover{border-color:#e59b9b;background:#653740}
+.canvas-layer-order #canvas-cancel-current-panel b{display:none;font-size:21px}
+.canvas-layer-order.compact #canvas-cancel-current-panel b{display:block}

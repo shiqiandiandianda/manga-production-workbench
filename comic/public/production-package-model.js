@@ -1,5 +1,7 @@
 import {productionReferenceOutfit} from './episode-outfit.js';
 import {roundBubbleSize} from './round-bubble-default.js';
+import {fitDialogueObject} from './auto-lettering.js';
+import {applyProductionStyle,resolveProductionStyle} from './production-lettering-style.js';
 import {bubbleSourceTextIds,dialogueSegments} from './bubble-dialogue-segments.js';
 import {productionTailVisible} from './bubble-tail-compat.js';
 import {assetUnavailable} from './asset-availability.js';
@@ -49,12 +51,12 @@ export function productionReferencePlan(project,frame,assets=[]){
  if(refs.length>60)throw invalid('附图超过60张');const seen=new Set();for(const ref of refs){if(seen.has(ref.assetId))throw invalid('不同附图槽位指向同一图片，请核对素材身份');seen.add(ref.assetId);}return {refs,dependencies:dependencies.filter(Boolean),segment:s};
 }
 export function prepareProductionFrame(project,frame,assets,{deferPanelIds=[],jobs=[]}={}){const plan=productionReferencePlan(project,frame,assets);if(!plan)return null;const episode=project.productionPackage.episodes.find(e=>e.episode===plan.segment.episode);if(!frame.productionBackground)for(const ref of plan.segment.references.filter(r=>r['类型']==='上一段成图'&&!r.skipped)){const previous=episode.segments.find(s=>s.localId===ref['段ID']),prior=productionFrame(project,previous?.id);if(prior&&(deferPanelIds.includes(prior.id)||jobs.some(j=>j.projectId===project.id&&j.panelId===prior.id&&['queued','running','awaiting_confirmation','recoverable'].includes(j.status)))){plan.dependencies=[...new Set([...plan.dependencies,prior.id])];plan.refs=plan.refs.filter(r=>r.name!==ref['段ID']+' · 接续成图');}}frame.referenceIds=plan.refs.map(r=>r.assetId);if(frame.generation)frame.generation.referenceRoles=plan.refs;return plan;}
-export function applyProductionLettering(project,key,{regions,positions={},fontFamily='source-han-sans',confirmed=false,replace=false,adjustedTextIds=[],fontChanged=false}={},{coordinateBounds}={}){
+export function applyProductionLettering(project,key,{regions,positions={},fontFamily,confirmed=false,replace=false,adjustedTextIds=[],fontChanged=false}={},{coordinateBounds}={}){
  const segment=productionSegment(project,key),frame=productionFrame(project,key),episode=project.productionPackage.episodes.find(e=>e.episode===segment?.episode),page=project.pages.find(p=>p.panels.some(f=>f.id===frame?.id));if(!segment||!frame||!page)throw invalid('屏段不存在');if(!frame.imageAssetId)throw invalid('请先采用屏段成图，再定位和排字');
  const limit=coordinateBounds||{x:0,y:0,w:1,h:1};
  const valid=rect=>rect&&['x','y','w','h'].every(k=>Number.isFinite(rect[k]))&&rect.x>=limit.x-.00001&&rect.y>=limit.y-.00001&&rect.w>0&&rect.h>0&&rect.x+rect.w<=limit.x+limit.w+.00001&&rect.y+rect.h<=limit.y+limit.h+.00001;
  for(const pid of segment.panelIds)if(!valid(regions?.[pid]))throw invalid('格区超出了当前图片范围：'+pid);if(!confirmed)throw invalid('请确认格区和文字位置后排字');
- segment.regions=clone(regions);segment.positions=clone(positions);segment.layoutAssetId=frame.imageAssetId;segment.layoutConfirmedAt=new Date().toISOString();const mode=frame.generation?.promptSource==='post-lettering'?'clean':'empty',scale=frame.w/(episode.typography['参考画布宽']||1280),fontSize=(episode.typography['字号']||36)*scale;let count=0;
+ segment.regions=clone(regions);segment.positions=clone(positions);segment.layoutAssetId=frame.imageAssetId;segment.layoutConfirmedAt=new Date().toISOString();const mode=frame.generation?.promptSource==='post-lettering'?'clean':'empty',style=resolveProductionStyle(project,key),fontSize=style.fontSize;let count=0;
  for(const text of episode.texts.filter(t=>t['段ID']===segment.localId&&t['渲染']==='工具')){
   const exists=page.bubbles.find(b=>bubbleSourceTextIds(b).includes(text['文字ID'])&&!page.panels.find(p=>p.id===b.parentPanelId)?.productionGrid);if(exists&&dialogueSegments(exists).length){if(fontChanged&&!exists.locked)exists.fontFamily=fontFamily;continue;}if(exists&&!replace){if(adjustedTextIds.includes(text['文字ID'])){const pos=positions[text['文字ID']];if(!valid(pos))throw invalid('文字位置无效：'+text['文字ID']);if(exists.locked)throw invalid('请先解锁台词：'+text['文字ID']);const moved=applyBubbleEdit(exists,{type:'move',dx:frame.x+pos.x*frame.w-exists.x,dy:frame.y+pos.y*frame.h-exists.y}),resized=applyBubbleEdit(moved,{type:'resize',dx:Math.max(30,pos.w*frame.w)-moved.w,dy:Math.max(20,pos.h*frame.h)-moved.h});Object.assign(exists,resized);count++;}if(fontChanged&&!exists.locked)exists.fontFamily=fontFamily;continue;}
   const region=regions[text['格ID']],anchor=episode.anchors[text['锚点']]?.['中心']||[.5,.14],lines=text['分行']||[text['文本']];let width=Math.max(80,Math.min(frame.w*.48,Math.max(...lines.map(l=>[...l].length))*fontSize+fontSize)),height=Math.max(35,lines.length*fontSize*(48/36)+fontSize*.8);
@@ -62,8 +64,10 @@ export function applyProductionLettering(project,key,{regions,positions={},fontF
   let x=frame.x+(region.x+region.w*anchor[0])*frame.w-width/2,y=frame.y+(region.y+region.h*anchor[1])*frame.h-height/2;
   if(text['连泡'])y+=(text['连泡']['第几个']-1)*(height+12);const pos=positions[text['文字ID']];if(pos){if(!valid(pos))throw invalid('文字位置无效：'+text['文字ID']);x=frame.x+pos.x*frame.w;y=frame.y+pos.y*frame.h;}
   if(mode==='empty'&&!pos)throw invalid('空泡模式需要为每条台词确认文字框位置：'+text['文字ID']);
-  const thought=/心声|意念/.test(text['类型']),caption=/字幕|旁白/.test(text['类型']);const w=pos?pos.w*frame.w:width,h=pos?pos.h*frame.h:height;
+  const thought=/心声|内心|意念/.test(text['类型']),caption=/字幕|旁白|人名|地点|时间/.test(text['类型']);const w=pos?pos.w*frame.w:width,h=pos?pos.h*frame.h:height;
   const bubble={id:exists?.id||id('bubble'),parentPanelId:frame.id,shotId:frame.shotId,productionTextId:text['文字ID'],productionSegment:segment.id,productionGridId:text['格ID'],name:text['文字ID']+' · '+text['类型'],x:Math.max(0,Math.min(page.width-w,x)),y,w:Math.max(30,w),h:Math.max(20,h),text:productionTextContent(text),type:thought?'thought':caption?'caption':'speech',shape:mode==='empty'?'none':caption?'rounded-rect':thought?'burst':'oval',fillColor:'#ffffff',fillOpacity:mode==='empty'?0:1,outlineWidth:mode==='empty'?0:2,textColor:'#111111',fontFamily,fontWeight:500,fontSize,lineHeight:48/36,lineBreakMode:'auto',textFlowVersion:1,textAlign:'center',visible:true,locked:false,tail:{visible:mode==='clean'&&productionTailVisible(text,thought?'thought':caption?'caption':'speech'),side:({上:'top',下:'bottom',左:'left',右:'right'})[text['泡尾']?.['方向']]||'bottom',base:.5},speaker:text['说话人']||'',productionOriginal:clone(text)};
+  applyProductionStyle(bubble,style);if(exists)bubble.fontSize=exists.fontSize;if(fontFamily)bubble.fontFamily=fontFamily;
+  if(mode==='clean'&&!pos){const fitted=fitDialogueObject(null,bubble,{pageWidth:page.width,parentWidth:frame.w,maxHeight:frame.h});if(fitted.status==='fitted')Object.assign(bubble,fitted.bubble);}
   if(exists)Object.assign(exists,bubble);else page.bubbles.push(bubble);count++;
  }return count;
 }

@@ -55,6 +55,7 @@ export async function resolveImageAssets(store,ids){
  check(Array.isArray(ids)&&ids.length>0&&ids.length<=60,'请一次选择1—60张资产');
  const assets=[],failed=[];
  for(const id of [...new Set(ids)]){
+  if(store.asset(id).storageEvicted)await store.ensureAsset?.(id);
   const original=store.asset(id),filePath=store.assetPath(id);
   try{const info=await inspectImageFileAsync(filePath,{cached:{...original}}),asset=store.asset(id);
    check(imagePathKey(store.assetPath(id))===imagePathKey(filePath),'图片路径在读取期间已改变，请重新选择',409);
@@ -67,4 +68,3 @@ export async function resolveImageAssets(store,ids){
 
 // Cache only server-produced scans. Import accepts a token, never a list of
 // untrusted client paths. Scanning and registering the same folder do one walk.
-

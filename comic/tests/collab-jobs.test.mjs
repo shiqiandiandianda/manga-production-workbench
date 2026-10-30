@@ -13,6 +13,14 @@ import {Store, uid} from '../lib/store.mjs';
 import {inspectImageBuffer, nowIso} from '../../协作/lib/protocol.mjs';
 import {collabGenerationPayload, createComicFixture, makePng, seedProject, sha256Hex, sleep, waitFor} from './helpers/collab-fixture.mjs';
 
+test('协作任务登记写盘失败返回503，恢复存储后也不自动执行被拒绝的请求',async t=>{
+ const f=await createComicFixture(t);await seedProject(f,{referenceCount:1});const store=f.studio.store,write=store.writeProject.bind(store),refFile=path.join(f.root,'synthetic-storage-reference.png');fs.writeFileSync(refFile,makePng());
+ for(const project of store.db.projects)store.markProject(project);
+ store.writeProject=()=>{throw Error('SYNTHETIC_ENOSPC');};
+ const result=await f.api('/api/collab/generation','POST',collabGenerationPayload({referenceFile:refFile,taskId:'task_storage_failure'}));assert.equal(result.status,503);assert.equal(f.calls.length,0);assert.ok(store.db.jobs.every(j=>j.status==='failed'));
+ store.writeProject=write;store.save();await sleep(1100);assert.equal(f.calls.length,0);
+});
+
 test('POST /api/collab/generation 真实调用生图桥，结果校验后写 collabResult，工作目录隔离且不碰工程', async t => {
   const fixture = await createComicFixture(t);
   await seedProject(fixture, {referenceCount: 1});

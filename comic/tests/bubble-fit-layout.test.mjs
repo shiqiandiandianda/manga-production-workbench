@@ -10,6 +10,17 @@ const {createCanvas}=createRequire(import.meta.url)(process.env.COMIC_TEST_CANVA
 const ctx=createCanvas(1280,1000).getContext('2d');
 const base=extra=>({id:'test-fit-layout',type:'thought',shape:'oval',x:200,y:300,w:190,h:260,fontSize:32,fontFamily:'source-han-sans',fontWeight:400,textAlign:'center',lineHeight:1.35,padding:16,text:'下面人做的事，也算我管理有方。',textBox:{x:90,y:80,w:280,h:100},tail:{visible:false},...extra});
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
+test('适配导入对白时保留实际可见的尾巴，显式隐藏仍保持隐藏',()=>{
+ const b=base({type:'speech',productionOriginal:{文本:'原始台词'},tail:{visible:false,side:'bottom',base:.54}});
+ const before=structuredClone(b),old=bubbleLayout(ctx,b);assert.ok(old.tail,'旧导入的对白实际显示尾巴');
+ const result=fitBubbleToCurrentLayout(ctx,b);assert.equal(result.status,'fitted');
+ const next=bubbleLayout(ctx,result.bubble);assert.ok(next.tail,'适配不能把可见尾巴隐藏');
+ assert.equal(result.bubble.tail.visible,true);assert.ok(next.drawOutline.some(p=>Math.hypot(p.x-next.tail.tip.x,p.y-next.tail.tip.y)<1e-5));
+ assert.ok(bubbleLayout(ctx,JSON.parse(JSON.stringify(result.bubble))).tail);
+ assert.deepEqual(fitBubbleToCurrentLayout(ctx,result.bubble).bubble,result.bubble);assert.deepEqual(b,before);
+ const hidden={...b,tail:{...b.tail,visibilityExplicit:true}};
+ assert.equal(bubbleLayout(ctx,fitBubbleToCurrentLayout(ctx,hidden).bubble).tail,null);
+});
 test('新适配入口同步尾尖，旧拉长尾巴缩回且不改变文字位置',()=>{
  const b=base({type:'speech',tail:{visible:true,side:'bottom',base:.5,mode:'normalized',x:.5,y:5}}),before=structuredClone(b);
  const result=fitBubbleToCurrentLayout(ctx,b);assert.equal(result.status,'fitted');
@@ -21,7 +32,9 @@ test('新适配入口同步尾尖，旧拉长尾巴缩回且不改变文字位�
 function verify(b){
  const before=structuredClone(b),old=bubbleLayout(ctx,b),result=fitBubbleToCurrentLayout(ctx,b);assert.equal(result.status,'fitted');assert.deepEqual(b,before);
  const next=result.bubble,layout=bubbleLayout(ctx,next);assert.deepEqual(layout.lines.map(l=>l.text),old.lines.map(l=>l.text));assert.equal(layout.fontSize,old.fontSize);assert.equal(next.fontSize,b.fontSize);
- for(const key of ['text','type','shape','fontFamily','fontWeight','lineHeight','letterSpacing','writingMode','textAlign','tail','assetContour','assetInsets','assetRays','comicStyleId','productionOriginal'])assert.deepEqual(next[key],b[key],key);
+ close(layout.textBox.x+layout.x,old.textBox.x+old.x);close(layout.textBox.y+layout.y,old.textBox.y+old.y);assert.equal(layout.textBox.w,old.textBox.w);assert.equal(layout.textBox.h,old.textBox.h);
+ for(const key of ['text','type','shape','fontFamily','fontWeight','lineHeight','letterSpacing','writingMode','textAlign','assetContour','assetInsets','assetRays','comicStyleId','productionOriginal'])assert.deepEqual(next[key],b[key],key);
+ for(const key of ['visible','side','base'])assert.deepEqual(next.tail?.[key],b.tail?.[key],key);if(layout.tail)assert.ok(Number.isFinite(layout.tail.tip.x)&&Number.isFinite(layout.tail.tip.y));
  old.lines.forEach((l,i)=>{const n=layout.lines[i];close(l.x+old.x,n.x+layout.x);close(l.y+old.y,n.y+layout.y);for(let j=0;j<(l.glyphs?.length||0);j++){close(l.glyphs[j].x+old.x,n.glyphs[j].x+layout.x);close(l.glyphs[j].y+old.y,n.glyphs[j].y+layout.y);}});
  const bounds=renderedTextBounds(ctx,layout),outline=bubbleOutlinePoints(next),left=Math.min(...outline.map(p=>p.x)),right=Math.max(...outline.map(p=>p.x)),top=Math.min(...outline.map(p=>p.y)),bottom=Math.max(...outline.map(p=>p.y));
  close(bounds.x-left,48);close(right-bounds.x-bounds.w,48);close(bounds.y-top,72);close(bottom-bounds.y-bounds.h,72);assert.equal(layout.overflow,false);

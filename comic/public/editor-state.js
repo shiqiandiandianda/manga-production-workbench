@@ -20,11 +20,13 @@ export function bubbleFieldChange(bubble,section,key,value,nodeIndex=0,layout){
   if(section.startsWith('bubble-segment-')&&key==='text')return editDialogueSegment(bubble,Number(section.slice('bubble-segment-'.length)),{text:value});
   if(section==='bubble-tail'&&key==='widthPercent')key='width';
   let next=structuredClone(bubble);
-  if(section.startsWith('bubble-part-'))return editBubblePart(freezeBubbleForGeometry(next,layout),Number(section.slice('bubble-part-'.length)),{field:key,value:value/100});
+  if(section.startsWith('bubble-part-')){const part=editBubblePart(freezeBubbleForGeometry(next,layout),Number(section.slice('bubble-part-'.length)),{field:key,value:value/100});if(part.autoLettering)part.autoLettering.mode='manual';return part;}
   if(section==='bubble-rays'&&next.assetRays&&['count','length'].includes(key)){next.assetRays[key]=key==='length'?value/100:value;return next;}
   if(isLibrarySfx(bubble)&&key==='sfxPreset'&&SFX_PRESETS[value]){Object.assign(next,SFX_PRESETS[value],{sfxPreset:value});}
-  else if(section==='bubble-textbox'){if(['x','y'].includes(key)&&layout)freezeBubbleForGeometry(next,layout);next.textBox={...bubbleTextBox(next),[key]:value};if(['w','h'].includes(key)){delete next.textLayout;next.textFrameLayout=true;saveBubbleTextFlow(next);}}
+  else if(section==='bubble-textbox'){if(['x','y'].includes(key)&&layout)freezeBubbleForGeometry(next,layout);next.textBox={...bubbleTextBox(next),[key]:value};if(['w','h'].includes(key)){delete next.textLayout;next.textFrameLayout=true;saveBubbleTextFlow(next);}if(next.autoLettering)next.autoLettering.mode='manual';}
   else if(section==='bubble'&&['w','h'].includes(key))next=applyBubbleEdit(freezeBubbleForGeometry(next,layout),{type:'resize',dx:key==='w'?value-bubble.w:0,dy:key==='h'?value-bubble.h:0});
+  else if(key==='productionBoxKind'){if(!['speech','thought','person','location','time','narration'].includes(value))throw Error('请选择有效的台词类型');next.productionBoxKind=value;next.type=value==='speech'?'speech':value==='thought'?'thought':'caption';}
+  else if(key==='type'){next.type=value;next.productionBoxKind=({speech:'speech',thought:'thought',caption:'narration'})[value];}
   else if(key==='lineBreakMode'){next.lineBreakMode=value;next.textFlowVersion=1;}
   else if(section==='bubble-tail'){
     const w=layout?.w>0?layout.w:bubble.w,h=layout?.h>0?layout.h:bubble.h;
@@ -46,9 +48,9 @@ export function bubbleFieldChange(bubble,section,key,value,nodeIndex=0,layout){
     next=applyBubbleEdit(next,{type:'shape',shape:value});if(bubble.shape==='none'&&value!=='none'){if(next.fillOpacity===0)next.fillOpacity=1;if(next.outlineWidth===0&&!next.styleTextureId)next.outlineWidth=2.8;}
   }else if(key==='x'||key==='y')next=applyBubbleEdit(next,{type:'move',dx:key==='x'?value-next.x:0,dy:key==='y'?value-next.y:0});
   else{next[key]=value;if(key==='text')saveBubbleTextFlow(next);if(key==='writingMode'&&value==='vertical'&&!next.textBox)next.overflow='expand';}
+  if(['fillOpacity','fillColor','outlineColor','outlineWidth'].includes(key)){next.materialVisibilityVersion=2;if(next.styleTextureId){next.textureInkVersion=1;if(key==='outlineWidth'){next.materialOutlineWidth=value;next.outlineWidth=Number.isFinite(next.tail?.anchorT)?value:0;}}}
   if(next.textBox&&(!(next.textBox.w>=1)||!(next.textBox.h>=1)))throw new Error('文字框宽高至少为 1 px');
   const style=normalizeBubbleStyle(next);if(style.fontFamily!==next.fontFamily&&next.fontFamily!==undefined)throw new Error('请选择支持的字体');
   const canonical=canonicalBubbleTail(next);if(canonical)next.tail=canonical;
   return next;
 }
-

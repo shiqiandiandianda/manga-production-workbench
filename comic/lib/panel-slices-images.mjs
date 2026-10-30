@@ -1,5 +1,6 @@
 import {createRequire} from 'node:module';
 import {slicePixels,slicePolygon} from '../public/panel-slices.js';
+import {detectDarkPanelSeparators} from './dark-panel-separators.mjs';
 const canvas=()=>createRequire(import.meta.url)(process.env.COMIC_CANVAS_MODULE||'@napi-rs/canvas');
 export async function detectSliceRegions(file,expected){
  const {loadImage,createCanvas}=canvas(),image=await loadImage(file);if(image.width*image.height>100000000)throw Error('原图超过一亿像素，请选择较低倍率的图片');
@@ -13,7 +14,11 @@ export async function detectSliceRegions(file,expected){
    for(let j=0;j<columns.length;j++){const [left,right]=columns[j],r={x:left/w,y:top/h,w:(right-left)/w,h:(bottom-top)/h};candidates.push(r);if(cells[j])regions[cells[j]['格ID']]=r;}
   }
   const result={regions:matched?regions:{},candidates,matched,observedRows:rows.length,expectedRows:groups.length,width:image.width,height:image.height,notice:matched?'已按白缝识别格区，请检查边缘和阅读顺序后裁切。':'识别数量与分镜不一致，请逐格框选。不会按数量平均切图。'};if(matched)return result;if(!best||Math.abs(candidates.length-expected.length)<Math.abs(best.candidates.length-expected.length))best=result;
- }return best;
+ }
+ const sw=Math.min(w,512),sh=Math.max(1,Math.round(h*sw/w)),seams=createCanvas(sw,sh),seamContext=seams.getContext('2d');seamContext.drawImage(image,0,0,sw,sh);
+ const ink=detectDarkPanelSeparators(seamContext.getImageData(0,0,sw,sh).data,sw,sh,expected);
+ if(ink)return {regions:ink.regions,candidates:Object.values(ink.regions),matched:true,observedRows:expected.length,expectedRows:groups.length,width:image.width,height:image.height,method:'continuous-dark-separators',notice:'已按连续黑色分格线识别格区，保留斜边；请检查阅读顺序后裁切。'};
+ return best;
 }
 export async function cropSliceImages(file,regions){
  const {loadImage,createCanvas}=canvas(),image=await loadImage(file);if(image.width*image.height>100000000)throw Error('原图超过一亿像素');const result=[];

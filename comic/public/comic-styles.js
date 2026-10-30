@@ -1,3 +1,4 @@
+import {TEXT_FONT_DEFAULTS} from './text-font-defaults.js';
 import {COMIC_STYLE_CATALOG} from './comic-style-data.js';
 import {builtinBubbleStyle,builtinBubblePreview} from './builtin-bubble-data.js';
 import {REFERENCE_BUBBLE_STYLES} from './reference-bubble-data.js';
@@ -40,7 +41,7 @@ export function applyComicBubbleStyle(bubble,profile,key){
  const config=normalizeComicProfile(profile),type=['speech','thought','caption'].includes(bubble.type)?bubble.type:null,pool=type&&config[type];
  if(!config.enabled||!pool?.length)return bubble;
  const style=comicStyle(pool[hash(config.seed+':'+key)%pool.length]);
- Object.assign(bubble,{shape:'asset',assetContour:structuredClone(style.contour),assetInsets:{...style.insets},comicStyleId:style.id,comicStyleLabel:style.label,outlineWidth:style.texture?0:2.8,outlineColor:'#171717',fillColor:'#ffffff',fillOpacity:1,fontFamily:type==='speech'?'source-han-sans':'source-han-serif',fontWeight:400});
+ Object.assign(bubble,{shape:'asset',assetContour:structuredClone(style.contour),assetInsets:{...style.insets},comicStyleId:style.id,comicStyleLabel:style.label,outlineWidth:style.texture?0:2.8,outlineColor:'#171717',fillColor:'#ffffff',fillOpacity:1,fontFamily:bubble.fontFamily||TEXT_FONT_DEFAULTS.fontFamily,fontWeight:bubble.fontWeight??TEXT_FONT_DEFAULTS.fontWeight,fontSize:bubble.fontSize??TEXT_FONT_DEFAULTS.fontSize});
  delete bubble.assetParts;delete bubble.assetTailKind;delete bubble.assetRays;delete bubble.assetFrame;if(style.frame)bubble.assetFrame=structuredClone(style.frame);applyFramePreset(bubble,style.preset);if(style.rays)bubble.assetRays=structuredClone(style.rays);if(style.parts)bubble.assetParts=structuredClone(style.parts);if(style.tailKind)bubble.assetTailKind=style.tailKind;if(style.tailPreset)bubble.tail=structuredClone(style.tailPreset);
  if(style.texture)bubble.styleTextureId=style.id;else delete bubble.styleTextureId;
  return bubble;

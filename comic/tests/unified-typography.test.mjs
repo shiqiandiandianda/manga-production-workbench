@@ -27,6 +27,6 @@ test('统一字号覆盖10到1024，并拒绝非法数值',()=>{for(const value 
 
 
 test('非法排版选项被拒绝，旧版两项字体设置可升级',()=>{
- const old=validateTypography({fontFamily:'source-han-serif',fontSize:51});assert.equal(old.lineHeight,1.32);assert.equal(old.fontWeight,400);
+ const old=validateTypography({fontFamily:'source-han-serif',fontSize:51});assert.equal(old.lineHeight,1.32);assert.equal(old.fontWeight,500);
  for(const change of [{fontWeight:450},{lineHeight:.5},{letterSpacing:-11},{textColor:'red'},{writingMode:'sideways'},{textDirection:'wrong'},{padding:100}])assert.throws(()=>validateTypography({...TYPOGRAPHY_DEFAULT,...change}));
 });

@@ -59,7 +59,7 @@ test('默认对白尾巴显示，用户手动关闭后保存刷新保持关闭',
  for(const type of ['thought','caption','sfx'])assert.equal(bubbleTailGeometry(base({type})),null);
  assert.equal(bubbleTailGeometry(base({productionOriginal:{泡尾:null}})),null);
  assert.equal(bubbleTailGeometry(base({comicStyleId:'chosen-no-tail'})),null);
- assert.equal(productionTailVisible({},'speech'),true);assert.equal(productionTailVisible({},'thought'),false);assert.equal(productionTailVisible({泡尾:null},'speech'),false);
+ assert.equal(productionTailVisible({},'speech'),true);assert.equal(productionTailVisible({},'thought'),true);assert.equal(productionTailVisible({泡尾:null},'speech'),true);assert.equal(productionTailVisible({泡尾:false},'speech'),false);
 });
 test('无框文字仍保留独立文字框，按文字扩大气泡保持指定字号',()=>{
  const b=base({shape:'none',w:130,h:45,textBox:{x:300,y:250,w:350,h:160}}),l=bubbleLayout(ctx,b);assert.equal(l.fontSize,b.fontSize);assert.deepEqual(l.textBox,b.textBox);

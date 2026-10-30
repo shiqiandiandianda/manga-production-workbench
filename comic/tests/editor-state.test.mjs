@@ -48,9 +48,10 @@ test('属性面板列出实际样式字段，内容转义且页高没有30000限
   const project=createProject('界面验证',true),bubble={...project.pages[0].bubbles[0],shape:'custom',text:'<script>注入</script>😄'},escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const numberField=(label,key,value,section,min,max,step)=>`<label>${label}<input data-section="${section}" data-field="${key}" value="${value}" min="${min}" max="${max}" step="${step}"></label>`;
   const markup=bubbleInspectorMarkup(bubble,{escape,numberField,page:project.pages[0],layout:{overflow:true}});
-  for(const key of ['shape','outlineWidth','outlineColor','fillColor','fillOpacity','fontFamily','fontWeight','textColor','lineHeight','letterSpacing','textAlign','padding','overflow'])assert.ok(markup.includes(`data-field="${key}"`),key);
+  for(const key of ['shape','outlineWidth','outlineColor','fillColor','fillOpacity','fontFamily','fontSize','fontWeight','textColor','lineHeight','letterSpacing','textAlign','padding'])assert.ok(markup.includes(`data-field="${key}"`),key);
+  assert.doesNotMatch(markup,/data-field="overflow"/);assert.match(markup,/填充不透明度 %/);
   for(const section of ['bubble-textbox','bubble-tail','bubble-node'])assert.ok(markup.includes(`data-section="${section}"`),section);
-  assert.doesNotMatch(markup,/<script>/);assert.match(markup,/&lt;script&gt;/);assert.match(markup,/文字超出安全区域/);
+  assert.doesNotMatch(markup,/<script>/);assert.match(markup,/&lt;script&gt;/);assert.match(markup,/文字超出区域/);
 });
 
 test('明确724迁移后气泡外观与文字框仍满足保存校验，选中控件不重复绘制正文',()=>{
@@ -63,7 +64,7 @@ test('明确724迁移后气泡外观与文字框仍满足保存校验，选中�
 
 test("expanded bubble inspector changes preserve the rendered tail tip",()=>{
   const value={id:"keep",type:"speech",text:"A synthetic multiline speech bubble checks the rendered tail position.",overflow:"expand",x:100,y:500,w:350,h:120,fontSize:46,tail:{mode:"absolute",x:300,y:460,side:"top",base:.5,visible:true}},original=clone(value),before=bubbleLayout(measurement,value);
-  assert.equal(before.expanded,true);
+  assert.equal(before.expanded,false);assert.equal(before.fontSize,46);assert.equal(before.w,value.w);assert.equal(before.h,value.h);
   for(const [key,fieldValue] of [["side","left"],["base",60],["visible",true]]){
     const changed=bubbleFieldChange(value,"bubble-tail",key,fieldValue,0,before),after=bubbleLayout(measurement,changed);
     near(after.tail.tip.x,before.tail.tip.x);near(after.tail.tip.y,before.tail.tip.y);

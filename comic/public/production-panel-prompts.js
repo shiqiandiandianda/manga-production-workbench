@@ -1,5 +1,6 @@
 import {stateFor,stateKey} from './character-states.js';
 import {resolvedTextAsset} from './asset-text-references.js';
+import {cleanPromptVariant} from './clean-prompt-variant.js';
 const normalized=value=>String(value).normalize('NFKC').replace(/\s+/gu,'');
 const emptyColumns=['生图提示词(空泡)','单格提示词(空泡)','空泡提示词','空泡'];
 const cleanColumns=['生图提示词(无泡)','单格提示词(无泡)','无泡提示词','无泡','生图提示词(后期嵌字)','后期嵌字提示词','后期嵌字生图提示词'];
@@ -14,7 +15,7 @@ export function productionPanelPrompts(record){
   return {text:'',column:null};
  };
  const empty=read(emptyColumns),explicitClean=read(cleanColumns),legacy=read(['生图提示词','生产提示词','productionPrompt','prompt']);
- const clean=explicitClean.text?explicitClean:/(?:不要|不准|禁止|不得)[^。\n]{0,40}(?:气泡|对话框)|无(?:对白)?气泡|无泡/u.test(legacy.text)?legacy:explicitClean;
+ const derived=cleanPromptVariant(empty.text),clean=explicitClean.text?explicitClean:derived?{text:derived,column:empty.column,derived:true,label:'单格无框提示词（由空泡原文转换）'}:/(?:不要|不准|禁止|不得)[^。\n]{0,40}(?:气泡|对话框)|无(?:对白)?气泡|无泡/u.test(legacy.text)?legacy:explicitClean;
  return {empty,clean,legacy};
 }
 export function productionPanelPromptSource(record,stored){

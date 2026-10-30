@@ -17,6 +17,7 @@ import {productionFrame,applyProductionLettering} from '../public/production-pac
 import {prepareProductionPanel,applyProductionPanelLettering} from '../public/production-panel-generation.js';
 import {normalizeLayerOrder} from '../public/layers.js';
 import {createProject,id} from '../public/model.js';
+import {setBubbleEditMode} from '../public/bubble-edit-mode.js';
 import {validateProject} from '../lib/store.mjs';
 const {createCanvas}=createRequire(import.meta.url)(process.env.COMIC_TEST_CANVAS_MODULE),ctx=createCanvas(1000,1000).getContext('2d');
 const first=()=>({id:id('bubble'),type:'speech',visible:true,x:80,y:60,w:350,h:160,fontSize:36,text:'在下青城派掌门余沧海，阁下又是何人？',productionTextId:'E011-T001',productionSegment:'E011-S001',productionGridId:'E011-001',speaker:'余沧海',parentPanelId:'parent'});
@@ -28,7 +29,7 @@ test('合并保留两句原文及来源，固定字号并在溢出时提示',()=
  for(const part of layout.dialogueLayouts)for(const line of part.lines)if(!line.overflow)assert.ok(line.width<=line.availableWidth+.01);
  assert.deepEqual(paintBubble(ctx,merged).dialogueLayouts,layout.dialogueLayouts);
  const svg=svgBubbleMarkup(ctx,merged);assert.equal((svg.match(/data-dialogue-segment=/g)||[]).length,2);assert.match(svg,/data-overflow="true"/);
- const controls=svgBubbleSelectionMarkup(ctx,merged);assert.equal((controls.match(/<rect data-bubble-handle="segment-move"/g)||[]).length,2);assert.match(controls,/data-bubble-handle="segment-resize" data-bubble-point="1"/);
+ setBubbleEditMode(merged.id,'text');const controls=svgBubbleSelectionMarkup(ctx,merged);assert.equal((controls.match(/<circle data-bubble-handle="segment-move"/g)||[]).length,2);assert.match(controls,/data-bubble-handle="segment-resize" data-bubble-point="1"/);assert.match(controls,/data-bubble-handle="tail"/);setBubbleEditMode(merged.id,'body');
 });
 test('双圆新增第二段、独立改字/拖动/换行，另一段和气泡不动',()=>{
  const one=applyBubbleMaterial(first(),'builtin-double'),b=addDialogueSegment(one,'第二段'),before=structuredClone(b);

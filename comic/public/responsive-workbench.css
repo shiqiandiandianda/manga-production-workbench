@@ -273,3 +273,9 @@ body.modern-workbench.compact-workbench {grid-template-rows: max-content max-con
 .coordinate-segment-grid small {color: var(--muted,#9bb3c7);}
 .coordinate-segment-grid svg {width: 100%; height: auto; background: white; max-height: 580px;}
 .coordinate-segment-grid pre {white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; font: 13px / 1.6 sans-serif;}
+
+/* Keep speaker identity and order beside the bubble, in a compact stack. */
+.bubble-speaker-chip:not([hidden]){flex-direction:column;align-items:center;gap:4px;max-width:132px}
+.bubble-speaker-chip .speaker-order-row{display:flex;align-items:center;justify-content:center;gap:4px}
+.bubble-speaker-chip .bubble-speaker-info{max-width:132px;box-sizing:border-box}
+.bubble-speaker-chip .bubble-speaker-info>div{min-width:0}.bubble-speaker-chip strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:78px;display:block}

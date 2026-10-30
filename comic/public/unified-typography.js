@@ -1,10 +1,12 @@
+import {TEXT_FONT_DEFAULTS} from './text-font-defaults.js';
+import {fontWeightOptions} from './font-weights.js';
 import {FONT_FAMILIES,normalizeBubbleStyle,bubbleLayout,svgBubbleMarkup} from './lettering.js';
 import {formatInputNumber} from './numeric-inputs.js';
+import {updateProductionStyle} from './production-lettering-style.js';
 
-export const TYPOGRAPHY_DEFAULT={fontFamily:'source-han-sans',fontSize:48,fontWeight:400,letterSpacing:0,lineHeight:1.32,textColor:'#171b20',textAlign:'center',writingMode:'horizontal',textDirection:'ltr',padding:28};
+export const TYPOGRAPHY_DEFAULT={...TEXT_FONT_DEFAULTS,letterSpacing:0,lineHeight:1.32,textColor:'#171b20',textAlign:'center',writingMode:'horizontal',textDirection:'ltr',padding:28};
 export const TYPOGRAPHY_FIELDS=Object.keys(TYPOGRAPHY_DEFAULT);
 export const FONT_LABELS={'source-han-sans':'思源黑体','source-han-serif':'思源宋体','system-sans':'系统黑体','system-serif':'系统宋体'};
-const WEIGHTS={300:'细体',400:'常规',500:'中等',600:'半粗',700:'加粗',800:'特粗',900:'重体'};
 const fail=message=>{throw Object.assign(new Error(message),{status:400});};
 
 export function validateTypography(input){
@@ -23,7 +25,7 @@ export function readTypographyDefaults(){try{return validateTypography(JSON.pars
 export function rememberTypography(input){const value=validateTypography(input);globalThis.localStorage?.setItem('comic-unified-typography',JSON.stringify(value));return value;}
 export function projectTypography(project){
   const first=project?.pages?.flatMap(page=>page.bubbles||[]).find(bubble=>['speech','thought','caption'].includes(bubble.type));
-  const value={...TYPOGRAPHY_DEFAULT,...(first?normalizeBubbleStyle(first):{}),...project?.typography};
+  const value={...TYPOGRAPHY_DEFAULT,...(first?normalizeBubbleStyle(first):{}),...TEXT_FONT_DEFAULTS,...project?.typography};
   if(value.fontSize<10||value.fontSize>1024)value.fontSize=TYPOGRAPHY_DEFAULT.fontSize;
   value.letterSpacing=Math.min(64,Math.max(-10,value.letterSpacing));value.padding=Math.min(96,Math.max(0,value.padding));
   try{return validateTypography(value);}catch{return {...TYPOGRAPHY_DEFAULT};}
@@ -32,10 +34,11 @@ export function applyProjectTypography(project,input){
   const value=validateTypography(input);let changed=0,locked=0;
   for(const page of project.pages){for(const bubble of page.bubbles||[]){
     if(!['speech','thought','caption'].includes(bubble.type))continue;
-    if(bubble.locked){locked++;continue;}
+    if(page.locked||bubble.locked||page.panels?.find(f=>f.id===bubble.parentPanelId)?.locked){locked++;continue;}
     if(TYPOGRAPHY_FIELDS.some(key=>bubble[key]!==value[key])){Object.assign(bubble,value);changed++;}
   }}
   project.typography={...value};
+  const segment=project.productionPackage?.episodes?.flatMap(e=>e.segments)[0];if(segment)updateProductionStyle(project,segment.id,'all',value);
   return {changed,locked};
 }
 
@@ -45,7 +48,7 @@ export function typographyMarkup(value,prefix,{scope=false,projectCount=0,trial=
   const number=(key,label,min,max,step=1)=>'<label>'+label+'<input id="'+prefix+'-'+key+'" data-typography-field aria-label="统一'+label+'" type="number" min="'+min+'" max="'+max+'" step="'+step+'" value="'+formatInputNumber(config[key])+'"></label>';
   return '<section class="unified-typography" data-typography-panel><div class="typography-heading"><div><strong>统一字体</strong><small>对白 · 心声 · 旁白</small></div><button type="button" data-typography-reset>恢复默认</button></div>'
     +'<div class="typography-fields">'+select('fontFamily','字体',FONT_LABELS)+number('fontSize','字号 px',10,1024)
-    +select('fontWeight','字重 / 粗细',{...WEIGHTS,...(!Object.hasOwn(WEIGHTS,config.fontWeight)?{[config.fontWeight]:String(config.fontWeight)}:{})})
+    +select('fontWeight','字重 / 粗细',Object.fromEntries(fontWeightOptions(config.fontFamily,config.fontWeight)))
     +'<label>文字颜色<div class="typography-color"><input id="'+prefix+'-textColor" data-typography-field type="color" value="'+config.textColor+'" aria-label="统一文字颜色"><input id="'+prefix+'-textColorHex" data-typography-field type="text" value="'+config.textColor+'" maxlength="7" spellcheck="false" aria-label="统一颜色 HEX"></div></label>'
     +number('letterSpacing','字间距 px',-10,64,.5)+number('lineHeight','行距 × 字号',.8,3,.05)+'</div>'
     +'<details class="typography-advanced"><summary>更多排版</summary><div class="typography-fields">'+select('textAlign','文字对齐',{left:'靠左',center:'居中',right:'靠右'})+select('writingMode','文字排列',{horizontal:'横排',vertical:'竖排'})+select('textDirection','书写方向',{ltr:'左到右',rtl:'右到左'})+number('padding','文字内边距 px',0,96)+'</div></details>'
@@ -59,6 +62,7 @@ export function readTypography(host,prefix){
   return validateTypography(values);
 }
 export function syncTypographyInput(host,prefix,target){
+  if(target.id===prefix+'-fontFamily'){const weight=host.querySelector('#'+prefix+'-fontWeight'),current=weight.value;weight.innerHTML=fontWeightOptions(target.value,current).map(([value,label])=>'<option value="'+value+'">'+label+'</option>').join('');weight.value=current;}
   const picker=host.querySelector('#'+prefix+'-textColor'),hex=host.querySelector('#'+prefix+'-textColorHex');
   if(target.id===prefix+'-textColor')hex.value=picker.value;
   if(target.id===prefix+'-textColorHex'&&/^#[a-f0-9]{6}$/i.test(hex.value))picker.value=hex.value;
@@ -68,9 +72,9 @@ export function resetTypography(host,prefix){
   host.querySelector('#'+prefix+'-textColorHex').value=TYPOGRAPHY_DEFAULT.textColor;paintTypographyPreview(host,prefix);return {...TYPOGRAPHY_DEFAULT};
 }
 export function renderTypographyPreview(context,input,width=240){
-  const value=validateTypography(input),scale=2.5,bubble={...value,id:'typography-preview',text:'月色如水\n我们出发吧。',type:'speech',shape:'none',x:0,y:0,w:Math.max(150,width),h:100,fontSize:value.fontSize/scale,letterSpacing:value.letterSpacing/scale,padding:value.padding/scale,outlineWidth:0,visible:true,overflow:'visible',tail:{visible:false}};
+  const value=validateTypography(input),scale=2.5,bubble={...value,id:'typography-preview',text:'月色如水\n我们出发吧。',type:'speech',shape:'none',x:0,y:0,w:Math.max(150,width)*scale,h:100*scale,outlineWidth:0,visible:true,overflow:'visible',tail:{visible:false}};
   let layout=bubbleLayout(context,bubble);for(let attempt=0;attempt<16&&layout.overflow;attempt++){bubble.h=Math.ceil(bubble.h*1.2+10);layout=bubbleLayout(context,bubble);}
-  return {width:bubble.w,height:bubble.h,layout,markup:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+bubble.w+' '+bubble.h+'" width="'+bubble.w+'" height="'+bubble.h+'" role="img" aria-label="字形与间距预览">'+svgBubbleMarkup(context,bubble)+'</svg>'};
+  return {width:bubble.w/scale,height:bubble.h/scale,layout,markup:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+bubble.w+' '+bubble.h+'" width="'+bubble.w/scale+'" height="'+bubble.h/scale+'" role="img" aria-label="字形与间距预览">'+svgBubbleMarkup(context,bubble)+'</svg>'};
 }
 export function paintTypographyPreview(host,prefix){
   const preview=host.querySelector('[data-typography-preview]');if(!preview)return;

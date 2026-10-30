@@ -21,8 +21,9 @@ test('明确宽度迁移同步图像取景、节点几何、文字与绝对尾�
   assert.deepEqual(frame.points,original.panels[0].points);assert.deepEqual(frame.candidates,['asset']);assert.equal(frame.imageAssetId,'asset');
   for(const key of ['x','y','w','h','border','feather'])close(frame[key],original.panels[0][key]*factor);
   for(const key of ['x','y','scale'])close(frame.imageTransform[key],original.panels[0].imageTransform[key]*factor);
-  for(const key of ['x','y','w','h','fontSize','outlineWidth','padding','letterSpacing'])close(page.bubbles[0][key],original.bubbles[0][key]*factor);
-  close(page.bubbles[0].textBox.w,250*factor);close(page.bubbles[0].tail.y,260*factor);
+  for(const key of ['x','y','w','h','outlineWidth'])close(page.bubbles[0][key],original.bubbles[0][key]*factor);
+  for(const key of ['fontSize','padding','letterSpacing'])assert.equal(page.bubbles[0][key],original.bubbles[0][key]);
+  assert.equal(page.bubbles[0].textBox.w,250);assert.equal(page.bubbles[0].textBox.h,100);close(page.bubbles[0].textBox.x,(12+125)*factor-125);close(page.bubbles[0].tail.y,260*factor);
   assert.equal(page.bubbles[0].lineHeight,1.4);assert.equal(page.bubbles[0].tail.base,.5);
   assert.deepEqual(page.bubbles[0].points,original.bubbles[0].points);assert.deepEqual(page.bubbles[1].tail,original.bubbles[1].tail);
   const once=clone(page);rescalePageWidth(page);assert.deepEqual(page,once);

@@ -214,6 +214,7 @@ export function createCollabJobs({store, dataDir, pump, updateJob, addAssetInfo,
     });
     store.db.jobs.push(job);
     store.save();
+    if(store.lastSaveError){Object.assign(job,{status:'failed',phase:'failed',message:'协作任务未成功保存，未调用生图通道'});store.save();check(false,'协作任务暂时无法写盘，请检查磁盘后重试',503);}
     void pump();
     return {jobId, status: 'queued', taskId, attempt, createdAt: job.created};
   }

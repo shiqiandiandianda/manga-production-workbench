@@ -5,6 +5,7 @@ import {createMokuClassifiedReader} from './moku-classified-reader.mjs';
 import {createMokuProjectLibrary} from './moku-project-library.mjs';
 import {createMokuRecycle} from './moku-recycle.mjs';
 import {createProjectMediaFiles} from './project-media-files.mjs';
+import {backupEntryBytes} from './maintenance-backup.mjs';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import fs from 'node:fs';import path from 'node:path';import {createHash,randomUUID} from 'node:crypto';
 import {check,imageInfo} from './store.mjs';import {writeFileAtomicSync} from './durable-files.mjs';import {FONT_FAMILIES} from '../public/lettering.js';import {createRequire} from 'node:module';
@@ -12,7 +13,7 @@ const uuid=value=>typeof value==='string'&&/^[a-f0-9-]{36}$/i.test(value);
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
 const mediaExtension=mime=>({'image/png':'.png','image/jpeg':'.jpg','image/webp':'.webp','image/gif':'.gif','image/svg+xml':'.svg','image/avif':'.avif','font/ttf':'.ttf','font/otf':'.otf','font/collection':'.ttc','font/woff':'.woff','font/woff2':'.woff2','application/x-font-ttf':'.ttf','application/x-font-opentype':'.otf','application/vnd.ms-opentype':'.otf'})[String(mime||'').split(';')[0].trim().toLowerCase()]||'';
 const supportedExtension=extension=>/^\.(ttf|otf|ttc|woff2?|png|jpe?g|webp|gif|svg|avif)$/.test(extension);
-export function createRemoteLibrary({dataDir,configPath,baseUrl='http://172.16.6.2:8443',store,addAsset,body,json}){
+export function createRemoteLibrary({dataDir,configPath,baseUrl='http://127.0.0.1:8443',store,addAsset,body,json}){
  const local=path.join(dataDir,'library-session.local.json'),cache=path.join(dataDir,'library-cache');fs.mkdirSync(cache,{recursive:true});
  let session={};for(const file of [configPath,local])try{Object.assign(session,JSON.parse(fs.readFileSync(file)));}catch{}
  let sessionEpoch=0;const operation=new AsyncLocalStorage();
@@ -45,7 +46,7 @@ export function createRemoteLibrary({dataDir,configPath,baseUrl='http://172.16.6
   const key='moku_'+resource.revisionId.replaceAll('-',''),family='Moku_'+resource.revisionId.replaceAll('-','');store.db.libraryFonts||=[];
   let font=store.db.libraryFonts.find(f=>f.key===key);if(font)check(font.provenance?.assetId===resource.assetId&&font.provenance?.sha256===resource.sha256,'字体版本身份冲突',409);
   else{font={key,name:resource.originalName||'墨库固定字体',family,revisionId:resource.revisionId,url:'/api/library/fonts/'+resource.revisionId,provenance:{baseUrl:base,projectId:null,scopeId:'global',assetKind:'file',assetType:'font',assetId:resource.assetId,revisionId:resource.revisionId,sha256:resource.sha256}};store.db.libraryFonts.push(font);}
-  font.filePath=file;registerFont(font);store.save();return font;
+  if(resource.archiveRef)font.provenance.archiveRef=resource.archiveRef;font.filePath=file;registerFont(font);store.save();return font;
  }
  async function ensureCollaborationFolder(projectId,folder){
   if(await classified.supported())return;
@@ -126,6 +127,14 @@ export function createRemoteLibrary({dataDir,configPath,baseUrl='http://172.16.6
   if(method==='GET'&&pathname==='/api/library/recycle/pending'){json(res,200,await pin(()=>recycle.pending(url.searchParams.get('projectId'))));return true;}
   if(method==='POST'&&pathname==='/api/library/import'){const input=await body(req);json(res,201,await pin(()=>importAsset(input)));return true;}
   if(method==='GET'&&pathname==='/api/library/fonts'){json(res,200,{items:fonts()});return true;}
+  // Explicit source cursors let batch matching read each classified page once.
+  // Legacy pickers retain their filtered-offset contract below.
+  if(method==='GET'&&pathname==='/api/library/assets'&&url.searchParams.get('kind')==='image'&&url.searchParams.get('pageMode')==='source'&&await classified.supported()){
+   const params=new URLSearchParams(url.searchParams);params.delete('kind');params.delete('pageMode');params.delete('groupCharacters');params.set('assetKind','image');
+   const offset=Math.max(0,Number(params.get('offset'))||0),value=await read('/api/assets?'+params);
+   const items=value.items.filter(item=>!isCollaborationFile(item)&&(/\.(png|jpe?g|webp|gif|svg|avif)$/i.test(item.name)||/^image\//.test(item.mime||'')||item.assetKind==='image'));
+   json(res,200,{...value,items,nextOffset:offset+value.items.length});return true;
+  }
   const fontMatch=pathname.match(/^\/api\/library\/fonts\/([a-f0-9-]{36})$/i);if(method==='GET'&&fontMatch){const f=store.db.libraryFonts?.find(f=>f.revisionId===fontMatch[1]);check(f,'字体尚未取用',404);const bytes=fs.readFileSync(f.filePath);res.writeHead(200,{'Content-Type':path.extname(f.filePath)==='.otf'?'font/otf':'font/ttf','Cache-Control':'private, max-age=31536000, immutable'});res.end(bytes);return true;}
   if(method==='GET'&&pathname==='/api/library/assets'&&['bubble','font','sfx'].includes(url.searchParams.get('kind'))&&await classified.supported()){
    const params=new URLSearchParams(url.searchParams);params.set('projectId','public');params.set('assetType',({bubble:'bubble',font:'font',sfx:'sfx_text'})[params.get('kind')]);params.delete('kind');params.delete('categoryId');params.delete('category');
@@ -138,5 +147,20 @@ export function createRemoteLibrary({dataDir,configPath,baseUrl='http://172.16.6
  const api={handle,read,remote,memberIdentity,appendTags:(id,tags)=>pin(()=>classified.appendTags(id,tags)),importAsset:input=>pin(()=>importAsset(input)),uploadAsset:input=>pin(()=>uploadAsset(input)),withSession:pin,assertSession:checkSession,sessionVersion:()=>sessionEpoch,rememberClassifiedAsset:classified.remember,projectUploadContext:projectLibrary.uploadContext,projectSnapshotTargets:projectLibrary.snapshotTargets,supportsClassified:classified.supported,organizeCollaborationAsset,ensureCollaborationFolder,registerSnapshotFont,fonts,baseUrl:base,defaultProjectId:defaults.projectId,defaultProjectName:defaults.projectName};
  const receiptsFile=path.join(dataDir,'moku-project-files.local.json');let receipts={};try{receipts=JSON.parse(fs.readFileSync(receiptsFile,'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
  const projectFiles=createProjectMediaFiles({store,library:api,dataDir,receipts,persist:()=>writeFileAtomicSync(receiptsFile,JSON.stringify(receipts)),exportSources:project=>api.exportProjectSources?.(project)});
+ const restoring=new Map();
+ api.ensureAsset=async assetId=>{
+  const asset=store.asset(assetId),file=store.assetPath(assetId);if(fs.existsSync(file))return;
+  if(!asset.storageEvicted||!asset.library?.revisionId&&!asset.storageEvicted.archiveRef)throw Error('图片原件缺失：'+asset.name);
+  if(restoring.has(assetId))return restoring.get(assetId);
+  const task=pin(async()=>{const archived=asset.storageEvicted.archiveRef,ref=archived||asset.library;if(ref.baseUrl&&ref.baseUrl.replace(/\/$/,'')!==base)throw Error('图片备份属于其他墨库服务器');
+   const relative=path.relative(path.resolve(dataDir),path.resolve(file));if(relative.startsWith('..')||path.isAbsolute(relative))throw Error('缓存恢复位置超出本机数据目录');
+   api.rememberClassifiedAsset?.({...ref,id:ref.assetId,recommendedRevisionId:ref.revisionId,...(archived?{scopeId:'project',assetKind:'file',assetType:'project_archive'}:{})});
+   const response=await remote('/api/revisions/'+ref.revisionId+'/download'),chunks=[];let size=0;const h=createHash('sha256');
+   for await(const chunk of response.body){size+=chunk.length;check(size<=256*1024*1024,'恢复图片超过大小限制',413);chunks.push(Buffer.from(chunk));h.update(chunk);}
+   checkSession();check(h.digest('hex')===ref.sha256&&(!ref.size||ref.size===size),'墨库原图回读摘要不符，未恢复',422);
+   let bytes=Buffer.concat(chunks);if(archived){bytes=backupEntryBytes(bytes,ref.entry);check(digest(bytes)===ref.fileSha256&&bytes.length===ref.fileBytes,'归档原图摘要不符',422);}
+   fs.mkdirSync(path.dirname(file),{recursive:true});writeFileAtomicSync(file,bytes);delete asset.storageEvicted;asset.storageLastAccess=new Date().toISOString();store.save();
+  });restoring.set(assetId,task);try{await task;}finally{restoring.delete(assetId);}
+ };
  api.packProject=async(project,projectId)=>await classified.supported()?projectFiles.pack(project,projectId):null;return api;
 }

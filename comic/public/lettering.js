@@ -1,3 +1,4 @@
+import {TEXT_FONT_DEFAULTS} from './text-font-defaults.js';
 import {roundBubbleSize,usesRoundBubbleDefault} from './round-bubble-default.js';
 import {dialogueSegments,segmentBubble} from './bubble-dialogue-segments.js';
 import {bubbleTailVisible} from './bubble-tail-compat.js';
@@ -11,6 +12,8 @@ import {bubbleParts,outlineWithParts,shapedTailPoints} from './bubble-parts.js';
 import {unionBubblePolygons} from './bubble-tail-anchor.js';
 import {validBubbleRays,bubbleRaySegments} from './bubble-rays.js';
 import {frameLines} from './bubble-frame.js';
+import {balancedWrapRows} from './balanced-text-wrap.js';
+import {svgTextureInk,paintTextureInk,textureStrokeWidth} from './bubble-texture-ink.js';
 export const BUBBLE_TYPES=Object.freeze(['speech','thought','caption','sfx','label','system']);
 export const BUBBLE_SHAPES=Object.freeze(['oval','rounded-rect','cloud','burst','custom','asset','none']);
 export const FONT_FAMILIES={
@@ -44,16 +47,7 @@ export function measureLettering(context,text,letterSpacing=0){
   return context.measureText(String(text)).width+Math.max(0,graphemes(text).length-1)*letterSpacing;
 }
 function wrapRows(context,text,widthAt,letterSpacing=0){
-  const lines=[];
-  for(const paragraph of String(text??'').split('\n')){
-    let line='';
-    for(const unit of wrapUnits(paragraph)){
-      if(line&&measureLettering(context,line+unit,letterSpacing)>Math.max(1,widthAt(lines.length))){lines.push(line);line='';}
-      line+=unit;
-    }
-    lines.push(line);
-  }
-  return lines;
+  return balancedWrapRows(context,text,widthAt,{letterSpacing});
 }
 export function wrapText(context,text,width,{letterSpacing=0}={}){
   return wrapRows(context,text,()=>Math.max(1,finite(width,1)),letterSpacing);
@@ -102,11 +96,11 @@ export function normalizeBubbleStyle(bubble={}){
   const type=BUBBLE_TYPES.includes(bubble.type)?bubble.type:'speech';
   const unboxed=type==='sfx'||type==='label';
   const shape=BUBBLE_SHAPES.includes(bubble.shape)?bubble.shape:type==='speech'?'oval':type==='thought'?'legacy-thought':unboxed?'none':'rect';
-  const fontFamily=Object.hasOwn(FONT_FAMILIES,bubble.fontFamily)?bubble.fontFamily:'source-han-sans';
-  const fontWeight=Number.isInteger(bubble.fontWeight)&&bubble.fontWeight>=100&&bubble.fontWeight<=900&&bubble.fontWeight%100===0?bubble.fontWeight:type==='sfx'?700:400;
+  const fontFamily=Object.hasOwn(FONT_FAMILIES,bubble.fontFamily)?bubble.fontFamily:TEXT_FONT_DEFAULTS.fontFamily;
+  const fontWeight=Number.isInteger(bubble.fontWeight)&&bubble.fontWeight>=100&&bubble.fontWeight<=900&&bubble.fontWeight%100===0?bubble.fontWeight:type==='sfx'?700:TEXT_FONT_DEFAULTS.fontWeight;
   return {
     type,shape,unboxed,legacyShape:bubble.shape===undefined,
-    fontSize:clamp(finite(bubble.fontSize,28),10,2048),fontFamily,fontWeight,fontStyle:isLibrarySfx(bubble)?(bubble.fontStyle==='normal'?'normal':'italic'):type==='sfx'?'italic':'normal',
+    fontSize:clamp(finite(bubble.fontSize,TEXT_FONT_DEFAULTS.fontSize),10,2048),fontFamily,fontWeight,fontStyle:isLibrarySfx(bubble)?(bubble.fontStyle==='normal'?'normal':'italic'):type==='sfx'?'italic':'normal',
     textColor:color(bubble.textColor,type==='system'?'#f4d77a':type==='sfx'?'#000000':'#171b20'),
     lineHeight:clamp(finite(bubble.lineHeight,1.35),.8,3),letterSpacing:clamp(finite(bubble.letterSpacing,0),-128,256),
     textAlign:BUBBLE_TEXT_ALIGNS.includes(bubble.textAlign)?bubble.textAlign:'center',padding:clamp(finite(bubble.padding,unboxed?8:16),0,4096),
@@ -255,13 +249,16 @@ function positionRows(context,bubble,style,w,h){
 }
 /** Fit the contour around the existing text frames, keeping page-space text
  * positions, wrapping and typography. Initial lettering uses fitDialogueBubble. */
-export function fitBubbleToTextFrame(context,bubble){
+export function fitBubbleToTextFrame(context,bubble,{preserveMaterialAspect=false}={}){
  const next=structuredClone(bubble);if(bubble.locked||normalizeBubbleStyle(bubble).shape==='none')return next;
  const layout=bubbleLayout(context,bubble),parts=dialogueSegments(next),layouts=parts.length?layout.dialogueLayouts:[layout],boxes=layouts.map(l=>l.textBox),style=normalizeBubbleStyle(next);
  const left=Math.min(...boxes.map(b=>b.x)),top=Math.min(...boxes.map(b=>b.y)),right=Math.max(...boxes.map(b=>b.x+b.w)),bottom=Math.max(...boxes.map(b=>b.y+b.h));
  const padding=Math.max(style.padding,style.outlineWidth/2+3),insets=bubble.shape==='asset'?bubble.assetInsets:null;
  const usableX=Math.max(.05,1-(insets?.left||0)-(insets?.right||0)),usableY=Math.max(.05,1-(insets?.top||0)-(insets?.bottom||0)),cx=(insets?.left||0)+usableX/2,cy=(insets?.top||0)+usableY/2;
  let w=(right-left+padding*2)/usableX,h=(bottom-top+padding*2)/usableY,dx=0,dy=0;
+ if(preserveMaterialAspect&&bubble.styleTextureId&&Number.isFinite(bubble.materialAspectRatio)&&bubble.materialAspectRatio>0){
+  if(w/h<bubble.materialAspectRatio)w=h*bubble.materialAspectRatio;else h=w/bubble.materialAspectRatio;
+ }
  for(let attempt=0;attempt<100;attempt++){
   dx=w*cx-(left+right)/2;dy=h*cy-(top+bottom)/2;
   const outline=shapeOutline(style,next,w,h),fits=boxes.every(box=>{
@@ -294,7 +291,9 @@ export function fitBubbleTailToBody(bubble,next,layout){
   // tail root; a page-space tip would stay behind when the outline moves.
   // Bound the fitted length so clicking again also repairs old stretched tails.
   const length=Math.hypot(vx,vy),shortSide=Math.min(w,h),maxLength=Math.min(Math.max(style.fontSize*1.5,shortSide*.35),shortSide*2),scale=Math.min(w/layout.w,h/layout.h,maxLength/Math.max(length,1e-9));
-  next.tail={...next.tail,mode:'normalized',x:(after.x+vx*scale)/w,y:(after.y+vy*scale)/h};
+  // Imported speech may render a tail through compatibility defaults despite a
+  // stored visible:false. Adding explicit tip coordinates must keep that tail on.
+  next.tail={...next.tail,visible:true,mode:'normalized',x:(after.x+vx*scale)/w,y:(after.y+vy*scale)/h};
  }
  return next;
 }
@@ -345,11 +344,17 @@ function paintTextLine(context,layout,line){
   characters.forEach((character,index)=>{const x=start+context.measureText(prefix).width+index*layout.letterSpacing;if(layout.textStroke){context.strokeStyle=layout.textStroke;context.lineWidth=layout.textStrokeWidth;context.lineJoin='round';context.strokeText(character,x,line.y);}context.fillText(character,x,line.y);prefix+=character;});
   context.restore();
 }
+function textureTailStroke(bubble,layout){
+ if(!bubble.styleTextureId||layout.outlineWidth>0&&bubble.textureInkVersion!==1||!layout.tail||textureStrokeWidth(bubble)<=0)return null;
+ return {width:textureStrokeWidth(bubble),points:[layout.tail.anchors[0],layout.tail.tip,layout.tail.anchors[1]]};
+}
 export function paintBubble(context,bubble,{textureImage,visualImage}={}){
   if(!bubble.visible)return;
   context.save();const layout=bubbleLayout(context,bubble);context.translate(layout.x,layout.y);
   if(isLibrarySfx(bubble)){context.translate(layout.w/2,layout.h/2);context.rotate(sfxRotation(bubble)*Math.PI/180);context.translate(-layout.w/2,-layout.h/2);}
-  if(layout.shape==='rect'&&!bubble.tail){
+  if(bubble.styleTextureId&&bubble.textureInkVersion===1){
+    if(layout.tail){polygon(context,[layout.tail.anchors[0],layout.tail.tip,layout.tail.anchors[1]]);fillAndStroke(context,{...layout,outlineWidth:0});}
+  }else if(layout.shape==='rect'&&!bubble.tail){
     fillAndStroke(context,layout,()=>context.fillRect(0,0,layout.w,layout.h),()=>context.strokeRect(0,0,layout.w,layout.h));
     if(layout.type==='system'&&layout.legacyShape){context.strokeStyle='#9a3333';context.lineWidth=1;context.strokeRect(4,4,Math.max(0,layout.w-8),Math.max(0,layout.h-8));}
   }else if(layout.shape==='oval'&&layout.legacyShape&&(!bubble.tail||layout.tail?.legacy)){
@@ -360,7 +365,8 @@ export function paintBubble(context,bubble,{textureImage,visualImage}={}){
   if(rays.length&&layout.outlineWidth>0){context.save();context.beginPath();for(const ray of rays){context.moveTo(ray.inner.x,ray.inner.y);context.lineTo(ray.outer.x,ray.outer.y);}context.strokeStyle=layout.outlineColor;context.lineWidth=layout.outlineWidth*bubble.assetRays.strokeScale;context.lineCap='round';context.stroke();context.restore();}
   for(const line of frameLines(bubble,layout.w,layout.h)){context.save();context.beginPath();line.points.forEach((p,i)=>i?context.lineTo(p.x,p.y):context.moveTo(p.x,p.y));if(line.closed)context.closePath();context.strokeStyle=layout.outlineColor;context.lineWidth=layout.outlineWidth*line.strokeScale;context.lineJoin='round';context.lineCap='round';if(layout.outlineWidth>0)context.stroke();context.restore();}
   if(visualImage&&currentVisualStyle(bubble)){context.drawImage(visualImage,0,0,layout.w,layout.h);context.restore();return layout;}
-  if(textureImage)context.drawImage(textureImage,0,0,layout.w,layout.h);
+  const tailStroke=textureTailStroke(bubble,layout);if(tailStroke){context.save();context.beginPath();tailStroke.points.forEach((p,i)=>i?context.lineTo(p.x,p.y):context.moveTo(p.x,p.y));context.strokeStyle=layout.outlineColor;context.lineWidth=tailStroke.width;context.lineJoin='round';context.stroke();context.restore();}
+  if(textureImage)paintTextureInk(context,textureImage,bubble,layout,layout);
   context.font=layout.font;context.textAlign=layout.textAlign;context.textBaseline='middle';context.fillStyle=layout.color;
   if(isLibrarySfx(bubble)&&(bubble.shadowOffsetX||bubble.shadowOffsetY)){context.save();context.translate(clamp(finite(bubble.shadowOffsetX,0),-256,256),clamp(finite(bubble.shadowOffsetY,0),-256,256));const shade=color(bubble.shadowColor,'#171b20');context.fillStyle=shade;for(const line of layout.lines)paintTextLine(context,{...layout,textStroke:shade},line);context.restore();}
   for(const paragraph of layout.dialogueLayouts||[layout]){context.font=paragraph.font;context.textAlign=paragraph.textAlign;context.fillStyle=paragraph.color;for(const line of paragraph.lines)paintTextLine(context,paragraph,line);}
@@ -368,6 +374,7 @@ export function paintBubble(context,bubble,{textureImage,visualImage}={}){
 }
 function svgOutline(layout,bubble){
   if(layout.shape==='none')return '';
+  if(bubble.styleTextureId&&bubble.textureInkVersion===1)return layout.tail?'<polygon data-texture-tail-fill="true" points="'+[layout.tail.anchors[0],layout.tail.tip,layout.tail.anchors[1]].map(p=>p.x+','+p.y).join(' ')+'" fill="'+layout.fillColor+'" fill-opacity="'+layout.fillOpacity+'" stroke="none"/>':'';
   const rays=bubbleRaySegments(bubble,layout.drawOutline,layout.w,layout.h);
   if(rays.length){const paths=layout.drawOutline.components||[layout.drawOutline];return '<path d="'+paths.map(points=>'M '+points.map(p=>p.x+' '+p.y).join(' L ')+' Z').join(' ')+'" fill="'+layout.fillColor+'" fill-opacity="'+layout.fillOpacity+'" stroke="none"/><path data-thought-rays="'+rays.length+'" d="'+rays.map(r=>'M '+r.inner.x+' '+r.inner.y+' L '+r.outer.x+' '+r.outer.y).join(' ')+'" fill="none" stroke="'+layout.outlineColor+'" stroke-width="'+layout.outlineWidth*bubble.assetRays.strokeScale+'" stroke-linecap="round"/>';}
   const style='fill="'+layout.fillColor+'" fill-opacity="'+layout.fillOpacity+'" stroke="'+layout.outlineColor+'" stroke-width="'+layout.outlineWidth+'" stroke-linejoin="round"';
@@ -378,8 +385,11 @@ function svgOutline(layout,bubble){
 }
 function svgHandles(layout,bubble,zoom){
   const z=Math.max(.01,finite(zoom,1)),radius=5/z,stroke=1.5/z,box=layout.textBox;
+  // Keep the original control positions. Closely spaced tail handles must not
+  // cover each other's clickable centres when the canvas is zoomed out.
+  const tailHandleRadius=(name,x,y)=>{if(!name.startsWith('tail')||!layout.tail)return 12/z;const distances=[layout.tail.tip,layout.tail.anchor,...(layout.tail.anchors||[])].filter(Boolean).map(p=>Math.hypot(p.x-x,p.y-y)).filter(d=>d>.001);return Math.min(12/z,distances.length?Math.min(...distances)*.44:12/z);};
   if(isLibrarySfx(bubble))return '<rect x="-3" y="-3" width="'+(layout.w+6)+'" height="'+(layout.h+6)+'" fill="none" stroke="#48a4ef" stroke-width="'+stroke+'" pointer-events="none"/><line x1="'+layout.w/2+'" y1="0" x2="'+layout.w/2+'" y2="'+(-28/z)+'" stroke="#48a4ef" stroke-width="'+stroke+'" pointer-events="none"/>'+[['sfx-scale',layout.w,layout.h],['sfx-rotate',layout.w/2,-28/z]].map(([name,x,y])=>'<circle data-bubble-handle="'+name+'" cx="'+x+'" cy="'+y+'" r="'+(7/z)+'" fill="white" stroke="#1789db" stroke-width="'+stroke+'" style="cursor:'+ (name==='sfx-scale'?'nwse-resize':'grab')+'"><title>'+ (name==='sfx-scale'?(currentVisualStyle(bubble)?'缩放特效图片':'调整特效文字框，字号不变'):'旋转特效文字')+'</title></circle>').join('');
-  const handle=(name,x,y,extra='')=>'<circle data-bubble-handle="'+name+'" '+extra+' cx="'+x+'" cy="'+y+'" r="'+12/z+'" fill="transparent" pointer-events="all" style="cursor:'+(name==='tail-anchor'?'grab':'move')+'"><title>'+ (name==='tail-anchor'?'沿气泡外边缘滑动尾巴根部':name==='tail-width'?'调整尾巴两个连接点的间距':name==='part-move'?'独立移动圆框':name==='part-resize'?'独立调整圆框大小':name==='tail'?'拖动尾尖':name==='resize'?'调整气泡大小；按住 Shift 等比缩放':['text-move','segment-move'].includes(name)?'移动这段台词': ['text-resize','segment-resize'].includes(name)?'调整这段台词的换行区域':'编辑轮廓节点')+'</title></circle><circle cx="'+x+'" cy="'+y+'" r="'+radius+'" fill="'+(name==='tail-anchor'?'#ffd681':name==='tail-width'?'#ffe3d6':'#ffffff')+'" stroke="'+(name==='tail-anchor'?'#bc7b17':name==='tail-width'?'#d1662a':'#1789db')+'" stroke-width="'+stroke+'" pointer-events="none"/>';
+  const handle=(name,x,y,extra='')=>'<circle data-bubble-handle="'+name+'" '+extra+' cx="'+x+'" cy="'+y+'" r="'+tailHandleRadius(name,x,y)+'" fill="transparent" pointer-events="all" style="cursor:'+(name==='tail-anchor'?'grab':'move')+'"><title>'+ (name==='tail-anchor'?'沿气泡外边缘滑动尾巴根部':name==='tail-width'?'调整尾巴两个连接点的间距':name==='part-move'?'独立移动圆框':name==='part-resize'?'独立调整圆框大小':name==='tail'?'拖动尾尖':name==='resize'?'调整气泡大小；按住 Shift 等比缩放':['text-move','segment-move'].includes(name)?'移动这段台词': ['text-resize','segment-resize'].includes(name)?'调整这段台词的换行区域':'编辑轮廓节点')+'</title></circle><circle cx="'+x+'" cy="'+y+'" r="'+radius+'" fill="'+(name==='tail-anchor'?'#ffd681':name==='tail-width'?'#ffe3d6':'#ffffff')+'" stroke="'+(name==='tail-anchor'?'#bc7b17':name==='tail-width'?'#d1662a':'#1789db')+'" stroke-width="'+stroke+'" pointer-events="none"/>';
   const paragraphs=layout.dialogueLayouts?.map((l,i)=>{const b=l.textBox,extra='data-bubble-point="'+i+'"';return '<rect data-bubble-handle="segment-move" '+extra+' x="'+b.x+'" y="'+b.y+'" width="'+b.w+'" height="'+b.h+'" fill="transparent" stroke="#1789db" stroke-width="'+stroke+'" stroke-dasharray="'+5/z+' '+3/z+'" style="cursor:move"/><text x="'+b.x+'" y="'+(b.y-8/z)+'" fill="#1789db" font-size="'+11/z+'" pointer-events="none">第 '+(i+1)+' 段</text>'+handle('segment-move',b.x,b.y,extra)+handle('segment-resize',b.x+b.w,b.y+b.h,extra);}).join('');
   if(layout.shape==='none'&&!paragraphs)return '<rect data-text-selection="true" x="'+box.x+'" y="'+box.y+'" width="'+box.w+'" height="'+box.h+'" fill="none" stroke="'+(layout.overflow?'#dc5b32':'#1789db')+'" stroke-dasharray="'+5/z+' '+3/z+'" stroke-width="'+stroke+'" pointer-events="none"/>'+handle('text-move',box.x,box.y)+handle('text-resize',box.x+box.w,box.y+box.h);
   return '<rect x="-3" y="-3" width="'+(layout.w+6)+'" height="'+(layout.h+6)+'" fill="none" stroke="#48a4ef" stroke-width="'+stroke+'" pointer-events="none"/>'+
@@ -398,11 +408,17 @@ export function svgBubbleMarkup(context,bubble,{selected=false,zoom=1}={}){
   return '<svg x="0" y="0" width="'+layout.w+'" height="'+layout.h+'" overflow="visible" pointer-events="none"><text '+textStyle+'>'+layout.lines.map(line=>line.glyphs?line.glyphs.map(g=>'<tspan text-anchor="middle" letter-spacing="0" x="'+g.x+'" y="'+g.y+'">'+escape(g.text)+'</tspan>').join(''):'<tspan x="'+line.x+'" y="'+line.y+'">'+escape(line.text)+'</tspan>').join('')+'</text></svg>';};
   let text=(layout.dialogueLayouts||[layout]).map((l,i)=>'<g data-dialogue-segment="'+i+'">'+textMarkup(l)+'</g>').join('');
   if(isLibrarySfx(bubble)&&(bubble.shadowOffsetX||bubble.shadowOffsetY)){const shade=color(bubble.shadowColor,'#171b20'),shadowText=text.replace('fill="'+layout.color+'"','fill="'+shade+'"').replace('stroke="'+layout.textStroke+'"','stroke="'+shade+'"');text='<g transform="translate('+clamp(finite(bubble.shadowOffsetX,0),-256,256)+' '+clamp(finite(bubble.shadowOffsetY,0),-256,256)+')">'+shadowText+'</g>'+text;}
-  const hit='<rect width="'+layout.w+'" height="'+layout.h+'" fill="transparent" pointer-events="all"/>';
+  const visual=currentVisualStyle(bubble);
+  // Text frames can move independently, including outside the original bubble.
+  // Unframed dialogue must not leave an invisible hit target at its old position.
+  const frameHit=layout.shape!=='none'||visual?'<rect width="'+layout.w+'" height="'+layout.h+'" fill="transparent" pointer-events="all"/>':'';
+  const textHit=visual?'':(layout.dialogueLayouts||[layout]).map((l,i)=>{const box=l.textBox;return '<rect data-bubble-hit="text" data-bubble-point="'+i+'" x="'+box.x+'" y="'+box.y+'" width="'+box.w+'" height="'+box.h+'" fill="transparent" pointer-events="all"/>';}).join('');
+  const hit=frameHit+textHit;
   const image=(source)=>'<image href="'+escape(source)+'" width="'+layout.w+'" height="'+layout.h+'" preserveAspectRatio="none" pointer-events="none"/>';
-  const visual=currentVisualStyle(bubble),texture=bubble.styleTextureId?image(bubble.styleTextureAssetId?assetUrl(bubble.styleTextureAssetId):comicPreviewUrl(bubble.styleTextureId)):'';
+  const texture=bubble.styleTextureId?svgTextureInk(bubble,bubble.styleTextureAssetId?assetUrl(bubble.styleTextureAssetId):comicPreviewUrl(bubble.styleTextureId),layout.w,layout.h,escape,layout):'';
   const frame=frameLines(bubble,layout.w,layout.h).map(line=>'<path data-frame-accent="true" d="M '+line.points.map(p=>p.x+' '+p.y).join(' L ')+(line.closed?' Z':'')+'" fill="none" stroke="'+layout.outlineColor+'" stroke-width="'+layout.outlineWidth*line.strokeScale+'" stroke-linecap="round" stroke-linejoin="round"/>').join('');
-  const artwork=visual?image(bubble.visualAssetId?assetUrl(bubble.visualAssetId):comicPreviewUrl(visual)):svgOutline(layout,bubble)+frame+texture+text;
+  const tailStroke=textureTailStroke(bubble,layout),tailInk=tailStroke?'<path data-texture-tail="true" d="M '+tailStroke.points.map(p=>p.x+' '+p.y).join(' L ')+'" fill="none" stroke="'+layout.outlineColor+'" stroke-width="'+tailStroke.width+'" stroke-linejoin="round"/>':'';
+  const artwork=visual?image(bubble.visualAssetId?assetUrl(bubble.visualAssetId):comicPreviewUrl(visual)):svgOutline(layout,bubble)+frame+tailInk+texture+text;
   return '<g data-bubble="'+escape(bubble.id)+'" data-overflow="'+layout.overflow+'" data-render-w="'+layout.w+'" data-render-h="'+layout.h+'" transform="translate('+layout.x+' '+layout.y+')'+sfxTransform(bubble,layout.w,layout.h)+'">'+(layout.overflow?'<title>文字超出排版区域：可调整文字框、气泡或右侧字体属性。</title>':'')+hit+artwork+(selected&&!bubble.locked?svgHandles(layout,bubble,zoom):'')+'</g>';
 }
 

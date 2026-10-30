@@ -7,6 +7,7 @@ export function mountLibraryBulkUI({section,api,toast,getScope,onTrashChange,onC
  const pendingButton=bar.querySelector('[data-library-pending]');
  const count=()=>{bar.querySelector('[data-library-selection]').textContent='已选 '+chosen.size+' 项（包括其他页）';bar.querySelector('[data-library-bulk]').disabled=!chosen.size||busy;bar.querySelector('[data-library-clear]').disabled=!chosen.size||busy;bar.querySelector('[data-library-bulk]').textContent=trash?'批量恢复':'批量回收';};
  function reset(){chosen.clear();epoch++;pendingTicket++;pendingPlans=[];pendingButton.hidden=true;if(dialog?.open)dialog.close();dialog=null;count();}
+ function setContext(actor,value){if(accountId!==(actor||'')||scope!==value){accountId=actor||'';scope=value;reset();void loadPending();}}
  function setScope(value){if(scope!==value){scope=value;reset();void loadPending();}}
  function setAccount(value){if(accountId!==value){accountId=value||'';reset();void loadPending();}}
  async function loadPending(){
@@ -69,5 +70,5 @@ export function mountLibraryBulkUI({section,api,toast,getScope,onTrashChange,onC
   for(const plan of pendingPlans){const row=document.createElement('p'),button=document.createElement('button');button.type='button';button.textContent=(plan.action==='restore'?'恢复':'回收')+' '+plan.total+' 项 · '+plan.createdAt;button.onclick=()=>{dlg.close();if(ticket===epoch&&selectedScope===getScope()&&expectedUserId===accountId)showPlan(plan,ticket,selectedScope,expectedUserId,true);};row.append(button);dlg.append(row);}
   const close=document.createElement('button');close.type='button';close.textContent='取消';close.onclick=()=>dlg.close();dlg.append(close);attachDialog(dlg);
  });
- return {setScope,setAccount,reset,render,isTrash:()=>trash};
+ return {setContext,setScope,setAccount,reset,render,isTrash:()=>trash};
 }

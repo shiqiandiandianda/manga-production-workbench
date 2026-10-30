@@ -1,0 +1,60 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import {createStudio} from '../server.mjs';
+import {createProject} from '../public/model.js';
+import {migrateLayerDocument,normalizeLayerOrder} from '../public/layers.js';
+import {groupForLayer} from '../public/layer-groups.js';
+
+const require=createRequire(import.meta.url),proof=path.resolve(import.meta.dirname,'../../verification/add-bubble-20261030');
+test('精简添加菜单；气泡自带文字并归入所选格子，支持编辑、保存及撤销',{timeout:90000},async t=>{
+ fs.mkdirSync(proof,{recursive:true});
+ const fake={status:async()=>({connected:false}),close(){},generate(){throw Error('No real generation');}};
+ const studio=createStudio({dataDir:fs.mkdtempSync(path.join(proof,'synthetic-')),seedReference:false,bridge:fake,jimengBridge:fake});let browser;
+ t.after(async()=>{await browser?.close();studio.close();studio.server.closeAllConnections();await new Promise(r=>studio.server.close(r));});
+ const p=migrateLayerDocument(createProject('添加气泡验证',true)).project,pg=p.pages[0],frame=pg.panels[0];
+ p.pages=[pg];pg.width=1280;pg.height=1600;pg.bubbles=[];pg.panels=[frame];
+ Object.assign(frame,{x:150,y:150,w:900,h:900,imageAssetId:null,visible:true,locked:false});
+ p.manualDialogueSettings={styleId:'none',fontSize:32,fontWeight:400,fillOpacity:0,outlineWidth:0,tailVisible:false};
+ normalizeLayerOrder(p);studio.store.db.projects.push(p);studio.store.save();
+ await new Promise(r=>studio.server.listen(0,'127.0.0.1',r));
+ const {chromium}=require(process.env.COMIC_PLAYWRIGHT_PATH||'playwright');
+ browser=await chromium.launch({headless:true,executablePath:process.env.COMIC_TEST_BROWSER_EXECUTABLE});
+ const page=await browser.newPage({viewport:{width:1600,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/api/library/**',r=>r.fulfill({json:{connected:false,items:[]}}));
+ const url='http://127.0.0.1:'+studio.server.address().port+'/?project='+p.id;
+ await page.goto(url);await page.locator('#canvas-tool-dock').waitFor();await page.locator('#zoom').selectOption('0.4');
+ const stored=()=>studio.store.project(p.id),bubbles=()=>stored().pages[0].bubbles;
+ const until=async fn=>{for(let i=0;i<160;i++){if(fn())return;await new Promise(r=>setTimeout(r,50));}assert.fail('Save timeout');};
+ const menu=async()=>{await page.locator('#insert-menu summary').click();};
+ const add=async()=>{await menu();await page.locator('#add-bubble').click();};
+ const chooseFrame=async()=>{if(!await page.locator('#layer-list').isVisible())await page.locator('[data-rail-tab="layers"]').click();await page.locator('#layer-list [data-layer="'+frame.id+'"]').click();};
+ await menu();assert.deepEqual(await page.locator('#insert-actions button').allTextContents(),['添加渐变','添加气泡框']);
+ assert.equal(await page.locator('.workspace-rail [data-open-sfx]').count(),0);
+ await page.screenshot({path:path.join(proof,'add-menu.png')});await page.keyboard.press('Escape');
+ await chooseFrame();await add();await until(()=>bubbles().length===1);
+ const first=bubbles()[0];assert.equal(first.parentPanelId,frame.id);assert.equal(first.shotId,frame.shotId);
+ assert.equal(groupForLayer(stored(),first.id).id,frame.id);assert.equal(first.fontFamily,'source-han-sans');assert.equal(first.fontSize,36);assert.equal(first.fontWeight,500);
+ assert.notEqual(first.shape,'none');assert.notEqual(first.tail.visible,false);assert.ok(first.textBox);assert.ok(first.w>100&&first.h>40);
+ assert.ok(Math.abs(first.x+first.w/2-(frame.x+frame.w/2))<1);assert.ok(Math.abs(first.y+first.h/2-(frame.y+frame.h/2))<1);
+ const input=page.locator('#inspector-body textarea[data-section="bubble"][data-field="text"]');
+ await input.fill('这个气泡属于选中的格子。');await input.press('Tab');await until(()=>bubbles()[0].text==='这个气泡属于选中的格子。');
+ await page.screenshot({path:path.join(proof,'grouped-bubble.png')});
+ // Moving the frame moves its child bubble through the existing grouping model.
+ await chooseFrame();await page.keyboard.press('ArrowDown');await until(()=>stored().pages[0].panels[0].y===frame.y+1);
+ assert.equal(bubbles()[0].y,first.y+1);await page.locator('#undo').click();await until(()=>stored().pages[0].panels[0].y===frame.y);
+ await chooseFrame();await add();await until(()=>bubbles().length===2);
+ await page.locator('#undo').click();await until(()=>bubbles().length===1);await page.locator('#redo').click();await until(()=>bubbles().length===2);
+ await page.reload();await page.locator('#canvas-tool-dock').waitFor();assert.ok(bubbles().every(b=>b.parentPanelId===frame.id));
+ assert.equal(bubbles()[0].text,'这个气泡属于选中的格子。');
+ // A page selection also allows adding; existing nearest-frame grouping remains active.
+ await page.locator('#page-settings').evaluate(e=>e.click());await add();await until(()=>bubbles().length===3);assert.equal(bubbles()[2].parentPanelId,frame.id);
+ await menu();await page.locator('#gradient-tool').click();await until(()=>stored().gradients.length===1);
+ await page.locator('#undo').click();await until(()=>stored().gradients.length===0);
+ // Closing the project leaves both creation commands disabled.
+ await page.locator('#close-project').evaluate(e=>e.click());await menu();assert.equal(await page.locator('#add-bubble').isDisabled(),true);assert.equal(await page.locator('#gradient-tool').isDisabled(),true);
+ assert.equal(studio.store.db.jobs.length,0);assert.deepEqual(errors,[]);
+ fs.writeFileSync(path.join(proof,'report.json'),JSON.stringify({ok:true,menu:['添加渐变','添加气泡框'],sfxRailRemoved:true,defaultFont:'思源黑体 36 / 500',parentGrouping:true,groupMovement:true,textEditing:true,saveReload:true,undoRedo:true,unselectedAdd:true,gradient:true,emptyProjectDisabled:true,errors},null,2));
+});

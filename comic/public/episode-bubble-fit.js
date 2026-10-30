@@ -7,8 +7,8 @@ import {dialogueSegments} from './bubble-dialogue-segments.js';
 import {bubbleLineBreakMode} from './bubble-text-flow.js';
 import {renderedTextBounds} from './bubble-fit-layout.js';
 
-const styleFields=['shape','fontFamily','fontSize','fontWeight','fontStyle','textColor','lineHeight','letterSpacing','textAlign','padding','outlineWidth','outlineColor','fillColor','fillOpacity','writingMode','textDirection'];
-const materialFields=['points','assetContour','assetInsets','assetParts','assetTailKind','assetRays','assetFrame','comicStyleId','comicStyleLabel','styleTextureId','styleTextureAssetId','styleLibrary','materialOutlineWidth','materialVisibilityVersion'];
+const styleFields=['shape','fontFamily','fontWeight','fontStyle','textColor','lineHeight','letterSpacing','textAlign','padding','outlineWidth','outlineColor','fillColor','fillOpacity','writingMode','textDirection'];
+const materialFields=['points','assetContour','assetInsets','assetParts','assetTailKind','assetRays','assetFrame','comicStyleId','comicStyleLabel','styleTextureId','styleTextureAssetId','styleLibrary','materialOutlineWidth','materialVisibilityVersion','materialAspectRatio','textureInkVersion'];
 const singleDialogue=b=>b?.type==='speech'&&!isLibrarySfx(b)&&normalizeBubbleStyle(b).shape!=='none'&&!dialogueSegments(b).length;
 
 // Copy appearance and the user's independent frame geometry, never identity,
@@ -25,7 +25,7 @@ export function applyDialogueTemplate(context,bubble,template,{maxWidth=8192}={}
  for(let pass=0;pass<4;pass++){
   const layout=bubbleLayout(context,next),bounds=renderedTextBounds(context,layout);
   if(![bounds.w,bounds.h].every(Number.isFinite))break;
-  const contentWidth=style.writingMode==='vertical'?Math.max(bounds.w,(layout.lines.length-1)*style.fontSize*style.lineHeight+style.fontSize*1.05):bounds.w;
+  const contentWidth=style.writingMode==='vertical'?Math.max(bounds.w,(layout.lines.length-1)*layout.fontSize*layout.lineHeight+layout.fontSize*1.05):bounds.w;
   const width=Math.max(box.w,Math.min(contentWidth>box.w?contentWidth+.01:box.w,maxWidth-template.w+box.w)),height=Math.max(box.h,bounds.h>box.h?bounds.h+.01:box.h);
   if(Math.abs(width-next.textBox.w)<1e-7&&Math.abs(height-next.textBox.h)<1e-7)break;
   next.textBox={...box,w:width,h:height};next.w=template.w+width-box.w;next.h=template.h+height-box.h;

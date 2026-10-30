@@ -34,3 +34,14 @@ test('浏览器通过同页资产视图选择两张墨库图片，保存后刷�
  await page.screenshot({path:path.join(evidence,'moku-direct-pick.png')});await page.reload();await page.waitForFunction(()=>document.querySelector('#save-state').textContent.includes('已保存'));await page.locator('[data-rail-tab=references]').click();await card('叶麟').locator('.asset-state.ready').waitFor();await card('王长生').locator('.asset-state.ready').waitFor();
  assert.equal(productionFrame(f.current(),'E011-S001').referenceIds.length,2);assert.equal(f.studio.store.db.jobs.length,0);assert.deepEqual(f.errors,[]);
 });
+
+test('本话一键匹配按作品目录复用检索，唯一服装采用、原图绑定可重开且不生图',{timeout:60000},async t=>{
+ const f=await browserFixture(t),{page}=f,calls=[];
+ await page.locator('[data-rail-tab=references]').click();await page.locator('#asset-gallery-workspace').waitFor({state:'visible'});
+ page.on('request',r=>{if(new URL(r.url()).pathname==='/api/library/assets')calls.push(new URL(r.url()));});
+ await page.locator('[data-asset-auto-match]').click();await page.waitForFunction(()=>document.querySelector('[data-asset-search-status]')?.textContent.includes('匹配完成：'));
+ const refs=f.current().productionPackage.episodes[0].segments[0].references;
+ for(const [i,cardIndex]of [[0,0],[1,2]]){assert.equal(refs[i].binding.sourceType,'moku');assert.equal(f.studio.store.db.assets.find(a=>a.id===refs[i].binding.assetId).library.revisionId,f.cards[cardIndex].recommendedRevisionId);}
+ const characterCalls=calls.filter(u=>u.searchParams.get('assetType')==='character');assert.equal(characterCalls.length,1);assert.ok(calls.every(u=>u.searchParams.get('q')===''));assert.ok(calls.every(u=>u.searchParams.get('projectId')===f.cards[0].projectId));
+ await page.screenshot({path:path.join(evidence,'moku-batch-fast.png')});await page.reload();await page.waitForFunction(()=>document.querySelector('#save-state').textContent.includes('已保存'));assert.equal(productionFrame(f.current(),'E011-S001').referenceIds.length,2);assert.equal(f.studio.store.db.jobs.length,0);assert.deepEqual(f.errors,[]);
+});

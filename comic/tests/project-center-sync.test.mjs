@@ -8,6 +8,15 @@ import {createProjectCenterSync} from '../lib/project-center.mjs';
 import {panelContentKey} from '../public/panel-generation.js';
 import {rectangle} from '../public/model.js';
 const audit=path.resolve(import.meta.dirname,'../../audit/cache-tests');fs.mkdirSync(audit,{recursive:true});
+test('项目中心断开时说明缺少的服务；不重试写入、不创建生图任务',async()=>{
+ const dir=fs.mkdtempSync(path.join(audit,'unavailable-')),previous=process.env.PROJECT_CENTER_URL;
+ const server=http.createServer((req,res)=>res.end('{}'));await new Promise(r=>server.listen(0,'127.0.0.1',r));const port=server.address().port;await new Promise(r=>server.close(r));
+ process.env.PROJECT_CENTER_URL='http://127.0.0.1:'+port;
+ const project={id:'project_unavailable',revision:1},store={db:{projects:[project],assets:[],jobs:[]},project:()=>project,save(){assert.fail('失败的提交不应写入工程');}};
+ const sync=createProjectCenterSync({store,dataDir:dir,apiOrigin:()=>''});
+ try{await assert.rejects(sync.preflight(project,[]),error=>error.status===503&&error.code==='project_center_unavailable'&&error.message.includes(String(port))&&error.message.includes('启动工作台.cmd'));assert.deepEqual(store.db.jobs,[]);assert.equal(project.productionPolicy,undefined);}
+ finally{sync.close();if(previous===undefined)delete process.env.PROJECT_CENTER_URL;else process.env.PROJECT_CENTER_URL=previous;}
+});
 test('中心缓存校验恢复和满载委派只处理等待画格，提交失联不重复本机生成',async()=>{
  const dir=fs.mkdtempSync(path.join(audit,'run-')),bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64'),sha=createHash('sha256').update(bytes).digest('hex');
  const source=path.join(dir,'source.png');fs.writeFileSync(source,bytes);

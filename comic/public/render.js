@@ -7,6 +7,7 @@ import {ensureProjectBoardTransitionSafety,paintBoardBridge} from './episode-boa
 import {isSfxImage,sfxImageRotation,sfxImageBounds} from './sfx-image-layer.js';
 import {paintArtworkImage} from './artwork-transform.js';
 import {sceneLayers} from "./layers.js";
+import {prepareStoryCrossfades} from './story-crossfade.js';
 import {hasNewEffects,paintGradient,applyFeather,paintBrushMask} from './panel-effects.js';
 import {bounds,fitImage,COMIC_PAGE_WIDTH,layoutLongStrip} from "./model.js";
 import {paintBubble,wrapText,FONT_FAMILIES} from './lettering.js';
@@ -116,15 +117,8 @@ export async function paintSceneRegion(context,project,{layout=layoutLongStrip(p
  const visible=intersectRegion(region,{x:0,y:0,w:layout.width,h:layout.height});if(!visible)return;context.save();try{context.beginPath();context.rect(visible.x,visible.y,visible.w,visible.h);context.clip();
  for(const e of layout.pages){const area=intersectRegion(visible,{x:0,y:e.y,w:layout.width,h:e.height});if(area){context.fillStyle=e.page.background;context.fillRect(area.x,area.y,area.w,area.h);}}
  if(!draft)for(const gap of stripBackgroundGaps(project,layout)){const area=intersectRegion(visible,{x:gap.x,y:gap.y,w:gap.w,h:gap.h});if(!area)continue;context.save();try{context.translate(gap.x,gap.y);paintGradient(context,gap,backgroundPaintRegion(gap,{x:visible.x-gap.x,y:visible.y-gap.y,w:visible.w,h:visible.h},1/renderScale));}finally{context.restore();}}
- const entries=sceneLayers(project,layout);
- async function drawEntry(target,d,additive=false){if(!d.frame.visible)return;target.save();try{if(additive)target.globalCompositeOperation='lighter';target.translate(0,d.offsetY);target.scale(d.scale,d.scale);const local={x:visible.x/d.scale,y:(visible.y-d.offsetY)/d.scale,w:visible.w/d.scale,h:visible.h/d.scale};if(d.type==='bubble')await paintStyledBubble(target,d.frame,imageLoader);else{if(d.type==='gradient'&&draft)return;const shot=shots.find(s=>s.id===d.frame.shotId);await paintPanel(target,d.frame,{draft,label:shot?shot.code+(shot.title&&shot.title!==shot.code?' · '+shot.title:''):'镜头',description:shot?.description||'',region:local,renderScale:renderScale*d.scale,imageLoader,canvasFactory});}}finally{target.restore();}}
- for(let i=0;i<entries.length;){const d=entries[i],group=!draft&&d.type==='gradient'&&d.frame.storyCrossfade?.version===1&&typeof d.frame.storyCrossfade.group==='string'?d.frame.storyCrossfade.group:null;
-  if(!group){await drawEntry(context,d);i++;continue;}
-  let end=i+1;while(end<entries.length&&entries[end].type==='gradient'&&entries[end].frame.storyCrossfade?.version===1&&entries[end].frame.storyCrossfade.group===group)end++;
-  const selected=entries.slice(i,end).filter(e=>e.frame.visible&&intersectRegion(visible,{x:e.frame.x,y:e.frame.y,w:e.frame.w,h:e.frame.h}));
-  if(selected.length){const buffer=createSafeCanvas(visible.w*renderScale,visible.h*renderScale,canvasFactory),layer=buffer.getContext('2d');try{layer.scale(renderScale,renderScale);layer.translate(-visible.x,-visible.y);for(const e of selected)await drawEntry(layer,e,true);context.drawImage(buffer,visible.x,visible.y,buffer.width/renderScale,buffer.height/renderScale);}finally{buffer.width=1;buffer.height=1;}}
-  i=end;
- }
+ const visibleLayers=sceneLayers(project,layout).filter(d=>d.frame.visible),entries=draft?visibleLayers:prepareStoryCrossfades(visibleLayers);
+ for(const d of entries){context.save();try{context.translate(0,d.offsetY);context.scale(d.scale,d.scale);const local={x:visible.x/d.scale,y:(visible.y-d.offsetY)/d.scale,w:visible.w/d.scale,h:visible.h/d.scale};if(d.type==='bubble')await paintStyledBubble(context,d.frame,imageLoader);else{if(d.type==='gradient'&&draft)continue;const shot=shots.find(s=>s.id===d.frame.shotId);await paintPanel(context,d.frame,{draft,label:shot?shot.code+(shot.title&&shot.title!==shot.code?' · '+shot.title:''):'镜头',description:shot?.description||'',region:local,renderScale:renderScale*d.scale,imageLoader,canvasFactory});}}finally{context.restore();}}
  }finally{context.restore();}
 }
 /** Region coordinates are local to the page; every bubble uses the shared painter and crosses segments intact. */
@@ -210,7 +204,7 @@ export async function exportLayoutPage(page,shots,options={}){
   return exportStrip([page],{width:page.width,name:page.name+'_版式草稿',partName:'版式草稿',draft:true,shots,...options});
 }
 export async function exportPage(page,options={}){
-  
+
   const layout=options.project?layoutLongStrip(options.project.pages):null,entry=layout?.pages.find(e=>e.pageId===page.id);return exportStrip([page],{width:entry?1280:page.width,name:page.name,partName:'长图',...options,region:entry?{y:entry.y,h:entry.height}:null});
 }
 export async function exportEpisode(project,onProgress=()=>{},options={}){

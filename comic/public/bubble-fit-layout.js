@@ -54,7 +54,9 @@ export function fitBubbleToCurrentLayout(context,bubble,{maxWidth=4096,maxHeight
  const next={...original,x:layout.x-dx,y:layout.y-dy,w,h,overflow:'fit'};
  delete next.textFrameLayout;delete next.textLayout;
  const lines=layout.lines.map(l=>({...l,x:l.x+dx,y:l.y+dy,left:l.left+dx,right:l.right+dx,overflow:false,glyphs:l.glyphs?.map(g=>({...g,x:g.x+dx,y:g.y+dy}))||null}));
- const textBox={x:cx-bounds.w/2,y:cy-bounds.h/2,w:bounds.w,h:bounds.h};
+ // Rebase the existing frame into the new body coordinates. Its page position,
+ // width and height belong to the user's text edit and must not be re-fitted.
+ const textBox={...layout.textBox,x:layout.textBox.x+dx,y:layout.textBox.y+dy};
  freezeBubbleTextLayout(next,{...layout,lines,textBox,textLayoutStyleKey:bubbleTextLayoutKey(next,normalizeBubbleStyle(next))});
  // Avoid a second history entry caused only by floating point translation noise.
  if(bubble.textLayout&&['x','y','w','h'].every(k=>Math.abs(next[k]-bubble[k])<1e-7)&&['x','y','w','h'].every(k=>Math.abs(next.textBox[k]-(bubble.textBox?.[k]??Infinity))<1e-7))return {bubble:original,status:'fitted'};

@@ -27,5 +27,14 @@ export function createEpisodeBoardSharing(store){
   if(changed||!record){const revision=(record?.revision||0)+(changed?1:0);store.db.episodeBoardTemplates[key]={revision,templates:copy(next.episodeBoards.templates)};for(const sibling of store.db.projects){if(sibling.id===old.id||scope(sibling)!==key)continue;const state=ensureEpisodeBoards(sibling);state.sharedKey=key;state.templates=copy(next.episodeBoards.templates);state.templateRevision=revision;sibling.revision++;sibling.updated=new Date().toISOString();}}
   const current=store.db.episodeBoardTemplates[key];next.episodeBoards.templates=copy(current.templates);next.episodeBoards.templateRevision=current.revision;return next;
  }
- return {view,inherit,accept};
+ function prepareAccept(old,next){
+  // Stage shared-template changes without touching live sibling revisions.
+  const key=scope(old),draft={db:{episodeBoardTemplates:{[key]:copy(store.db.episodeBoardTemplates[key])},projects:store.db.projects.filter(p=>p.id!==old.id&&scope(p)===key).map(p=>({...p,episodeBoards:copy(p.episodeBoards)}))}};
+  createEpisodeBoardSharing(draft).accept(old,next);
+  return ()=>{
+   store.db.episodeBoardTemplates[key]=draft.db.episodeBoardTemplates[key];
+   for(const sibling of draft.db.projects){const live=store.db.projects.find(p=>p.id===sibling.id);if(live&&live.id!==old.id&&live.revision!==sibling.revision){live.episodeBoards=sibling.episodeBoards;live.revision=sibling.revision;live.updated=sibling.updated;store.markProject?.(live);}}
+  };
+ }
+ return {view,inherit,accept,prepareAccept};
 }

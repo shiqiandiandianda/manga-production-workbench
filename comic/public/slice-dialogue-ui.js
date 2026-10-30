@@ -10,7 +10,7 @@ export function restoreSliceDialogueGroups({texts,existing,rootFrame,source,prev
   const r=frameRegionOnSource(source,rootFrame,preview,{x:(b.x-rootFrame.x)/rootFrame.w,y:(b.y-rootFrame.y)/rootFrame.h,w:b.w/rootFrame.w,h:b.h/rootFrame.h});if(!validateSliceRegion(r))continue;
   const ids=b.dialogueSegments.map((s,i)=>s.sourceTextId||localDialogueId(first['文字ID']));
   if(!b.dialogueSegments[1].sourceTextId&&!texts.some(t=>t['文字ID']===ids[1]))texts.push({...structuredClone(first),'文字ID':ids[1],'文本':b.dialogueSegments[1].text,localDialogue:true});
-  const group={textIds:ids,region:r,segments:structuredClone(b.dialogueSegments),bubble:{...structuredClone(b),fontSize:b.fontSize*r.w*preview.width/b.w},changed:false};groups[ids[0]]=group;
+  const group={textIds:ids,region:r,segments:structuredClone(b.dialogueSegments),bubble:structuredClone(b),coordinateScale:r.w*preview.width/b.w,changed:false};groups[ids[0]]=group;
   for(const id of ids)existing.set(id,b);Object.assign(positions,groupTextRegions(group));
  }
  return groups;

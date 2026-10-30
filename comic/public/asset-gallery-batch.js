@@ -1,16 +1,16 @@
 import {assetUnavailable} from './asset-availability.js';
-import {assetMetadata,assetNameKey} from './asset-metadata.js';
+import {assetNameKey} from './asset-metadata.js';
+import {exactAssetMatch,assetRequirementSearch} from './asset-exact-search.js';
 import {unknownState,libraryStatePlaceholder} from './character-states.js';
 import {mokuCandidate,mokuRevision,usableMokuImage} from './moku-reference-search.js';
 import {isBlockingAsset} from './scene-blocking.js';
 
-// Automatic adoption is deliberately narrower than the visual search results.
-// Similar names, another production and unspecified costumes stay selectable.
+// Automatic adoption additionally requires the current production, a complete
+// search and a uniquely identified fixed version with a known costume.
 export function exactGalleryAsset(row,asset){
  if(!asset||row.removedAssetIds?.includes(asset.id)||row.removedRevisionIds?.includes(asset.library?.revisionId)||assetUnavailable(asset))return false;
  if(row.purpose==='blocking'?asset.referenceGeneration?.blockingId!==row.blockingId:isBlockingAsset(asset))return false;
- const meta=assetMetadata(asset),same=meta.role===row.role&&[meta.name,...meta.aliases].some(n=>assetNameKey(n)===assetNameKey(row.name));
- return same&&(row.role!=='character'||!unknownState(row.state)&&assetNameKey(meta.state)===assetNameKey(row.state));
+ return (row.role!=='character'||!unknownState(row.state))&&exactAssetMatch(asset,row.name,assetRequirementSearch(row));
 }
 export function automaticGalleryMatch(row,items,{projectIds=[],complete=true}={}){
  const exact=items.filter(i=>usableMokuImage(i)&&projectIds.includes(i.projectId)&&exactGalleryAsset(row,mokuCandidate(i)));

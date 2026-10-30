@@ -1,6 +1,6 @@
 import {usableMokuImage,mokuRevision} from './moku-reference-search.js';
 import {filterAssetCandidateTypes} from './asset-candidate-types.js';
-import {relevantAssetCandidates} from './asset-fuzzy-search.js';
+import {exactAssetCandidates} from './asset-exact-search.js';
 import {estimateRetainedBytes} from './bounded-cache.js';
 
 /** A per-click catalogue: all names of one type share the same complete read.
@@ -35,5 +35,5 @@ export function createMokuBatchSearch({api,projectIds,projects=[],verify=()=>{},
    check();return {items:[...new Map(results.flatMap(r=>r.items).map(i=>[i.id+'@'+mokuRevision(i),i])).values()],complete:ids.length>0&&results.every(r=>r.complete),notes:results.flatMap(r=>r.notes)};
   })());return pending.get(role);
  }
- return {async search(query,{role}={}){const data=await catalogue(role);check();return {...data,items:relevantAssetCandidates(filterAssetCandidateTypes(data.items,role),query,{role})};},clear(){closed=true;for(const c of controllers)c.abort();controllers.clear();pending.clear();}};
+ return {async search(query,{role,...options}={}){const data=await catalogue(role);check();return {...data,items:exactAssetCandidates(filterAssetCandidateTypes(data.items,role),query,{role,...options})};},clear(){closed=true;for(const c of controllers)c.abort();controllers.clear();pending.clear();}};
 }

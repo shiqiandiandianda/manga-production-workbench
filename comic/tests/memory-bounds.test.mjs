@@ -21,7 +21,7 @@ test('async cache coalesces pending reads, limits concurrency, retries errors, a
  let resolve;const old=c.load('stale',()=>new Promise(r=>{resolve=r;}));await Promise.resolve();c.clear();resolve('old');await old;assert.equal(c.stats().entries,0);assert.equal(c.stats().pending,0);
 });
 test('hundreds of distinct Moku searches do not retain every query result',async()=>{
- let reads=0;const search=createMokuReferenceSearch({project:{id:'p',references:[],pages:[]},api:async url=>{if(url==='/api/library/projects')return {items:[]};reads++;const q=new URL(url,'http://fixture').searchParams.get('q');return {items:q?[{id:'11111111-1111-1111-1111-111111111111',recommendedRevisionId:'22222222-2222-2222-2222-222222222222',name:q+'角色'.repeat(2000)}]:[],more:false};}});
+ let reads=0;const search=createMokuReferenceSearch({project:{id:'p',references:[],pages:[]},api:async url=>{if(url==='/api/library/projects')return {items:[]};reads++;const q=new URL(url,'http://fixture').searchParams.get('q');return {items:q?[{id:'11111111-1111-1111-1111-111111111111',recommendedRevisionId:'22222222-2222-2222-2222-222222222222',canonicalName:q,name:q+'角色'.repeat(2000)}]:[],more:false};}});
  for(let i=0;i<400;i++){const result=await search.search('人物'+i,{scope:'public'});assert.equal(result.items.length,1);assert.ok(search.stats().estimatedBytes<=8*1024*1024);assert.ok(search.stats().entries<=24);}
  const at=reads;await search.search('人物399',{scope:'public'});assert.equal(reads,at);assert.ok(search.stats().evicted>350);search.clear();assert.equal(search.stats().entries,0);
 });

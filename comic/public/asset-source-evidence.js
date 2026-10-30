@@ -1,4 +1,5 @@
 import {createAsyncCache} from './bounded-cache.js';
+import {novelSourceRanges,assetSourcePassagesMarkup} from './asset-source-passages.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const value=v=>typeof v==='string'?v:Array.isArray(v)?v.map(value).filter(Boolean).join('\n'):v?JSON.stringify(v):'';
 export function assetPreparationMarkup(row){
@@ -26,15 +27,15 @@ export function originalClothingPassages(text){
 }
 const stateActions=row=>`<div class="asset-evidence-actions"><button class="primary" data-asset-state-confirm="${esc(row.key)}">核对后，按此状态选图</button><button data-asset-state-generate="${esc(row.key)}">核对后，按此状态生成</button></div>`;
 export function assetVariantMarkup(project,rows){
- return `<section class="asset-variant-review"><h3>${esc(rows[0]?.name)} · ${rows.length} 种服装 / 状态待核对</h3><p>制作设定，需核对原文。</p>${rows.map((row,i)=>`<article data-asset-variant="${esc(row.key)}"><h4>状态 ${i+1} · ${row.uses.length} 处使用</h4><p class="asset-variant-state">${esc(row.state||'资料未指定服装')}</p><p>出处：${esc([...new Set(row.sources.map(s=>s.novelLocation).filter(Boolean))].join('；')||'资料未提供原著章节')}</p><p>源格：${esc([...new Set(row.sources.map(s=>s.code))].join('、')||row.uses.map(u=>u.code).join('、'))}</p>${assetDesignEvidence(project,row).map(e=>`<details><summary>资料方案 ${esc(e.version)} 的依据</summary><p>${esc(e.basis||'未提供直接原文依据')}</p><small>${esc(e.source)}</small></details>`).join('')}<button data-asset-variant-source="${esc(row.key)}">查看本状态的原文与出处</button>${stateActions(row)}</article>`).join('')}</section>`;
+ return `<section class="asset-variant-review"><h3>${esc(rows[0]?.name)} · ${rows.length} 种服装 / 状态待核对</h3><p>制作设定，需核对原文。</p>${rows.map((row,i)=>`<article data-asset-variant="${esc(row.key)}"><h4>状态 ${i+1} · ${row.uses.length} 处使用</h4><p class="asset-variant-state">${esc(row.state||'资料未指定服装')}</p>${assetSourcePassagesMarkup(row,{compact:true})}${assetDesignEvidence(project,row).map(e=>`<details><summary>资料方案 ${esc(e.version)} 的依据</summary><p>${esc(e.basis||'未提供直接原文依据')}</p><small>${esc(e.source)}</small></details>`).join('')}<button data-asset-variant-source="${esc(row.key)}">查看本状态的原文与出处</button>${stateActions(row)}</article>`).join('')}</section>`;
 }
 export function assetSourceMarkup(project,row){
  const docs=assetNovelDocuments(project,row),design=assetDesignEvidence(project,row);
  const character=row.role==='character';
  return `<section class="asset-source-review"><h3>${esc(row.name)} · ${character?'服装 / 状态核对':'资料出处'}</h3><p class="asset-variant-state">${esc(row.state||'资料未指定')}</p><p class="asset-inline-warning">制作方案待核对。</p>${character?stateActions(row):''}
- <section class="asset-original-documents"><h4>随包原著原件</h4>${docs.length?docs.map(d=>`<article data-asset-novel-document="${esc(d.relativePath)}"><a target="_blank" rel="noopener" href="/api/projects/${encodeURIComponent(project.id)}/production/source?path=${encodeURIComponent(d.relativePath)}">${esc(d.relativePath)}</a><div data-asset-novel-passages>正在读取原文原件…</div></article>`).join(''):'<p>缺少原著原件；以下摘录尚未核实。</p>'}</section>
+ ${assetSourcePassagesMarkup(row)}<details class="asset-original-documents"><summary>查看随包小说原件</summary>${docs.length?docs.map(d=>`<article data-asset-novel-document="${esc(d.relativePath)}"><a target="_blank" rel="noopener" href="/api/projects/${encodeURIComponent(project.id)}/production/source?path=${encodeURIComponent(d.relativePath)}">${esc(d.relativePath)}</a><div data-asset-novel-passages>正在读取原文原件…</div></article>`).join(''):'<p>工程未附带小说正文，以上显示导入资料中提供的内容。</p>'}</details>
  ${design.map(d=>`<details class="asset-design-evidence"><summary>资料方案：${esc(d.version)}（含美术补足）</summary><p>${esc(d.basis||'资料未提供设计依据')}</p><small>${esc(d.source)}</small></details>`).join('')}
- <h4>分镜使用位置与资料摘录</h4>${row.sources.map(s=>`<details class="asset-provenance-entry"><summary>第${s.episode||'?'}话 · ${esc(s.code)} · ${esc(s.novelLocation||'原著位置未提供')}</summary><dl><dt>来源文件</dt><dd>${esc(s.source.file||'资料未提供')}${s.source.pointer?' · '+esc(s.source.pointer):''}</dd><dt>来源方案</dt><dd>${esc(s.assetVersion||'未提供')}</dd><dt>原资料状态</dt><dd>${esc(s.sourceState||s.state||'未提供')}</dd></dl>${s.novelQuote?`<strong>${esc(s.novelQuoteLabel||'资料提供的原著摘录')}</strong><blockquote>${esc(s.novelQuote)}</blockquote>`:'<p>本格未提供直接原文摘录。</p>'}${s.adaptationNote?`<strong>分镜编排说明（不是原文）</strong><blockquote>${esc(s.adaptationNote)}</blockquote>`:''}${s.description?`<strong>分镜画面摘录</strong><blockquote>${esc(s.description)}</blockquote>`:''}${s.notes?`<p>分镜备注：${esc(s.notes)}</p>`:''}<button data-asset-locate="${esc(s.panelId)}">定位使用位置</button></details>`).join('')}</section>`;
+ <details><summary>在画布中定位使用位置</summary>${row.sources.map(s=>`<p>第${s.episode||'?'}话 · ${esc(s.code)} <button data-asset-locate="${esc(s.panelId)}">定位</button></p>`).join('')}</details></section>`;
 }
 
 // Load only on opening evidence, and reuse the immutable source snapshot.
@@ -51,6 +52,14 @@ export function createAssetSourceReader(){
   try{for(;;){const {done,value}=await reader.read();if(done)break;bytes+=value.byteLength;if(bytes>limit){await reader.cancel();throw large();}chunks.push(decoder.decode(value,{stream:true}));}chunks.push(decoder.decode());return chunks.join('');}finally{reader.releaseLock();}
   }finally{clearTimeout(timer);controllers.delete(controller);}
  }
+ async function loadPassages(project,row,root,isCurrent=()=>true,{compact=false}={}){
+  const packageHash=project.productionPackage?.hash||'',nextOwner=project.id+'@'+packageHash;if(owner!==nextOwner){clear();owner=nextOwner;}
+  const node=root.matches?.('[data-asset-source-passages]')?root:root.querySelector('[data-asset-source-passages]');if(!node)return;
+  const chapters=new Map(),numbers=[...new Set(row.sources.filter(s=>!s.novelQuote).flatMap(novelSourceRanges).map(r=>r.chapter))];
+  await Promise.all(numbers.map(async number=>{try{const url='/api/projects/'+encodeURIComponent(project.id)+'/novel-source?chapter='+number;chapters.set(number,await requests.load(nextOwner+':chapter:'+number,()=>readSource(url)));}catch{/* Keep the imported storyboard readable if the novel is unavailable. */}}));
+  if(!isCurrent()||!node.isConnected||owner!==nextOwner)return;
+  const template=document.createElement('template');template.innerHTML=assetSourcePassagesMarkup(row,{compact,chapters});node.replaceWith(template.content.firstElementChild);
+ }
  async function load(project,root,isCurrent=()=>true,{role='character'}={}){
   const packageHash=project.productionPackage?.hash||'',nextOwner=project.id+'@'+packageHash;if(owner!==nextOwner){clear();owner=nextOwner;}
   await Promise.all([...root.querySelectorAll('[data-asset-novel-document]')].map(async node=>{
@@ -63,5 +72,5 @@ export function createAssetSourceReader(){
    }catch(error){if(isCurrent()&&node.isConnected)host.textContent=error.message;}
   }));
  }
- return {load,clear,stats:()=>requests.stats()};
+ return {load,loadPassages,clear,stats:()=>requests.stats()};
 }

@@ -19,7 +19,6 @@
   </div>
   <button id="storyboard-import" class="primary">导入工程文件</button><a id="asset-studio-open" href="/api/project-center/asset-studio/open" target="_blank" rel="noopener" title="打开资产工作室">资产工作室</a><div class="integration-actions"></div><div class="top-spacer"></div>
   <span class="save-indicator"><img class="ui-icon" src="/icons/check.svg" alt=""><span id="save-state" role="status">正在载入</span></span>
-  <button id="storage-cleanup" title="查看本机占用、墨库备份与历史残留清理">一键清理</button>
   <button id="codex-connect" class="connection"><span class="dot"></span><span id="codex-label">检查连接</span></button>
   <button id="layout-history-paused" hidden style="color:#b53a2b" role="status">调整记录已暂停 · 查看</button><div class="export-wrap"><button id="export-toggle" class="primary">导出<img class="ui-icon" src="/icons/chevron-down.svg" alt=""></button><div id="export-menu" class="dropdown" hidden><button id="export-page">当前长图 PNG</button><button id="export-episode">整话连续 PNG</button><button id="export-project">跨机工程文件</button><button id="export-layout">版式草稿 PNG</button><button id="layout-adjustments">画板调整记录 · 查看 / 导出</button></div></div>
 </header>
@@ -36,6 +35,7 @@
     <button class="rail-button" data-rail-tab="production"><img class="ui-icon" src="/icons/file-import.svg" alt=""><span>制作资料</span></button>
     <button class="rail-button" data-rail-tab="references"><img class="ui-icon" src="/icons/photo.svg" alt=""><span>本话资产</span></button>
     <button class="rail-button" data-open-generation-settings><img class="ui-icon" src="/icons/settings.svg" alt=""><span>设置</span></button>
+    <button id="storage-cleanup" class="rail-button" type="button" aria-label="一键清理" title="一键清理：查看本机占用、墨库备份与历史残留清理"><img class="ui-icon" src="/icons/trash.svg" alt=""><span>一键清理</span></button>
   </nav>
   <aside id="sidebar-panel" class="sidebar"><div class="panel-close-heading"><span id="sidebar-heading">页面与素材</span><button id="sidebar-close" aria-label="收起页面与素材"><img class="ui-icon" src="/icons/x.svg" alt=""></button></div>
     <div id="episode-workspace" class="episode-workspace" hidden><label>当前话<select id="episode-select" aria-label="选择当前话"></select></label><span id="episode-status"></span></div>

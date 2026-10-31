@@ -85,7 +85,6 @@ import {createUndoMemoryBudget} from './undo-memory.js';
 import {prepareProjectSave,mergeSavedHistory} from './project-save-budget.js';
 import {saveProjectFile} from './project-file-save.js';
 import {projectFileBinding,bindProjectFile} from './project-file-handles.js';
-import {mountLayoutHistoryUI} from './layout-history-ui.js';
 import {mountHistorySteps} from './layout-history-steps.js';
 import {resolveHistoryLocation,historyStepAvailability} from './layout-history-navigation.js';
 import {initStoryboardImportUI} from './production-import-ui.js';
@@ -126,9 +125,8 @@ import {id,clone,rectangle,panel,makePage,bounds,validPolygon,fitImage,clamp,COM
 import {projectManagerMarkup} from './project-manager.js';
 import {panelInspectorMarkup} from './inspector-ui.js';
 import {taskGroups,taskSummary} from './workbench-state.js';
-import {pageCanvas,exportPage,exportLayoutPage,exportEpisode,exportEpisodeBoard,download,clearImageCache,loadImage} from "./render.js";
+import {pageCanvas,exportEpisode,clearImageCache,loadImage} from "./render.js";
 import {mountComicDeliveryExport} from './comic-delivery-ui.js';
-import {exportComicDeliveryBoard} from './comic-delivery-export.js';
 import {requestBoardTransitionSafety} from "./episode-board-transitions.js";
 import {svgBubbleMarkup,bubbleLayout} from "./lettering.js";
 import {AUTO_LETTERING_VERSION,fitDialogueObject,reflowProjectLettering} from './auto-lettering.js';
@@ -311,7 +309,6 @@ async function openSaveConflict(){
  modal('处理保存冲突','<p>同一项内容有两份修改，当前窗口的文字和排版仍然保留。</p><p>可重新检查合并；若仍有冲突，另存本窗口副本即可继续编辑，原工程保留后台的最新内容。</p>',[
   {label:'重新合并',primary:true,run:async()=>{const id=project.id,fresh=await api('/api/projects/'+id);if(project?.id!==id)return;applyServerRevision(fresh);if(conflictNotice!==null)throw Error('同一内容仍有冲突，可另存本窗口副本继续编辑');closeModal();render();await saveNow();toast('已恢复保存，可以继续编辑');}},
   {label:'另存本窗口副本继续编辑',run:async()=>{document.activeElement?.blur();finishInspectorDrafts();const id=project.id,local=clone(project),token=undoRevision;const data=exportWithLocalDraft(await api('/api/projects/'+id+'/export?mode=local'),local,assets);data.project.title=local.title+' · 本窗口保留副本';const imported=await api('/api/projects/import','POST',data);if(project?.id!==id||undoRevision!==token){toast('本窗口副本已另存到工程列表，当前编辑继续保留');return;}closeModal();await chooseProject(imported,{alreadyLoaded:true});updateConflictControl();toast('已保留本窗口副本，可以继续编辑；原工程保留');}},
-  {label:'导出本窗口备份',run:()=>$('#export-project').click()},
   {label:'关闭',run:closeModal}
  ]);
 }
@@ -484,16 +481,15 @@ function renderEmptyProject(){quickUI?.sync();
 }
 function syncEmptyProject(){const empty=!project||!episodePages(project,page()).some(page=>page.panels.length||page.bubbles.length);$('#empty-project').hidden=!!episodeBoardUI?.active||!empty;$('#empty-project strong').textContent='导入工程文件';$('#empty-project span').textContent='';}
 function showAuditWarning(){}
-function syncAuditWarning(){const button=$('#layout-history-paused');button.hidden=true;historyStepsUI?.refresh();}
+function syncAuditWarning(){historyStepsUI?.refresh();}
 function render(){referenceReviewButton.disabled=!project||!!episodeBoardUI?.active;episodeBoardUI?.sync();if(project){if(!project.episodeBoards){ensureEpisodeBoards(project);scheduleSave();}ensureProjectPanelGeneration(project,assets);}syncAuditWarning();
-  $('#export-page').textContent=episodeBoardUI?.active?'当前'+(episodeBoardUI.kind==='cover'?'封面':'尾图')+' PNG':'当前长图 PNG';$('#export-layout').disabled=!!episodeBoardUI?.active;
   updateImageLayerActions();
   renderProjectPicker();syncEpisodePicker();syncEmptyProject();$('#add-page').hidden=false;
   $('.inspector').inert=!project;
   $('#sidebar-empty-note').hidden=!!project;
   for(const button of document.querySelectorAll('.tools button:not([data-image-layer-action]),.dock-primary-tools button'))button.disabled=!project;
   for(const control of document.querySelectorAll('#add-page,#layers-toggle,#auto-locate-layer,#layer-search,#layer-scope,#layer-add,#dialogue-tools-toggle,#layer-add-gradient,#layer-stack-up,#layer-stack-down,#layer-delete,#layers-tab [data-open-sfx],#asset-directory,#add-reference,#add-shot,#inspector-toggle'))control.disabled=!project;
-  $('#page-marker').disabled=!project||!!episodeBoardUI?.active;$('#export-toggle').disabled=!project;$('#history-steps-toggle').disabled=!project;$('#layout-adjustments').disabled=!project;$('#save-project').disabled=!project;$('#export-menu').hidden=true;
+  $('#page-marker').disabled=!project||!!episodeBoardUI?.active;$('#export-toggle').disabled=!project;$('#history-steps-toggle').disabled=!project;$('#save-project').disabled=!project;$('#export-menu').hidden=true;
   if(!project){renderEmptyProject();$('#undo').disabled=true;$('#redo').disabled=true;return;}
   renderSidebar();renderCanvas();renderInspector();renderJobs();dialoguePlacementUI?.sync();refreshHistoryButtons();syncNodeActions();document.querySelectorAll('[data-frame-modes]').forEach(el=>{el.hidden=!['rect','nodes'].includes(tool);});document.querySelectorAll('[data-tool]').forEach(button=>{button.classList.toggle('active',button.dataset.tool===tool);button.setAttribute('aria-pressed',String(button.dataset.tool===tool));});}
 function renderSidebar(){
@@ -1223,23 +1219,11 @@ $('#modal-body').addEventListener('click',safely(async event=>{
   else if(restoring){const restored=await api('/api/projects/'+restoring.dataset.restoreProject+'/restore','POST',{});await refreshState();if(!project)await chooseProject(restored);await openProjectManager();toast('项目已恢复');}
 }));
 
-const adjustmentUI=mountLayoutHistoryUI({getProject:()=>project,modal,closeModal,download,toast,flushSave});
-historyStepsUI=mountHistorySteps({getProject:()=>project,getRevision:()=>undoRevision,getControls:historyStepControls,onRestore:restoreHistory,onLocate:locateHistoryStep,onVisibility:()=>renderCanvas(),onExport:()=>adjustmentUI.open(),toast});
-$('#layout-adjustments').addEventListener('click',safely(()=>{$('#export-menu').hidden=true;adjustmentUI.open();}));
-$('#layout-history-paused').addEventListener('click',safely(()=>adjustmentUI.open()));
+historyStepsUI=mountHistorySteps({getProject:()=>project,getRevision:()=>undoRevision,getControls:historyStepControls,onRestore:restoreHistory,onLocate:locateHistoryStep,onVisibility:()=>renderCanvas(),toast});
 $('#export-toggle').addEventListener('click',()=>$('#export-menu').hidden=!$('#export-menu').hidden);document.addEventListener('click',event=>{if(!event.target.closest('.export-wrap'))$('#export-menu').hidden=true;});
 const comicDeliveryUI=mountComicDeliveryExport({getProject:()=>project,getAssets:()=>assets,getEpisode:()=>episodeBoardUI?.active?episodeBoardUI.episode:currentBoardEpisode(project,page()),flushSave,toast});
 $('#export-client').addEventListener('click',safely(async()=>{$('#export-menu').hidden=true;await comicDeliveryUI.open();}));
-for(const [id,kind]of [['export-cover','cover'],['export-tail','tail']])$('#'+id).addEventListener('click',safely(async()=>{$('#export-menu').hidden=true;await flushSave();const episode=episodeBoardUI?.active?episodeBoardUI.episode:currentBoardEpisode(project,page());await exportComicDeliveryBoard({project:clone(project),assets,episode,kind,onProgress:toast});toast('已单独导出'+(kind==='cover'?'封面':'尾图')+' PNG');}));
-$('#export-layout').addEventListener('click',safely(async()=>{$('#export-menu').hidden=true;const result=await exportLayoutPage(clone(page()),project.shots);toast(result.parts>1?`版式草稿已导出，共 ${result.parts} 段`:'已导出版式草稿 PNG');}));
-$('#export-page').addEventListener('click',safely(async()=>{$('#export-menu').hidden=true;await flushSave();if(episodeBoardUI.active){const result=await exportEpisodeBoard(episodeBoardUI.board);toast('已导出'+(episodeBoardUI.kind==='cover'?'封面':'尾图')+(result.parts>1?'分段 PNG，共 '+result.parts+' 段':' PNG'));return;}toast('正在合成当前长图');const result=await exportPage(clone(page()),{project:clone(project)});toast(result.parts>1?`当前长图已导出，共 ${result.parts} 段`:'已导出当前长图 PNG');}));
 $('#export-episode').addEventListener('click',safely(async()=>{$('#export-menu').hidden=true;await flushSave();const result=await exportEpisode(clone(project),toast,{assets,episode:episodeBoardUI?.active?episodeBoardUI.episode:currentBoardEpisode(project,page())});toast('整话已导出：'+result.width+' × '+result.height+' px');}));
-$('#export-project').addEventListener('click',safely(async()=>{
- $('#export-menu').hidden=true;let draft=false;try{await flushSave();}catch{draft=true;}
- let data;try{data=await api('/api/projects/'+project.id+'/export'+(draft?'?mode=local':'?compact=1'),draft?'GET':'POST',draft?undefined:{});if(draft)data=exportWithLocalDraft(data,project,assets);}
- catch(error){if(!draft)throw error;download(new Blob([JSON.stringify({format:'comic-strip-local-draft',version:1,project:clone(project)})],{type:'application/json'}),project.title+'-本窗口草稿.json');toast('已保留本窗口排版草稿；缺少原件，不能直接完整恢复。'+error.message,true);return;}
- download(new Blob([JSON.stringify(data)],{type:'application/json'}),project.title+(draft?'-本窗口路径备份':'')+'.json');toast(draft?'已保留未保存内容的路径备份，仅供原电脑恢复':data.portability?.embeddedImages?'已导出跨机工程；未入墨库的图片已携带原件':'已导出跨机工程；使用墨库固定素材时，新电脑需登录墨库');
-}));
 let projectFileOpening=false;
 async function importProjectFile(file,handle){await flushSave();const sourceId=project?.id,sourceRevision=project?.revision,editToken=undoRevision;const data=JSON.parse(await file.text());const imported=await api('/api/projects/import','POST',data);if(handle)await bindProjectFile(imported.id,{handle,stamp:{lastModified:file.lastModified,size:file.size}});const activate=project?.id===sourceId&&project?.revision===sourceRevision&&undoRevision===editToken&&!dirty&&!hasLocalEditing();await refreshState();if(activate){await chooseProject(imported);toast('工程和图片已恢复；Ctrl+S 保存到原文件');}else toast('工程已恢复到本机列表；当前正在编辑的工程保留');}
 async function openProjectFile(){if(projectFileOpening)return;if(!window.showOpenFilePicker){$('#project-input').click();return;}projectFileOpening=true;try{const [handle]=await window.showOpenFilePicker({multiple:false,types:[{description:'JSON 工程文件',accept:{'application/json':['.json']}}],excludeAcceptAllOption:true});await importProjectFile(await handle.getFile(),handle);}catch(error){if(error.name!=='AbortError')throw error;}finally{projectFileOpening=false;}}

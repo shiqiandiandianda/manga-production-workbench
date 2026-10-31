@@ -6,7 +6,7 @@ import {spawnSync} from 'node:child_process';
 import {createProject,makePage,panel,id} from '../public/model.js';
 import {comicDeliveryLayouts,deliveryProtectedRanges} from '../public/comic-delivery-layout.js';
 import {chooseDeliveryCuts,validateDeliveryCuts,deliveryCutSafe} from '../public/comic-delivery-cuts.js';
-import {prepareComicDelivery,exportComicDeliveryBoard} from '../public/comic-delivery-export.js';
+import {prepareComicDelivery} from '../public/comic-delivery-export.js';
 import {deliveryFixture,native,canvasFactory} from './fixtures/comic-delivery.mjs';
 
 test('two large gaps are chosen with three usable portions; unsafe or missing gaps never masquerade as automatic recognition',()=>{
@@ -37,7 +37,6 @@ test('real renderer and HTTP export produce five PNGs and a ZIP, preserve every 
  const spec={dir:path.join(f.dir,'delivery-exports',job.session.id),files:result.files},python=process.env.COMIC_PYTHON_BIN;
  const code='import hashlib,json,os,sys,zipfile;from PIL import Image;s=json.loads(sys.argv[1]);d=s["dir"];a=hashlib.sha256();b=hashlib.sha256();parts=sorted([n for n in os.listdir(d) if n.startswith("body_") and n.endswith(".png")],key=lambda n:int(n[5:-4]));\nfor n in parts:\n with Image.open(os.path.join(d,n)) as im:\n  for row in range(0,im.height,64):a.update(im.crop((0,row,im.width,min(im.height,row+64))).convert("RGB").tobytes())\nfor f in s["files"]:\n with Image.open(os.path.join(d,f["name"])) as im:\n  assert im.size==(f["width"],f["height"]);im.load()\n  if f["kind"]=="body":\n   for row in range(0,im.height,64):b.update(im.crop((0,row,im.width,min(im.height,row+64))).convert("RGB").tobytes())\n with open(os.path.join(d,f["name"]),"rb") as data:assert hashlib.sha256(data.read()).hexdigest()==f["sha256"]\nassert a.digest()==b.digest(),"body rows changed"\nwith zipfile.ZipFile(os.path.join(d,"delivery.zip")) as z:\n assert len([n for n in z.namelist() if n.endswith(".png")])==5\n assert z.testzip() is None\nprint("pixel hashes, PNG dimensions and ZIP passed")';
  assert.ok(python,'set COMIC_PYTHON_BIN to an isolated Python with Pillow');const check=spawnSync(python,['-B','-c',code,JSON.stringify(spec)],{encoding:'utf8',windowsHide:true});assert.equal(check.status,0,check.stderr);assert.match(check.stdout,/passed/);
- const downloads=[];for(const kind of ['cover','tail'])await exportComicDeliveryBoard({project:f.project,assets:f.assets,episode:41,kind,request:f.request,canvasFactory,imageLoader:f.imageLoader,downloadURL:async(url,name)=>{const r=await f.request(url);assert.equal(r.headers.get('content-type'),'image/png');const bytes=Buffer.from(await r.arrayBuffer());assert.equal(bytes.subarray(0,8).toString('hex'),'89504e470d0a1a0a');downloads.push(name);fs.writeFileSync(path.join(f.dir,name),bytes);}});assert.ok(downloads[0].includes('封面'));assert.ok(downloads[1].includes('尾图'));
  f.project.revision++;assert.equal((await f.call(route+'/complete',{cuts:job.analysis.cuts})).status,409);
- fs.writeFileSync(path.join(f.proof,'delivery-verification.json'),JSON.stringify({synthetic:true,realAI:false,output:f.dir,result,independentBoards:downloads,pixelsUnchanged:true,projectUnchanged:true},null,2));
+ fs.writeFileSync(path.join(f.proof,'delivery-verification.json'),JSON.stringify({synthetic:true,realAI:false,output:f.dir,result,pixelsUnchanged:true,projectUnchanged:true},null,2));
 });

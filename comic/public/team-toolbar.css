@@ -31,7 +31,6 @@
 .modern-workbench.unified-workbench .topbar>#project-tools-menu{grid-area:more;min-width:0}
 .modern-workbench.unified-workbench .topbar>#project-tools-menu>summary{width:56px;min-width:0;padding:6px 8px}
 .modern-workbench.unified-workbench .topbar .ui-icon{width:14px;height:14px;flex:none}
-.modern-workbench.unified-workbench .topbar>#layout-history-paused{position:absolute;right:12px;top:calc(100% + 2px);z-index:26}
 @media(max-width:1739px){
  .modern-workbench.unified-workbench .topbar{height:90px;min-height:90px;grid-template-columns:102px 116px 150px 62px 66px 112px minmax(0,1fr) 56px;grid-template-rows:32px 32px;grid-template-areas:'brand project project nav nav nav nav more' 'save sync codex generate export update . .'}
 }

@@ -1,12 +1,6 @@
 import {comicDeliveryLayouts,deliveryDimensions} from './comic-delivery-layout.js';
 import {validateDeliveryCuts} from './comic-delivery-cuts.js';
 import {renderStripSegment,pngBlob,clearImageCache,loadImage} from './render.js';
-import {exportCompleteStrip} from './complete-strip-export.js';
-export async function exportComicDeliveryBoard({project,assets=[],episode,kind,onProgress=()=>{},request,downloadURL,canvasFactory,imageLoader=loadImage}){
- if(!['cover','tail'].includes(kind))throw Error('封尾类型无效');
- if(typeof document!=='undefined')await document.fonts?.ready;clearImageCache();const layout=comicDeliveryLayouts(project,episode,assets,{requireBody:false}).groups[kind];if(!layout)throw Error('本话未设置'+(kind==='cover'?'封面':'尾图'));
- return exportCompleteStrip({project,layout,episode,boardKind:kind,downloadName:'第'+String(episode).padStart(3,'0')+'话_'+(kind==='cover'?'封面':'尾图')+'.png',request,downloadURL,onProgress,renderSegment:async segment=>{const canvas=await renderStripSegment(layout,segment,{project,canvasFactory,imageLoader});try{return await pngBlob(canvas);}finally{canvas.width=1;canvas.height=1;}}});
-}
 async function encode(blob){const bytes=new Uint8Array(await blob.arrayBuffer());let text='';for(let i=0;i<bytes.length;i+=16384)text+=String.fromCharCode(...bytes.subarray(i,i+16384));return btoa(text);}
 export async function prepareComicDelivery({project,assets=[],episode,onProgress=()=>{},request=globalThis.fetch,canvasFactory,imageLoader=loadImage,signal}={}){
  if(!project?.id||!Number.isInteger(project.revision))throw Error('请先保存工程');

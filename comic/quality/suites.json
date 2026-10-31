@@ -21,6 +21,8 @@
     "comic/tests/panel-references.test.mjs",
     "comic/tests/panel-reference-order-ui.test.mjs",
     "comic/tests/asset-bindings.test.mjs",
+    "comic/tests/asset-novel-descriptions.test.mjs",
+    "comic/tests/asset-source-passages.test.mjs",
     "comic/tests/automatic-character-identity.test.mjs",
     "comic/tests/bubble-editor.test.mjs",
     "comic/tests/bubble-inspector-compact.test.mjs",

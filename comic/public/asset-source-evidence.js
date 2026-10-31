@@ -1,3 +1,4 @@
+import {assetNovelSourceDocuments,findAssetNovelDescriptions,assetNovelDescriptionsMarkup} from './asset-novel-descriptions.js';
 import {createAsyncCache} from './bounded-cache.js';
 import {novelSourceRanges,assetSourcePassagesMarkup} from './asset-source-passages.js';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -30,12 +31,11 @@ export function assetVariantMarkup(project,rows){
  return `<section class="asset-variant-review"><h3>${esc(rows[0]?.name)} · ${rows.length} 种服装 / 状态待核对</h3><p>制作设定，需核对原文。</p>${rows.map((row,i)=>`<article data-asset-variant="${esc(row.key)}"><h4>状态 ${i+1} · ${row.uses.length} 处使用</h4><p class="asset-variant-state">${esc(row.state||'资料未指定服装')}</p>${assetSourcePassagesMarkup(row,{compact:true})}${assetDesignEvidence(project,row).map(e=>`<details><summary>资料方案 ${esc(e.version)} 的依据</summary><p>${esc(e.basis||'未提供直接原文依据')}</p><small>${esc(e.source)}</small></details>`).join('')}<button data-asset-variant-source="${esc(row.key)}">查看本状态的原文与出处</button>${stateActions(row)}</article>`).join('')}</section>`;
 }
 export function assetSourceMarkup(project,row){
- const docs=assetNovelDocuments(project,row),design=assetDesignEvidence(project,row);
- const character=row.role==='character';
- return `<section class="asset-source-review"><h3>${esc(row.name)} · ${character?'服装 / 状态核对':'资料出处'}</h3><p class="asset-variant-state">${esc(row.state||'资料未指定')}</p><p class="asset-inline-warning">制作方案待核对。</p>${character?stateActions(row):''}
- ${assetSourcePassagesMarkup(row)}<details class="asset-original-documents"><summary>查看随包小说原件</summary>${docs.length?docs.map(d=>`<article data-asset-novel-document="${esc(d.relativePath)}"><a target="_blank" rel="noopener" href="/api/projects/${encodeURIComponent(project.id)}/production/source?path=${encodeURIComponent(d.relativePath)}">${esc(d.relativePath)}</a><div data-asset-novel-passages>正在读取原文原件…</div></article>`).join(''):'<p>工程未附带小说正文，以上显示导入资料中提供的内容。</p>'}</details>
- ${design.map(d=>`<details class="asset-design-evidence"><summary>资料方案：${esc(d.version)}（含美术补足）</summary><p>${esc(d.basis||'资料未提供设计依据')}</p><small>${esc(d.source)}</small></details>`).join('')}
- <details><summary>在画布中定位使用位置</summary>${row.sources.map(s=>`<p>第${s.episode||'?'}话 · ${esc(s.code)} <button data-asset-locate="${esc(s.panelId)}">定位</button></p>`).join('')}</details></section>`;
+ const design=assetDesignEvidence(project,row),label={character:'人物',scene:'场景',prop:'道具'}[row.role]||'资产';
+ return `<section class="asset-source-review"><h4>小说中的${label}描写</h4><div data-asset-novel-descriptions aria-busy="true"><p class="asset-inline-note">正在从小说原件查找对应描写…</p></div>${row.role==='character'?stateActions(row).replaceAll('核对后，',''):''}
+ <div class="asset-source-secondary"><details><summary>分镜使用依据 · ${row.sources.length} 处</summary><p class="asset-inline-note">以下是分镜及制作资料，和小说原文分开核对。</p>${assetSourcePassagesMarkup(row)}</details>
+ ${design.length?`<details class="asset-design-evidence"><summary>制作设定 · ${design.length} 项</summary><p class="asset-inline-note">制作设定含美术补足，不作为小说原文。</p>${design.map(d=>`<p><b>${esc(d.version)}</b> · ${esc(d.basis||'资料未提供设计依据')}<small>${esc(d.source)}</small></p>`).join('')}</details>`:''}
+ <details><summary>画布使用位置 · ${row.uses.length} 处</summary>${row.uses.map(u=>`<p>第${u.episode||'?'}话 · ${esc(u.code)} <button data-asset-locate="${esc(u.panelId)}">定位</button></p>`).join('')}</details></div></section>`;
 }
 
 // Load only on opening evidence, and reuse the immutable source snapshot.
@@ -56,7 +56,7 @@ export function createAssetSourceReader(){
   const packageHash=project.productionPackage?.hash||'',nextOwner=project.id+'@'+packageHash;if(owner!==nextOwner){clear();owner=nextOwner;}
   const node=root.matches?.('[data-asset-source-passages]')?root:root.querySelector('[data-asset-source-passages]');if(!node)return;
   const chapters=new Map(),numbers=[...new Set(row.sources.filter(s=>!s.novelQuote).flatMap(novelSourceRanges).map(r=>r.chapter))];
-  await Promise.all(numbers.map(async number=>{try{const url='/api/projects/'+encodeURIComponent(project.id)+'/novel-source?chapter='+number;chapters.set(number,await requests.load(nextOwner+':chapter:'+number,()=>readSource(url)));}catch{/* Keep the imported storyboard readable if the novel is unavailable. */}}));
+  await Promise.all(numbers.map(async number=>{try{const url='/api/projects/'+encodeURIComponent(project.id)+'/novel-source?chapter='+number;chapters.set(number,await requests.load(nextOwner+':'+url,()=>readSource(url)));}catch{/* Keep the imported storyboard readable if the novel is unavailable. */}}));
   if(!isCurrent()||!node.isConnected||owner!==nextOwner)return;
   const template=document.createElement('template');template.innerHTML=assetSourcePassagesMarkup(row,{compact,chapters});node.replaceWith(template.content.firstElementChild);
  }
@@ -72,5 +72,16 @@ export function createAssetSourceReader(){
    }catch(error){if(isCurrent()&&node.isConnected)host.textContent=error.message;}
   }));
  }
- return {load,loadPassages,clear,stats:()=>requests.stats()};
+ async function loadDescriptions(project,row,root,isCurrent=()=>true){
+  const nextOwner=project.id+'@'+(project.productionPackage?.hash||'');if(owner!==nextOwner){clear();owner=nextOwner;}
+  const node=root.querySelector('[data-asset-novel-descriptions]');if(!node)return;
+  const listed=assetNovelSourceDocuments(project,row),queue=listed.slice(0,128),documents=[],failures=[];let index=0,bytes=0;
+  const current=()=>isCurrent()&&node.isConnected&&owner===nextOwner;
+  async function worker(){while(index<queue.length&&current()&&bytes<16*1024*1024){const document=queue[index++];try{const text=await requests.load(nextOwner+':'+document.url,()=>readSource(document.url));if(!current())return;bytes+=new TextEncoder().encode(text).byteLength;documents.push({...document,text});}catch(error){if(current())failures.push({name:document.name,message:error.message});}}}
+  await Promise.all([worker(),worker(),worker()]);if(!current())return;
+  const result=findAssetNovelDescriptions(row,documents);node.innerHTML=assetNovelDescriptionsMarkup(project,row,result);
+  if(failures.length||index<listed.length){const note=document.createElement('p');note.className='asset-inline-note';note.textContent=(failures.length?failures.length+' 份原件暂不可读。':'')+(index<listed.length?'原件较多，本次已检索 '+documents.length+' 份。':'');node.append(note);}
+  node.setAttribute('aria-busy','false');
+ }
+ return {load,loadPassages,loadDescriptions,clear,stats:()=>requests.stats()};
 }

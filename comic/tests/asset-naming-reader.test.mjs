@@ -27,7 +27,7 @@ test('classified names normalize subject and variant while keeping source names 
  assert.equal(card.sourceName,f.rows[0].name);assert.equal(card.objectId,f.rows[0].objectId);assert.equal(card.recommendedRevisionId,f.rows[0].recommendedRevisionId);
  assert.deepEqual(assetMetadata(mokuCandidate(card)).state,'玄衣卫官服');
  assert.equal(automaticGalleryMatch({role:'character',name:'花满楼',state:'玄衣卫官服'},[card],{projectIds:[f.projectId]}).id,card.id);
- assert.equal(automaticGalleryMatch({role:'character',name:'花满楼',state:'未知（待确认）'},[card],{projectIds:[f.projectId]}),null);
+ assert.equal(automaticGalleryMatch({role:'character',name:'花满楼',state:'未知（待确认）'},[card],{projectIds:[f.projectId]}),card,'the sole exact card can fill an unspecified outfit without changing source text');
  const detail=await(await f.reader.handle('/api/assets/'+card.id)).json();assert.equal(detail.name,card.name);assert.equal(detail.sourceName,f.rows[0].name);
 });
 test('a specific room query excludes sibling rooms; automatic binding still requires exact scene identity',async()=>{

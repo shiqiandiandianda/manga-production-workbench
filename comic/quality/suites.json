@@ -62,6 +62,7 @@
     "comic/tests/asset-inline-workspace.test.mjs",
     "comic/tests/asset-gallery-return.test.mjs",
     "comic/tests/asset-gallery-layout.test.mjs",
+    "comic/tests/asset-auto-adopt.test.mjs",
     "comic/tests/asset-performance-evidence.test.mjs",
     "comic/tests/browser-image-layer-copy.test.mjs",
     "comic/tests/browser-artwork-mirror.test.mjs",

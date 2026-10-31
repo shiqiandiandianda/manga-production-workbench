@@ -18,7 +18,7 @@ import {pageEpisode} from './episode-boards.js';
 import {exactAssetMatch,exactAssetCandidates,assetRequirementSearch} from './asset-exact-search.js';
 import {characterRole} from './character-role.js';
 import {assetUrl} from './asset-url.js';
-import {automaticGalleryMatch,exactGalleryAsset,galleryGenerationState,galleryReturnDecision,galleryRecordAssignments} from './asset-gallery-batch.js';
+import {automaticGalleryMatch,adoptedGalleryAsset,exactGalleryAsset,galleryGenerationState,galleryReturnDecision,galleryRecordAssignments} from './asset-gallery-batch.js';
 import {libraryProjectScopes} from './library-project-scope.js';
 import {createWorkspaceInventoryCache,workspaceAssetStamp,groupWorkspaceRows,groupSameSceneImages,reconcileWorkspaceCards} from './asset-workspace-cache.js';
 import {assetVariantMarkup,assetSourceMarkup,createAssetSourceReader,assetPreparationMarkup} from './asset-source-evidence.js';
@@ -68,7 +68,7 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
   const target=host.querySelector('[data-asset-list]');if(!target)return;
   const scrollTop=target.scrollTop;
   const rowMarkup=r=>{const candidates=exactAssetCandidates(foundCandidates.get(r.key)||[],r.name,assetRequirementSearch(r)),records=galleryRecords.get(r.key)||[],result=records.find(x=>x.available),id=r.assetIds[0]||(!result&&r.status!=='text'?r.availableIds[0]:null),state=galleryGenerationState(r,records,{candidateCount:usableCandidates(r)}),running=records.find(ongoing),disabled=batchBusy||busy||!!reusePromise;
-   const candidateView=r.status!=='text'&&!id&&!result&&candidates.length>0,key=esc(r.key),off=disabled?'disabled':'';
+   const candidateView=r.status!=='text'&&!r.assetIds.length&&!result&&candidates.length>0,key=esc(r.key),off=disabled?'disabled':'';
    const pending=pendingPicks.get(r.key),media=pending?`<div class="asset-pending-selection"><img src="/api/library/revisions/${mokuRevision(pending.item)}/preview/thumb.webp" alt="正在采用${esc(pending.item.name)}"><strong>${pending.phase}…</strong></div>`:candidateView?`<section class="asset-card-candidate-area" aria-label="${esc(r.name)}候选图"><div class="asset-card-candidate-heading"><span>候选图 <b>${candidates.length}</b></span><button type="button" data-gallery-choose="${key}" ${off}>查看全部 →</button></div><div class="asset-card-candidates">${candidates.slice(0,3).map(i=>`<button type="button" data-gallery-adopt="${esc(i.id)}" data-gallery-owner="${key}" aria-label="为${esc(r.name)}采用${esc(i.name)}" title="点击采用 ${esc(i.name)}" ${off}><img loading="lazy" src="/api/library/revisions/${mokuRevision(i)}/preview/thumb.webp" data-fallback="/api/library/revisions/${mokuRevision(i)}/download" alt="${esc(i.name)}"><span>${esc(i.name)}</span></button>`).join('')}</div></section>`:`<button type="button" class="asset-list-item" data-asset-key="${key}" aria-pressed="${r.key===selectedKey&&!detail.hidden}" aria-label="${id?'查看':'选图'} ${esc(r.name)}" ${off}>${r.status==='text'&&!result?`<span class="asset-text-thumb"><b>文字描述</b><span>${esc(r.textDescriptions[0])}</span></span>`:id?`<img src="/api/assets/${encodeURIComponent(id)}/thumbnail" alt="${esc(r.name)}" loading="lazy">`:result?`<img src="${esc(result.imageUrl)}" alt="${esc(r.name)}生成结果" loading="lazy">`:`<span class="asset-empty-thumb"><span aria-hidden="true">${running?'◌':'＋'}</span><b>${running?'正在生成资产图':'添加资产图'}</b><small>${running?'完成后在这里查看结果':'从墨库选图，或生成新图'}</small></span>`}</button>`;
    const generated=records.filter(x=>x.available&&x.imageUrl&&!x.deletedAt);
    const generatedMarkup=generated.length?`<section class="asset-generated-candidates"><div class="asset-card-candidate-heading"><span>生成候选 · 点击采用</span></div><div class="asset-card-candidates">${generated.slice(0,3).map(item=>`<button type="button" data-gallery-record-adopt="${esc(item.id)}" data-gallery-owner="${key}" title="点击采用生成候选" ${off}><img loading="lazy" src="${esc(item.imageUrl)}" alt="${esc(item.name)}生成候选"><span>${item.partial?'部分完成 · 需核对':'点击采用'}</span></button>`).join('')}</div></section>`:'';
@@ -124,21 +124,24 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
  function browseAssets(nextScope){
   closeDetail();scope=nextScope;category='all';query='';stateFilter='all';
   batchMessage=scope==='work'?'正在浏览当前作品所有话的资产。':'正在浏览当前话的资产。';refresh(true);
+  autoMatchGallery();
+ }
+ function autoMatchGallery(){
+  if(batchBusy)return;const projectId=getProject().id,ticket=batchTicket;void (async()=>{await loadGalleryRecords();galleryCheck(projectId,ticket);await matchGallery({automatic:true});})().catch(e=>{if(getProject()?.id===projectId&&ticket===batchTicket&&!workspace.hidden){batchMessage='自动匹配暂未完成：'+e.message+'；可点击一键匹配资产重试。';paintBatchState();}});
  }
  async function returnProjectResults(){
   if(busy||batchBusy||reusePromise)return;
   browseAssets('work');await returnGalleryResults({wholeProject:true});
  }
- async function matchGallery(){
-  if(batchBusy||busy||pendingPicks.size)return;const projectId=getProject().id,ticket=batchTicket,selection=filtered().filter(r=>r.uses.some(u=>u.missing));batchBusy=true;batchMessage='正在匹配 '+selection.length+' 项资产…';paintList();
+ async function matchGallery({automatic=false}={}){
+  if(batchBusy||busy||pendingPicks.size||automatic&&!detail.hidden)return;const projectId=getProject().id,ticket=batchTicket,selection=(automatic?rows:filtered()).filter(r=>r.uses.some(u=>u.missing&&!u.locked&&!u.skipped&&!u.text)&&!(galleryRecords.get(r.key)||[]).some(record=>ongoing(record)||record.available));if(!selection.length){if(!automatic){batchMessage='匹配完成：已采用 0 项，待选 0 项。';paintBatchState();}return;}batchBusy=true;batchMessage='正在'+(automatic?'自动':'')+'匹配 '+selection.length+' 项资产…';paintList();
   let matched=0,review=0,failed=0,done=0,batchSearch;const search=createMokuReferenceSearch({api,project:getProject(),assets:getAssets(),verify:()=>galleryCheck(projectId,ticket)});
   try{await reuseProjectSelections();galleryCheck(projectId,ticket);await flushSave();galleryCheck(projectId,ticket);const projects=await search.projects(),projectIds=libraryProjectScopes(getProject(),getAssets(),projects).ids;
    batchSearch=createMokuBatchSearch({api,projectIds,projects,verify:()=>galleryCheck(projectId,ticket),onProgress:text=>{batchMessage='已处理 '+done+' / '+selection.length+' · '+text;paintBatchState();}});
-   for(const original of selection){galleryCheck(projectId,ticket);const row=rows.find(r=>r.key===original.key);if(!row||!row.uses.some(u=>u.missing)){done++;continue;}
-    try{let chosen;const local=[...new Set([...row.assetIds,...row.availableIds])].map(asset).filter(a=>a?.library?.revisionId&&(row.assetIds.includes(a.id)||projectIds.includes(a.library.projectId))&&exactGalleryAsset(row,a));
-     if(local.length===1&&!needsStateReview(row))chosen=local[0];
-     else{const result=await batchSearch.search(row.name,assetRequirementSearch(row));galleryCheck(projectId,ticket);foundCandidates.set(row.key,result.items);const candidate=automaticGalleryMatch(row,result.items,{projectIds,complete:result.complete});if(candidate&&!needsStateReview(row)){const revisionId=mokuRevision(candidate),imported=await api('/api/library/import','POST',{assetId:candidate.id,revisionId});galleryCheck(projectId,ticket);chosen=importedMokuAsset(imported,candidate,revisionId);onAssets([chosen]);}else if(result.items.length){review++;rowMessages.set(row.key,row.role==='character'?quickCharacterSearchFeedback(getProject(),row,getAssets(),result.items,row.name).message:needsStateReview(row)?'同一人物有多种服装 / 状态，请先核对原文再决定用图':'找到 '+result.items.length+' 张，在这里点击候选图即可采用');}else rowMessages.set(row.key,result.notes.length?'搜索未完成：'+result.notes.join('；'):'墨库未找到对应图，可直接生成');}
-     if(chosen){const targets=row.uses.filter(u=>u.missing&&!u.locked&&!u.skipped&&!u.text).map(u=>({panelId:u.panelId,needId:u.needId}));if(!targets.length)throw Error('使用位置均已锁定或跳过');const saved=await api('/api/projects/'+projectId+'/asset-workspace/bind','POST',{assetId:chosen.id,targets,expectedRevision:getProject().revision});galleryCheck(projectId,ticket);await accept(saved.project,{message:''});galleryCheck(projectId,ticket);matched++;rowMessages.set(row.key,'已匹配并采用');}
+   for(const original of selection){galleryCheck(projectId,ticket);const row=rows.find(r=>r.key===original.key);if(!row||!row.uses.some(u=>u.missing&&!u.locked&&!u.skipped&&!u.text)){done++;continue;}
+    try{let chosen=adoptedGalleryAsset(row,getAssets());
+     if(!chosen){const result=await batchSearch.search(row.name,assetRequirementSearch(row));galleryCheck(projectId,ticket);foundCandidates.set(row.key,result.items.filter(item=>!row.removedRevisionIds?.includes(mokuRevision(item))));const candidate=row.assetIds.length?null:automaticGalleryMatch(row,result.items,{projectIds,complete:result.complete}),stateReview=unknownState(row.state)&&needsStateReview(row);if(candidate&&!stateReview){const revisionId=mokuRevision(candidate),imported=await api('/api/library/import','POST',{assetId:candidate.id,revisionId});galleryCheck(projectId,ticket);chosen=importedMokuAsset(imported,candidate,revisionId);onAssets([chosen]);}else if(result.items.length){review++;rowMessages.set(row.key,!result.complete?'搜索未完成，候选图待核对：'+result.notes.join('；'):row.assetIds.length?'已有用图需要核对，保留当前采用版本':stateReview?'同一人物有多种服装 / 状态，请先核对原文再决定用图':row.role==='character'?quickCharacterSearchFeedback(getProject(),row,getAssets(),result.items,row.name).message:'找到 '+result.items.length+' 张，在这里点击候选图即可采用');}else rowMessages.set(row.key,result.notes.length?'搜索未完成：'+result.notes.join('；'):'墨库未找到对应图，可直接生成');}
+     if(chosen){const targets=row.uses.filter(u=>u.missing&&!u.locked&&!u.skipped&&!u.text).map(u=>({panelId:u.panelId,needId:u.needId}));if(!targets.length)throw Error('使用位置均已锁定或跳过');const saved=await api('/api/projects/'+projectId+'/asset-workspace/bind','POST',{assetId:chosen.id,targets,expectedRevision:getProject().revision});galleryCheck(projectId,ticket);await accept(saved.project,{message:''});galleryCheck(projectId,ticket);refresh(true);matched++;rowMessages.set(row.key,'已匹配并采用');}
     }catch(e){galleryCheck(projectId,ticket);failed++;rowMessages.set(row.key,e.message);}
     done++;batchMessage='已处理 '+done+' / '+selection.length+' · 已采用 '+matched+' · 待选 '+review+' · 失败 '+failed;paintList();
    }
@@ -511,8 +514,7 @@ export function mountAssetWorkspace({api,getProject,getPage,getSelected,getAsset
   if(galleryOwner!==getProject().id){galleryOwner=getProject().id;foundCandidates.clear();galleryRecords.clear();recordsSignature='';reviewedStates.clear();rowMessages.clear();drafts.clear();textDrafts.clear();inventoryCache.reset();batchMessage='';closeDetail();}
   for(const node of shell.children)node.hidden=true;workspace.hidden=false;document.body.classList.add('asset-workspace-open');refresh(true);
   if(!detail.hidden)paintDetail();
-  if(!batchBusy&&(Object.keys(getProject().assetWorkspaceChoices?.items||{}).length||getProject().pages.some(p=>p.panels.some(f=>f.referenceIds?.length))))void reuseProjectSelections().catch(e=>{batchMessage='自动沿用暂未完成：'+e.message;paintBatchState();});
-  if(!batchBusy)void loadGalleryRecords().catch(e=>{batchMessage='生成记录暂不可用：'+e.message;paintBatchState();});
+  autoMatchGallery();
  }
  workspace.addEventListener('keydown',event=>{if(event.key!=='Escape')return;event.stopPropagation();if(!preview.hidden){preview.hidden=true;previewInfo=null;}else if(!detail.hidden)closeDetail();else close();});
  return {refresh,open,openTarget,close,get active(){return !workspace.hidden;}};

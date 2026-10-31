@@ -4,13 +4,23 @@ import {exactAssetMatch,assetRequirementSearch} from './asset-exact-search.js';
 import {unknownState,libraryStatePlaceholder} from './character-states.js';
 import {mokuCandidate,mokuRevision,usableMokuImage} from './moku-reference-search.js';
 import {isBlockingAsset} from './scene-blocking.js';
+import {automaticCharacterIdentity} from './character-identity-reference.js';
 
 // Automatic adoption additionally requires the current production, a complete
-// search and a uniquely identified fixed version with a known costume.
+// search and a uniquely identified fixed version. An unspecified costume does
+// not prevent use of the sole exact character card, or alter source wording.
 export function exactGalleryAsset(row,asset){
  if(!asset||row.removedAssetIds?.includes(asset.id)||row.removedRevisionIds?.includes(asset.library?.revisionId)||assetUnavailable(asset))return false;
  if(row.purpose==='blocking'?asset.referenceGeneration?.blockingId!==row.blockingId:isBlockingAsset(asset))return false;
- return (row.role!=='character'||!unknownState(row.state))&&exactAssetMatch(asset,row.name,assetRequirementSearch(row));
+ if(!exactAssetMatch(asset,row.name,assetRequirementSearch(row)))return false;
+ return row.role!=='character'||!unknownState(row.state)||!!automaticCharacterIdentity({},[asset],row,{remote:true}).assetId;
+}
+/** Reuse an already adopted version; a cached search/identity image is not a selection. */
+export function adoptedGalleryAsset(row,assets){
+ const exact=assets.filter(a=>row.assetIds.includes(a.id));
+ if(exact.length!==new Set(row.assetIds).size||exact.some(a=>!a.library?.revisionId||!/^[a-f0-9]{64}$/.test(a.library.sha256||'')||!exactGalleryAsset(row,a)))return null;
+ const unique=[...new Map(exact.map(a=>[(a.library.assetId||a.id)+'@'+a.library.revisionId,a])).values()];
+ return unique.length===1?unique[0]:null;
 }
 export function automaticGalleryMatch(row,items,{projectIds=[],complete=true}={}){
  const exact=items.filter(i=>usableMokuImage(i)&&projectIds.includes(i.projectId)&&exactGalleryAsset(row,mokuCandidate(i)));

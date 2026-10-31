@@ -8,8 +8,11 @@ import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {uid,check,imageInfo} from './store.mjs';
 import {sendFile} from './send-file.mjs';
+import {createComicDeliveryExports} from './comic-delivery-export.mjs';
+import {comicDeliveryLayouts} from '../public/comic-delivery-layout.js';
 const root=fileURLToPath(new URL('../',import.meta.url)),require=createRequire(import.meta.url);
 export function createStripExports({dataDir,store,body,json,projectView=p=>p}){
+ const delivery=createComicDeliveryExports({dataDir,store,body,json,projectView});
  const sessions=new Map(),directory=path.join(dataDir,'exports');
  function ownedPath(id){
   const target=path.resolve(directory,id),parent=path.resolve(directory);
@@ -22,13 +25,15 @@ export function createStripExports({dataDir,store,body,json,projectView=p=>p}){
   }
  }
  async function handle(request,response,pathname,method){
+  if(await delivery.handle(request,response,pathname,method))return true;
   if(pathname!=='/api/strip-exports'&&!pathname.startsWith('/api/strip-exports/'))return false;
   sweep();
   if(method==='POST'&&pathname==='/api/strip-exports'){
    const input=await body(request),project=store.project(input.projectId);
    check(input.expectedRevision===project.revision,'工程已经修改，请保存后重新导出',409);
-   check(input.episode===undefined||input.episode===null||Number.isInteger(input.episode)&&input.episode>=1&&input.episode<=9999,'导出话数无效');const visible=projectView(project),page=input.pageId?visible.pages.find(p=>p.id===input.pageId):null;check(!input.pageId||page,'导出画板不存在',404);if(!page&&imageBoardsForTransition(visible,{episode:input.episode??null,assets:store.db.assets}).length){let native;try{native=require(process.env.COMIC_CANVAS_MODULE||'@napi-rs/canvas');}catch{throw Object.assign(new Error('本机图片检测组件不可用，请修复工作台环境后导出'),{status:503});}await ensureProjectBoardTransitionSafety(visible,{episode:input.episode??null,assets:store.db.assets,imageLoader:id=>native.loadImage(store.assetPath(id)),canvasFactory:()=>native.createCanvas(1,1),refresh:true});}const layout=page?layoutLongStrip([page]):episodeExportLayout(visible,{episode:input.episode??null,assets:store.db.assets});check(layout.height>0&&layout.height<=2000000,'单张 PNG 支持高度 1—2000000 px；工程数据不截断');
-   const id=uid('export'),s={id,width:layout.width,height:layout.height,nextY:0,parts:[],time:Date.now(),running:false,complete:false};
+   check(input.episode===undefined||input.episode===null||Number.isInteger(input.episode)&&input.episode>=1&&input.episode<=9999,'导出话数无效');const visible=projectView(project),page=input.pageId?visible.pages.find(p=>p.id===input.pageId):null;check(!input.pageId||page,'导出画板不存在',404);if(!page&&!input.boardKind&&imageBoardsForTransition(visible,{episode:input.episode??null,assets:store.db.assets}).length){let native;try{native=require(process.env.COMIC_CANVAS_MODULE||'@napi-rs/canvas');}catch{throw Object.assign(new Error('本机图片检测组件不可用，请修复工作台环境后导出'),{status:503});}await ensureProjectBoardTransitionSafety(visible,{episode:input.episode??null,assets:store.db.assets,imageLoader:id=>native.loadImage(store.assetPath(id)),canvasFactory:()=>native.createCanvas(1,1),refresh:true});}const layout=input.boardKind?comicDeliveryLayouts(visible,input.episode,store.db.assets,{requireBody:false}).groups[input.boardKind]:page?layoutLongStrip([page]):episodeExportLayout(visible,{episode:input.episode??null,assets:store.db.assets});check(layout,'本话未设置封面或尾图');check(layout.height>0&&layout.height<=2000000,'单张 PNG 支持高度 1—2000000 px；工程数据不截断');
+   check(!input.boardKind||['cover','tail'].includes(input.boardKind)&&!input.pageId,'封尾单图导出参数无效');const selected=layout;
+   const id=uid('export'),s={id,width:selected.width,height:selected.height,nextY:0,parts:[],time:Date.now(),running:false,complete:false};
    fs.mkdirSync(ownedPath(id),{recursive:true});sessions.set(id,s);json(response,201,{id,width:s.width,height:s.height});return true;
   }
   const match=pathname.match(/^\/api\/strip-exports\/(export_[0-9a-f-]{36})\/(parts|complete|download)$/);

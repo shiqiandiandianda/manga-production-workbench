@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/frame-upscale.css">
 <link rel="stylesheet" href="/repair-taskbar.css">
 <link rel="stylesheet" href="/compact-density.css">
+<link rel="stylesheet" href="/comic-delivery.css">
 <link rel="stylesheet" href="/manual-dialogue-placement.css"><link rel="stylesheet" href="/panel-reference-preview.css"></head>
 <body class="modern-workbench">
 <header class="topbar">
@@ -20,7 +21,7 @@
   <button id="storyboard-import" class="primary">导入工程文件</button><a id="asset-studio-open" href="/api/project-center/asset-studio/open" target="_blank" rel="noopener" title="打开资产工作室">资产工作室</a><div class="integration-actions"></div><div class="top-spacer"></div>
   <span class="save-indicator"><img class="ui-icon" src="/icons/check.svg" alt=""><span id="save-state" role="status">正在载入</span></span>
   <button id="codex-connect" class="connection"><span class="dot"></span><span id="codex-label">检查连接</span></button>
-  <button id="layout-history-paused" hidden style="color:#b53a2b" role="status">调整记录已暂停 · 查看</button><div class="export-wrap"><button id="export-toggle" class="primary">导出<img class="ui-icon" src="/icons/chevron-down.svg" alt=""></button><div id="export-menu" class="dropdown" hidden><button id="export-page">当前长图 PNG</button><button id="export-episode">整话连续 PNG</button><button id="export-project">跨机工程文件</button><button id="export-layout">版式草稿 PNG</button><button id="layout-adjustments">画板调整记录 · 查看 / 导出</button></div></div>
+  <button id="layout-history-paused" hidden style="color:#b53a2b" role="status">调整记录已暂停 · 查看</button><div class="export-wrap"><button id="export-toggle" class="primary">导出<img class="ui-icon" src="/icons/chevron-down.svg" alt=""></button><div id="export-menu" class="dropdown" hidden><button id="export-page">当前长图 PNG</button><button id="export-episode">整话连续 PNG</button><button id="export-cover">封面 PNG（单独）</button><button id="export-tail">尾图 PNG（单独）</button><button id="export-client">甲方交付：正文 3 张＋封尾</button><button id="export-project">跨机工程文件</button><button id="export-layout">版式草稿 PNG</button><button id="layout-adjustments">画板调整记录 · 查看 / 导出</button></div></div>
 </header>
 <div class="canvas-toolbar">
       <div class="workspace-controls"><button id="view-more" class="icon-button" aria-label="视图选项" aria-expanded="false" aria-controls="view-menu"><img class="ui-icon" src="/icons/dots.svg" alt=""></button><button id="panel-notes-toggle" aria-pressed="true" aria-label="隐藏全部格内提示词" title="批量隐藏所有画板格子中的提示词和原剧情"><img class="ui-icon" src="/icons/eye-off.svg" alt=""><span>隐藏全部提示词</span></button><div id="view-menu" class="ui-popover view-menu" hidden><button id="draft-toggle" aria-pressed="false">版式草稿</button><button id="inspector-toggle" aria-controls="inspector-panel" aria-expanded="false">打开属性面板</button></div></div>

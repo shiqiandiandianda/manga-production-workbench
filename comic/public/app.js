@@ -127,6 +127,8 @@ import {projectManagerMarkup} from './project-manager.js';
 import {panelInspectorMarkup} from './inspector-ui.js';
 import {taskGroups,taskSummary} from './workbench-state.js';
 import {pageCanvas,exportPage,exportLayoutPage,exportEpisode,exportEpisodeBoard,download,clearImageCache,loadImage} from "./render.js";
+import {mountComicDeliveryExport} from './comic-delivery-ui.js';
+import {exportComicDeliveryBoard} from './comic-delivery-export.js';
 import {requestBoardTransitionSafety} from "./episode-board-transitions.js";
 import {svgBubbleMarkup,bubbleLayout} from "./lettering.js";
 import {AUTO_LETTERING_VERSION,fitDialogueObject,reflowProjectLettering} from './auto-lettering.js';
@@ -1226,6 +1228,9 @@ historyStepsUI=mountHistorySteps({getProject:()=>project,getRevision:()=>undoRev
 $('#layout-adjustments').addEventListener('click',safely(()=>{$('#export-menu').hidden=true;adjustmentUI.open();}));
 $('#layout-history-paused').addEventListener('click',safely(()=>adjustmentUI.open()));
 $('#export-toggle').addEventListener('click',()=>$('#export-menu').hidden=!$('#export-menu').hidden);document.addEventListener('click',event=>{if(!event.target.closest('.export-wrap'))$('#export-menu').hidden=true;});
+const comicDeliveryUI=mountComicDeliveryExport({getProject:()=>project,getAssets:()=>assets,getEpisode:()=>episodeBoardUI?.active?episodeBoardUI.episode:currentBoardEpisode(project,page()),flushSave,toast});
+$('#export-client').addEventListener('click',safely(async()=>{$('#export-menu').hidden=true;await comicDeliveryUI.open();}));
+for(const [id,kind]of [['export-cover','cover'],['export-tail','tail']])$('#'+id).addEventListener('click',safely(async()=>{$('#export-menu').hidden=true;await flushSave();const episode=episodeBoardUI?.active?episodeBoardUI.episode:currentBoardEpisode(project,page());await exportComicDeliveryBoard({project:clone(project),assets,episode,kind,onProgress:toast});toast('已单独导出'+(kind==='cover'?'封面':'尾图')+' PNG');}));
 $('#export-layout').addEventListener('click',safely(async()=>{$('#export-menu').hidden=true;const result=await exportLayoutPage(clone(page()),project.shots);toast(result.parts>1?`版式草稿已导出，共 ${result.parts} 段`:'已导出版式草稿 PNG');}));
 $('#export-page').addEventListener('click',safely(async()=>{$('#export-menu').hidden=true;await flushSave();if(episodeBoardUI.active){const result=await exportEpisodeBoard(episodeBoardUI.board);toast('已导出'+(episodeBoardUI.kind==='cover'?'封面':'尾图')+(result.parts>1?'分段 PNG，共 '+result.parts+' 段':' PNG'));return;}toast('正在合成当前长图');const result=await exportPage(clone(page()),{project:clone(project)});toast(result.parts>1?`当前长图已导出，共 ${result.parts} 段`:'已导出当前长图 PNG');}));
 $('#export-episode').addEventListener('click',safely(async()=>{$('#export-menu').hidden=true;await flushSave();const result=await exportEpisode(clone(project),toast,{assets,episode:episodeBoardUI?.active?episodeBoardUI.episode:currentBoardEpisode(project,page())});toast('整话已导出：'+result.width+' × '+result.height+' px');}));

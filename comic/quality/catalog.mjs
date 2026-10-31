@@ -84,6 +84,7 @@ const features = [
   feature('修图和图像处理','抠图、去框补底和气泡替换','图像处理','comic/public/cutout-layer.js','cutout-frame,repair-composition'),
   feature('修图和图像处理','修图撤回重做、完整画面重开和原件保护','修图面板','comic/lib/repair-composition.mjs','integrated-workspace,repair-composition'),
   feature('导出','整话长图导出与失败处理','导出','comic/public/complete-strip-export.js','complete-strip-export',true),
+  feature('导出','封尾独立PNG与正文按大缝隙分成三张的甲方交付包','导出 → 封面 / 尾图 PNG；甲方交付','comic/public/comic-delivery-layout.js,comic/public/comic-delivery-cuts.js,comic/public/comic-delivery-export.js,comic/public/comic-delivery-ui.js,comic/lib/comic-delivery-export.mjs,comic/python/comic_delivery.py','comic-delivery-export,comic-delivery-browser',true,'同话正文单独分图，固定封尾或独立封尾画板分别导出；实际像素空白带结合文字和独立画格范围避让，优先大缝隙与三段均衡；预览两处红线并允许调整，未识别到可靠切口须核对；原工程不变，合成PNG与ZIP逐像素校验，不代表所有生产成图均无误识别'),
   feature('导出','封面正文尾图拼接与分段渲染','导出','comic/lib/strip-export.mjs','render-segments,complete-strip-export'),
   feature('导出','工程及关联素材打包导入','工程导出','comic/lib/production-package-portable.mjs','production-package,browser-all-materials-export',true),
   feature('协作与其他组件','团队任务领取、状态、人工审核','团队制作','comic/lib/team-production.mjs','comic/quality/cases/team-help-disabled.test.mjs,team-production,team-volunteer',false,'用户确认保持默认关闭：旧入口返回 410；历史启用状态用例仅供追溯，不代表当前功能可用'),
